@@ -1,5 +1,6 @@
 import "package:flutter/cupertino.dart";
 import 'package:photos/models/file/file.dart';
+import "package:photos/models/search/hierarchical/hierarchical_search_filter.dart";
 import 'package:photos/models/search/search_result.dart';
 import "package:photos/models/search/search_types.dart";
 
@@ -8,8 +9,17 @@ class GenericSearchResult extends SearchResult {
   final List<EnteFile> _files;
   final ResultType _type;
   final Function(BuildContext context)? onResultTap;
+  final Map<String, dynamic> params;
+  final HierarchicalSearchFilter hierarchicalSearchFilter;
 
-  GenericSearchResult(this._type, this._name, this._files, {this.onResultTap});
+  GenericSearchResult(
+    this._type,
+    this._name,
+    this._files, {
+    required this.hierarchicalSearchFilter,
+    this.onResultTap,
+    this.params = const {},
+  });
 
   @override
   String name() {
@@ -23,11 +33,21 @@ class GenericSearchResult extends SearchResult {
 
   @override
   EnteFile? previewThumbnail() {
-    return _files.first;
+    if (type() == ResultType.shared) {
+      throw Exception(
+        "Do not use first file as thumbnail. Use user avatar instead.",
+      );
+    }
+    return _files.isEmpty ? null : _files.first;
   }
 
   @override
   List<EnteFile> resultFiles() {
     return _files;
+  }
+
+  @override
+  HierarchicalSearchFilter getHierarchicalSearchFilter() {
+    return hierarchicalSearchFilter;
   }
 }

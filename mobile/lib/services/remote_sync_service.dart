@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:logging/logging.dart';
 import 'package:photos/core/configuration.dart';
@@ -23,14 +22,13 @@ import "package:photos/models/file/extensions/file_props.dart";
 import 'package:photos/models/file/file.dart';
 import 'package:photos/models/file/file_type.dart';
 import 'package:photos/models/upload_strategy.dart';
+import "package:photos/service_locator.dart";
 import 'package:photos/services/app_lifecycle_service.dart';
 import 'package:photos/services/collections_service.dart';
-import "package:photos/services/feature_flag_service.dart";
 import 'package:photos/services/ignored_files_service.dart';
 import 'package:photos/services/local_file_update_service.dart';
 import "package:photos/services/notification_service.dart";
 import 'package:photos/services/sync_service.dart';
-import 'package:photos/services/trash_sync_service.dart';
 import 'package:photos/utils/diff_fetcher.dart';
 import 'package:photos/utils/file_uploader.dart';
 import 'package:photos/utils/file_util.dart';
@@ -52,6 +50,15 @@ class RemoteSyncService {
   bool _isExistingSyncSilent = false;
 
   static const kHasSyncedArchiveKey = "has_synced_archive";
+  /* This setting is used to maintain a list of local IDs for videos that the user has manually
+ marked for upload, even if the global video upload setting is currently disabled.
+ When the global video upload setting is disabled, we typically ignore all video uploads. However, for videos that have been added to this list, we
+ want to still allow them to be uploaded, despite the global setting being disabled.
+
+ This allows users to queue up videos for upload, and have them successfully upload
+ even if they later toggle the global video upload setting to disabled.
+   */
+  static const _ignoreBackUpSettingsForIDs_ = "ignoreBackUpSettingsForIDs";
   final String _isFirstRemoteSyncDone = "isFirstRemoteSyncDone";
 
   // 28 Sept, 2021 9:03:20 AM IST
@@ -112,13 +119,7 @@ class RemoteSyncService {
         await syncDeviceCollectionFilesForUpload();
       }
       await _pullDiff();
-      // sync trash but consume error during initial launch.
-      // this is to ensure that we don't pause upload due to any error during
-      // the trash sync. Impact: We may end up re-uploading a file which was
-      // recently trashed.
-      await TrashSyncService.instance
-          .syncTrash()
-          .onError((e, s) => _logger.severe('trash sync failed', e, s));
+      await trashSyncService.syncTrash();
       if (!hasSyncedBefore) {
         await _prefs.setBool(_isFirstRemoteSyncDone, true);
         await syncDeviceCollectionFilesForUpload();
@@ -170,12 +171,13 @@ class RemoteSyncService {
           e is NoActiveSubscriptionError ||
           e is WiFiUnavailableError ||
           e is StorageLimitExceededError ||
-          e is SyncStopRequestedError) {
+          e is SyncStopRequestedError ||
+          e is NoMediaLocationAccessError) {
         _logger.warning("Error executing remote sync", e, s);
         rethrow;
       } else {
         _logger.severe("Error executing remote sync ", e, s);
-        if (FeatureFlagService.instance.isInternalUserOrDebugBuild()) {
+        if (flagService.internalUser) {
           rethrow;
         }
       }
@@ -186,6 +188,18 @@ class RemoteSyncService {
 
   bool isFirstRemoteSyncDone() {
     return _prefs.containsKey(_isFirstRemoteSyncDone);
+  }
+
+  Future<bool> whiteListVideoForUpload(EnteFile file) async {
+    if (file.fileType == FileType.video &&
+        !_config.shouldBackupVideos() &&
+        file.localID != null) {
+      final List<String> whitelistedIDs =
+          _prefs.getStringList(_ignoreBackUpSettingsForIDs_) ?? <String>[];
+      whitelistedIDs.add(file.localID!);
+      return _prefs.setStringList(_ignoreBackUpSettingsForIDs_, whitelistedIDs);
+    }
+    return false;
   }
 
   Future<void> _pullDiff() async {
@@ -291,13 +305,23 @@ class RemoteSyncService {
     _logger.info("[Collection-$collectionID] synced");
   }
 
+  Future<void> joinAndSyncCollection(
+    BuildContext context,
+    int collectionID,
+  
+  ) async {
+    await _collectionsService.joinPublicCollection(context, collectionID);
+    await _collectionsService.sync();
+    await _syncCollectionDiff(collectionID, 0);
+  }
+
   Future<void> _syncCollectionDiffDelete(Diff diff, int collectionID) async {
     final fileIDs = diff.deletedFiles.map((f) => f.uploadedFileID!).toList();
     final localDeleteCount =
         await _db.deleteFilesFromCollection(collectionID, fileIDs);
     if (localDeleteCount > 0) {
       final collectionFiles =
-          (await _db.getFilesFromIDs(fileIDs)).values.toList();
+          (await _db.getFileIDToFileFromIDs(fileIDs)).values.toList();
       collectionFiles.removeWhere((f) => f.collectionID != collectionID);
       Bus.instance.fire(
         CollectionUpdatedEvent(
@@ -523,8 +547,13 @@ class RemoteSyncService {
     final List<EnteFile> filesToBeUploaded = [];
     int ignoredForUpload = 0;
     int skippedVideos = 0;
+    final whitelistedIDs =
+        (_prefs.getStringList(_ignoreBackUpSettingsForIDs_) ?? <String>[])
+            .toSet();
     for (var file in originalFiles) {
-      if (shouldRemoveVideos && file.fileType == FileType.video) {
+      if (shouldRemoveVideos &&
+          (file.fileType == FileType.video &&
+              !whitelistedIDs.contains(file.localID))) {
         skippedVideos++;
         continue;
       }
@@ -554,7 +583,10 @@ class RemoteSyncService {
     _ignoredUploads = 0;
     final int toBeUploaded = filesToBeUploaded.length + updatedFileIDs.length;
     if (toBeUploaded > 0) {
-      Bus.instance.fire(SyncStatusUpdate(SyncStatus.preparingForUpload));
+      Bus.instance.fire(
+        SyncStatusUpdate(SyncStatus.preparingForUpload, total: toBeUploaded),
+      );
+      await _uploader.verifyMediaLocationAccess();
       await _uploader.checkNetworkForUpload();
       // verify if files upload is allowed based on their subscription plan and
       // storage limit. To avoid creating new endpoint, we are using

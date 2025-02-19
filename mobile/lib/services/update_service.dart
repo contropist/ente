@@ -11,21 +11,19 @@ import 'package:tuple/tuple.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
 class UpdateService {
-  UpdateService._privateConstructor();
-
-  static final UpdateService instance = UpdateService._privateConstructor();
   static const kUpdateAvailableShownTimeKey = "update_available_shown_time_key";
   static const changeLogVersionKey = "update_change_log_key";
-  static const currentChangeLogVersion = 14;
+  static const currentChangeLogVersion = 26;
 
   LatestVersionInfo? _latestVersion;
   final _logger = Logger("UpdateService");
-  late PackageInfo _packageInfo;
-  late SharedPreferences _prefs;
+  final PackageInfo _packageInfo;
+  final SharedPreferences _prefs;
 
-  Future<void> init() async {
-    _packageInfo = await PackageInfo.fromPlatform();
-    _prefs = await SharedPreferences.getInstance();
+  UpdateService(SharedPreferences prefs, PackageInfo packageInfo)
+      : _prefs = prefs,
+        _packageInfo = packageInfo {
+    debugPrint("UpdateService constructor");
   }
 
   Future<bool> showChangeLog() async {
@@ -73,8 +71,12 @@ class UpdateService {
     return _latestVersion;
   }
 
-  Future<bool> shouldShowUpdateNoification() async {
+  Future<bool> shouldShowUpdateNotification() async {
     final shouldUpdate = await this.shouldUpdate();
+
+    if (!shouldUpdate) {
+      return false;
+    }
 
     final lastNotificationShownTime =
         _prefs.getInt(kUpdateAvailableShownTimeKey) ?? 0;
@@ -87,7 +89,7 @@ class UpdateService {
   }
 
   Future<void> showUpdateNotification() async {
-    if (await shouldShowUpdateNoification()) {
+    if (await shouldShowUpdateNotification()) {
       // ignore: unawaited_futures
       NotificationService.instance.showNotification(
         "Update available",
@@ -131,7 +133,7 @@ class UpdateService {
     return _packageInfo.packageName.startsWith("io.ente.photos.independent");
   }
 
-  bool isFdroidFlavor() {
+  bool isFDroidFlavor() {
     if (Platform.isIOS) {
       return false;
     }
@@ -142,12 +144,12 @@ class UpdateService {
     if (Platform.isIOS) {
       return false;
     }
-    return !isIndependentFlavor() && !isFdroidFlavor();
+    return !isIndependentFlavor() && !isFDroidFlavor();
   }
 
   // getRateDetails returns details about the place
   Tuple2<String, String> getRateDetails() {
-    if (isFdroidFlavor() || isIndependentFlavor()) {
+    if (isFDroidFlavor() || isIndependentFlavor()) {
       return const Tuple2(
         "AlternativeTo",
         "https://alternativeto.net/software/ente/about/",

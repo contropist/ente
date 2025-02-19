@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ente-io/museum/pkg/repo/cast"
 	"runtime/debug"
 	"strings"
 
+	"github.com/ente-io/museum/pkg/repo/cast"
+
 	"github.com/ente-io/museum/pkg/controller/access"
+	"github.com/ente-io/museum/pkg/controller/email"
 	"github.com/gin-contrib/requestid"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -31,6 +33,7 @@ const (
 // CollectionController encapsulates logic that deals with collections
 type CollectionController struct {
 	PublicCollectionCtrl *PublicCollectionController
+	EmailCtrl            *email.EmailNotificationController
 	AccessCtrl           access.Controller
 	BillingCtrl          *BillingController
 	CollectionRepo       *repo.CollectionRepository
@@ -166,7 +169,7 @@ func (c *CollectionController) Share(ctx *gin.Context, req ente.AlterShareReques
 	if fromUserID != collection.Owner.ID {
 		return nil, stacktrace.Propagate(ente.ErrPermissionDenied, "")
 	}
-	err = c.BillingCtrl.HasActiveSelfOrFamilySubscription(fromUserID)
+	err = c.BillingCtrl.HasActiveSelfOrFamilySubscription(fromUserID, true)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
@@ -179,6 +182,52 @@ func (c *CollectionController) Share(ctx *gin.Context, req ente.AlterShareReques
 		return nil, stacktrace.Propagate(err, "")
 	}
 	return sharees, nil
+}
+
+func (c *CollectionController) JoinViaLink(ctx *gin.Context, req ente.JoinCollectionViaLinkRequest) error {
+	userID := auth.GetUserID(ctx.Request.Header)
+	collection, err := c.CollectionRepo.Get(req.CollectionID)
+	if err != nil {
+		return stacktrace.Propagate(err, "")
+	}
+	if collection.Owner.ID == userID {
+		return stacktrace.Propagate(ente.ErrBadRequest, "owner can not join via link")
+	}
+	if !collection.AllowSharing() {
+		return stacktrace.Propagate(ente.ErrBadRequest, fmt.Sprintf("joining %s is not allowed", collection.Type))
+	}
+	publicCollectionToken, err := c.PublicCollectionCtrl.GetActivePublicCollectionToken(ctx, req.CollectionID)
+	if err != nil {
+		return stacktrace.Propagate(err, "")
+	}
+
+	if canJoin := publicCollectionToken.CanJoin(); canJoin != nil {
+		return stacktrace.Propagate(ente.ErrBadRequest, fmt.Sprintf("can not join collection: %s", canJoin.Error()))
+	}
+	accessToken := auth.GetAccessToken(ctx)
+	if publicCollectionToken.Token != accessToken {
+		return stacktrace.Propagate(ente.ErrPermissionDenied, "token doesn't match collection")
+	}
+	if publicCollectionToken.PassHash != nil && *publicCollectionToken.PassHash != "" {
+		accessTokenJWT := auth.GetAccessTokenJWT(ctx)
+		if passCheckErr := c.PublicCollectionCtrl.ValidateJWTToken(ctx, accessTokenJWT, *publicCollectionToken.PassHash); passCheckErr != nil {
+			return stacktrace.Propagate(passCheckErr, "")
+		}
+	}
+	err = c.BillingCtrl.HasActiveSelfOrFamilySubscription(collection.Owner.ID, true)
+	if err != nil {
+		return stacktrace.Propagate(err, "")
+	}
+	role := ente.VIEWER
+	if publicCollectionToken.EnableCollect {
+		role = ente.COLLABORATOR
+	}
+	joinErr := c.CollectionRepo.Share(req.CollectionID, collection.Owner.ID, userID, req.EncryptedKey, role, time.Microseconds())
+	if joinErr != nil {
+		return stacktrace.Propagate(joinErr, "")
+	}
+	go c.EmailCtrl.OnLinkJoined(collection.Owner.ID, userID, role)
+	return nil
 }
 
 // UnShare unshares a collection with a user
@@ -270,7 +319,7 @@ func (c *CollectionController) ShareURL(ctx context.Context, userID int64, req e
 	if userID != collection.Owner.ID {
 		return ente.PublicURL{}, stacktrace.Propagate(ente.ErrPermissionDenied, "")
 	}
-	err = c.BillingCtrl.HasActiveSelfOrFamilySubscription(userID)
+	err = c.BillingCtrl.HasActiveSelfOrFamilySubscription(userID, true)
 	if err != nil {
 		return ente.PublicURL{}, stacktrace.Propagate(err, "")
 	}
@@ -287,7 +336,7 @@ func (c *CollectionController) UpdateShareURL(ctx context.Context, userID int64,
 	if err := c.verifyOwnership(req.CollectionID, userID); err != nil {
 		return ente.PublicURL{}, stacktrace.Propagate(err, "")
 	}
-	err := c.BillingCtrl.HasActiveSelfOrFamilySubscription(userID)
+	err := c.BillingCtrl.HasActiveSelfOrFamilySubscription(userID, true)
 	if err != nil {
 		return ente.PublicURL{}, stacktrace.Propagate(err, "")
 	}
@@ -464,6 +513,41 @@ func (c *CollectionController) isRemoveAllowed(ctx *gin.Context, actorUserID int
 	return nil
 }
 
+func (c *CollectionController) IsCopyAllowed(ctx *gin.Context, actorUserID int64, req ente.CopyFileSyncRequest) error {
+	// verify that srcCollectionID is accessible by actorUserID
+	if _, err := c.AccessCtrl.GetCollection(ctx, &access.GetCollectionParams{
+		CollectionID: req.SrcCollectionID,
+		ActorUserID:  actorUserID,
+	}); err != nil {
+		return stacktrace.Propagate(err, "failed to verify srcCollection access")
+	}
+	// verify that dstCollectionID is owned by actorUserID
+	if _, err := c.AccessCtrl.GetCollection(ctx, &access.GetCollectionParams{
+		CollectionID: req.DstCollection,
+		ActorUserID:  actorUserID,
+		VerifyOwner:  true,
+	}); err != nil {
+		return stacktrace.Propagate(err, "failed to ownership of the dstCollection access")
+	}
+	// verify that all FileIDs exists in the srcCollection
+	fileIDs := make([]int64, len(req.CollectionFileItems))
+	for idx, file := range req.CollectionFileItems {
+		fileIDs[idx] = file.ID
+	}
+	if err := c.CollectionRepo.VerifyAllFileIDsExistsInCollection(ctx, req.SrcCollectionID, fileIDs); err != nil {
+		return stacktrace.Propagate(err, "failed to verify fileIDs in srcCollection")
+	}
+	dsMap, err := c.FileRepo.GetOwnerToFileIDsMap(ctx, fileIDs)
+	if err != nil {
+		return err
+	}
+	// verify that none of the file belongs to actorUserID
+	if _, ok := dsMap[actorUserID]; ok {
+		return ente.NewBadRequestWithMessage("can not copy files owned by actor")
+	}
+	return nil
+}
+
 // GetDiffV2 returns the changes in user's collections since a timestamp, along with hasMore bool flag.
 func (c *CollectionController) GetDiffV2(ctx *gin.Context, cID int64, userID int64, sinceTime int64) ([]ente.File, bool, error) {
 	reqContextLogger := log.WithFields(log.Fields{
@@ -472,17 +556,14 @@ func (c *CollectionController) GetDiffV2(ctx *gin.Context, cID int64, userID int
 		"since_time":    sinceTime,
 		"req_id":        requestid.Get(ctx),
 	})
-	reqContextLogger.Info("Start")
 	_, err := c.AccessCtrl.GetCollection(ctx, &access.GetCollectionParams{
 		CollectionID: cID,
 		ActorUserID:  userID,
 	})
-	reqContextLogger.Info("Accessible")
 	if err != nil {
 		return nil, false, stacktrace.Propagate(err, "failed to verify access")
 	}
 	diff, hasMore, err := c.getDiff(cID, sinceTime, CollectionDiffLimit, reqContextLogger)
-	reqContextLogger.Info("Received diff")
 	if err != nil {
 		return nil, false, stacktrace.Propagate(err, "")
 	}
@@ -491,8 +572,16 @@ func (c *CollectionController) GetDiffV2(ctx *gin.Context, cID int64, userID int
 		if diff[idx].OwnerID != userID {
 			diff[idx].MagicMetadata = nil
 		}
+		if diff[idx].Metadata.EncryptedData == "-" && !diff[idx].IsDeleted {
+			// This indicates that the file is deleted, but we still have a stale entry in the collection
+			log.WithFields(log.Fields{
+				"file_id":       diff[idx].ID,
+				"collection_id": cID,
+				"updated_at":    diff[idx].UpdationTime,
+			}).Warning("stale collection_file found")
+			diff[idx].IsDeleted = true
+		}
 	}
-	reqContextLogger.Info("Function end")
 	return diff, hasMore, nil
 }
 
@@ -559,10 +648,8 @@ func (c *CollectionController) GetPublicDiff(ctx *gin.Context, sinceTime int64) 
 // case 4: (sinceTime: v0, limit >=10):
 // The method will all 10 entries in the diff
 func (c *CollectionController) getDiff(cID int64, sinceTime int64, limit int, logger *log.Entry) ([]ente.File, bool, error) {
-	logger.Info("getDiff")
 	// request for limit +1 files
 	diffLimitPlusOne, err := c.CollectionRepo.GetDiff(cID, sinceTime, limit+1)
-	logger.Info("Got diff from repo")
 	if err != nil {
 		return nil, false, stacktrace.Propagate(err, "")
 	}
@@ -572,13 +659,24 @@ func (c *CollectionController) getDiff(cID int64, sinceTime int64, limit int, lo
 	}
 	lastFileVersion := diffLimitPlusOne[limit].UpdationTime
 	filteredDiffs := c.removeFilesWithVersion(diffLimitPlusOne, lastFileVersion)
-	logger.Info("Removed files with out of bounds version")
-	if len(filteredDiffs) > 0 { // case 1 or case 3
+	filteredDiffLen := len(filteredDiffs)
+
+	if filteredDiffLen > 0 { // case 1 or case 3
+		if filteredDiffLen < limit {
+			// logging case 1
+			logger.
+				WithField("last_file_version", lastFileVersion).
+				WithField("filtered_diff_len", filteredDiffLen).
+				Info(fmt.Sprintf("less than limit (%d) files in diff", limit))
+		}
 		return filteredDiffs, true, nil
 	}
 	// case 2
 	diff, err := c.CollectionRepo.GetFilesWithVersion(cID, lastFileVersion)
-	logger.Info("Got diff of files with latest file version")
+	logger.
+		WithField("last_file_version", lastFileVersion).
+		WithField("count", len(diff)).
+		Info(fmt.Sprintf("more than limit (%d) files with same version", limit))
 	if err != nil {
 		return nil, false, stacktrace.Propagate(err, "")
 	}
@@ -612,38 +710,6 @@ func (c *CollectionController) GetSharees(ctx *gin.Context, cID int64, userID in
 		return nil, stacktrace.Propagate(err, "")
 	}
 	return sharees, nil
-}
-
-// Trash deletes a given collection and files exclusive to the collection
-func (c *CollectionController) Trash(ctx *gin.Context, userID int64, cID int64) error {
-	resp, err := c.AccessCtrl.GetCollection(ctx, &access.GetCollectionParams{
-		CollectionID:   cID,
-		ActorUserID:    userID,
-		IncludeDeleted: true,
-		VerifyOwner:    true,
-	})
-	if err != nil {
-		return stacktrace.Propagate(err, "")
-	}
-	if !resp.Collection.AllowDelete() {
-		return stacktrace.Propagate(ente.ErrBadRequest, fmt.Sprintf("deleting albums of type %s is not allowed", resp.Collection.Type))
-	}
-	if resp.Collection.IsDeleted {
-		log.WithFields(log.Fields{
-			"c_id":    cID,
-			"user_id": userID,
-		}).Warning("Collection is already deleted")
-		return nil
-	}
-	err = c.PublicCollectionCtrl.Disable(ctx, cID)
-	if err != nil {
-		return stacktrace.Propagate(err, "failed to disabled public share url")
-	}
-	err = c.CollectionRepo.ScheduleDelete(cID, true)
-	if err != nil {
-		return stacktrace.Propagate(err, "")
-	}
-	return nil
 }
 
 // TrashV3 deletes a given collection and based on user input (TrashCollectionV3Request.KeepFiles as FALSE) , it will move all files present in the underlying collection
@@ -694,7 +760,7 @@ func (c *CollectionController) TrashV3(ctx *gin.Context, req ente.TrashCollectio
 		return stacktrace.Propagate(err, "failed to revoke cast token")
 	}
 	// Continue with current delete flow till. This disables sharing for this collection and then queue it up for deletion
-	err = c.CollectionRepo.ScheduleDelete(cID, false)
+	err = c.CollectionRepo.ScheduleDelete(cID)
 	if err != nil {
 		return stacktrace.Propagate(err, "")
 	}

@@ -1,33 +1,27 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:fk_user_agent/fk_user_agent.dart';
+import 'package:native_dio_adapter/native_dio_adapter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:photos/core/constants.dart';
+import "package:photos/core/configuration.dart";
+import "package:photos/core/event_bus.dart";
 import 'package:photos/core/network/ente_interceptor.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-int kConnectTimeout = 15000;
+import "package:photos/events/endpoint_updated_event.dart";
+import "package:ua_client_hints/ua_client_hints.dart";
 
 class NetworkClient {
-  // apiEndpoint points to the Ente server's API endpoint
-  static const apiEndpoint = String.fromEnvironment(
-    "endpoint",
-    defaultValue: kDefaultProductionEndpoint,
-  );
-
   late Dio _dio;
   late Dio _enteDio;
+  static const kConnectTimeout = 15;
 
-  Future<void> init() async {
-    await FkUserAgent.init();
-    final packageInfo = await PackageInfo.fromPlatform();
-    final preferences = await SharedPreferences.getInstance();
+  Future<void> init(PackageInfo packageInfo) async {
+    final String ua = await userAgent();
+    final endpoint = Configuration.instance.getHttpEndpoint();
     _dio = Dio(
       BaseOptions(
-        connectTimeout: kConnectTimeout,
+        connectTimeout: const Duration(seconds: kConnectTimeout),
         headers: {
-          HttpHeaders.userAgentHeader: FkUserAgent.userAgent,
+          HttpHeaders.userAgentHeader: ua,
           'X-Client-Version': packageInfo.version,
           'X-Client-Package': packageInfo.packageName,
         },
@@ -35,16 +29,31 @@ class NetworkClient {
     );
     _enteDio = Dio(
       BaseOptions(
-        baseUrl: apiEndpoint,
-        connectTimeout: kConnectTimeout,
+        baseUrl: endpoint,
+        connectTimeout: const Duration(seconds: kConnectTimeout),
         headers: {
-          HttpHeaders.userAgentHeader: FkUserAgent.userAgent,
+          HttpHeaders.userAgentHeader: ua,
           'X-Client-Version': packageInfo.version,
           'X-Client-Package': packageInfo.packageName,
         },
       ),
     );
-    _enteDio.interceptors.add(EnteRequestInterceptor(preferences, apiEndpoint));
+
+    _dio.httpClientAdapter = NativeAdapter();
+    _enteDio.httpClientAdapter = NativeAdapter();
+
+    _setupInterceptors(endpoint);
+
+    Bus.instance.on<EndpointUpdatedEvent>().listen((event) {
+      final endpoint = Configuration.instance.getHttpEndpoint();
+      _enteDio.options.baseUrl = endpoint;
+      _setupInterceptors(endpoint);
+    });
+  }
+
+  void _setupInterceptors(String endpoint) {
+    _enteDio.interceptors.clear();
+    _enteDio.interceptors.add(EnteRequestInterceptor(endpoint));
   }
 
   NetworkClient._privateConstructor();

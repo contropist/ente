@@ -18,6 +18,7 @@ import 'package:photos/events/sync_status_update_event.dart';
 import 'package:photos/events/trigger_logout_event.dart';
 import 'package:photos/models/backup_status.dart';
 import 'package:photos/models/file/file_type.dart';
+import "package:photos/services/filedata/filedata_service.dart";
 import "package:photos/services/files_service.dart";
 import 'package:photos/services/local_sync_service.dart';
 import 'package:photos/services/notification_service.dart';
@@ -45,7 +46,9 @@ class SyncService {
       sync();
     });
 
-    Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
+    Connectivity()
+        .onConnectivityChanged
+        .listen((List<ConnectivityResult> result) {
       _logger.info("Connectivity change detected " + result.toString());
       if (Configuration.instance.hasConfiguredAccount()) {
         sync();
@@ -84,6 +87,7 @@ class SyncService {
     _existingSync = Completer<bool>();
     bool successful = false;
     try {
+      FileDataService.instance.syncFDStatus().ignore();
       await _doSync();
       if (_lastSyncStatusEvent != null &&
           _lastSyncStatusEvent!.status !=
@@ -120,12 +124,20 @@ class SyncService {
     } on UnauthorizedError {
       _logger.info("Logging user out");
       Bus.instance.fire(TriggerLogoutEvent());
+    } on NoMediaLocationAccessError {
+      _logger.severe("Not uploading due to no media location access");
+      Bus.instance.fire(
+        SyncStatusUpdate(
+          SyncStatus.error,
+          error: NoMediaLocationAccessError(),
+        ),
+      );
     } catch (e) {
-      if (e is DioError) {
-        if (e.type == DioErrorType.connectTimeout ||
-            e.type == DioErrorType.sendTimeout ||
-            e.type == DioErrorType.receiveTimeout ||
-            e.type == DioErrorType.other) {
+      if (e is DioException) {
+        if (e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.sendTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.unknown) {
           Bus.instance.fire(
             SyncStatusUpdate(
               SyncStatus.paused,

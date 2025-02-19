@@ -8,8 +8,11 @@ package email
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"net/http"
+	"net/smtp"
+	"path"
 	"strings"
 
 	"github.com/ente-io/museum/ente"
@@ -18,8 +21,105 @@ import (
 	"github.com/spf13/viper"
 )
 
+var knownInvalidEmailErrors = []string{
+	"Invalid RCPT TO address provided",
+	"Invalid domain name",
+}
+
 // Send sends an email
 func Send(toEmails []string, fromName string, fromEmail string, subject string, htmlBody string, inlineImages []map[string]interface{}) error {
+	smtpHost := viper.GetString("smtp.host")
+	if smtpHost != "" {
+		return sendViaSMTP(toEmails, fromName, fromEmail, subject, htmlBody, inlineImages)
+	} else {
+		return sendViaTransmail(toEmails, fromName, fromEmail, subject, htmlBody, inlineImages)
+	}
+}
+
+func sendViaSMTP(toEmails []string, fromName string, fromEmail string, subject string, htmlBody string, inlineImages []map[string]interface{}) error {
+	if len(toEmails) == 0 {
+		return ente.ErrBadRequest
+	}
+
+	smtpServer := viper.GetString("smtp.host")
+	smtpPort := viper.GetString("smtp.port")
+	smtpUsername := viper.GetString("smtp.username")
+	smtpPassword := viper.GetString("smtp.password")
+	smtpEmail := viper.GetString("smtp.email")
+	smtpSenderName := viper.GetString("smtp.sender-name")
+
+	var emailMessage string
+	var auth smtp.Auth = nil
+	if smtpUsername != "" && smtpPassword != "" {
+		auth = smtp.PlainAuth("", smtpUsername, smtpPassword, smtpServer)
+	}
+
+	// Construct 'emailAddresses' with comma-separated email addresses
+	var emailAddresses string
+	for i, email := range toEmails {
+		if i != 0 {
+			emailAddresses += ","
+		}
+		emailAddresses += email
+	}
+
+	// If a sender email is provided use it instead of the fromEmail.
+	if smtpEmail != "" {
+		fromEmail = smtpEmail
+	}
+	// If a sender name is provided use it instead of the fromName.
+	if smtpSenderName != "" {
+		fromName = smtpSenderName
+	}
+
+	header := "From: " + fromName + " <" + fromEmail + ">\n" +
+		"To: " + emailAddresses + "\n" +
+		"Subject: " + subject + "\n" +
+		"MIME-Version: 1.0\n" +
+		"Content-Type: multipart/related; boundary=boundary\n\n" +
+		"--boundary\n"
+	htmlContent := "Content-Type: text/html; charset=us-ascii\n\n" + htmlBody + "\n"
+
+	emailMessage = header + htmlContent
+
+	if inlineImages == nil {
+		emailMessage += "--boundary--"
+	} else {
+		for _, inlineImage := range inlineImages {
+
+			emailMessage += "--boundary\n"
+			var mimeType = inlineImage["mime_type"].(string)
+			var contentID = inlineImage["cid"].(string)
+			var imgBase64Str = inlineImage["content"].(string)
+
+			var image = "Content-Type: " + mimeType + "\n" +
+				"Content-Transfer-Encoding: base64\n" +
+				"Content-ID: <" + contentID + ">\n" +
+				"Content-Disposition: inline\n\n" + imgBase64Str + "\n"
+
+			emailMessage += image
+		}
+		emailMessage += "--boundary--"
+	}
+
+	// Send the email to each recipient
+	for _, toEmail := range toEmails {
+		err := smtp.SendMail(smtpServer+":"+smtpPort, auth, fromEmail, []string{toEmail}, []byte(emailMessage))
+		if err != nil {
+			errMsg := err.Error()
+			for i := range knownInvalidEmailErrors {
+				if strings.Contains(errMsg, knownInvalidEmailErrors[i]) {
+					return stacktrace.Propagate(ente.NewBadRequestWithMessage(fmt.Sprintf("Invalid email %s", toEmail)), errMsg)
+				}
+			}
+			return stacktrace.Propagate(err, "")
+		}
+	}
+
+	return nil
+}
+
+func sendViaTransmail(toEmails []string, fromName string, fromEmail string, subject string, htmlBody string, inlineImages []map[string]interface{}) error {
 	if len(toEmails) == 0 {
 		return ente.ErrBadRequest
 	}
@@ -69,6 +169,16 @@ func SendTemplatedEmail(to []string, fromName string, fromEmail string, subject 
 	if err != nil {
 		return stacktrace.Propagate(err, "")
 	}
+
+	return Send(to, fromName, fromEmail, subject, body, inlineImages)
+}
+
+func SendTemplatedEmailV2(to []string, fromName string, fromEmail string, subject string, baseTemplate, templateName string, templateData map[string]interface{}, inlineImages []map[string]interface{}) error {
+	body, err := getMailBodyWithBase(baseTemplate, templateName, templateData)
+	if err != nil {
+		return stacktrace.Propagate(err, "")
+	}
+
 	return Send(to, fromName, fromEmail, subject, body, inlineImages)
 }
 
@@ -96,4 +206,31 @@ func getMailBody(templateName string, templateData map[string]interface{}) (stri
 		return "", stacktrace.Propagate(err, "")
 	}
 	return htmlbody.String(), nil
+}
+
+// getMailBody generates the mail HTML body from the provided template and data, supporting inheritance
+func getMailBodyWithBase(baseTemplateName, templateName string, templateData map[string]interface{}) (string, error) {
+	htmlBody := new(bytes.Buffer)
+
+	// Define paths for the base template and the specific template
+	baseTemplate := "mail-templates/" + baseTemplateName
+	specificTemplate := "mail-templates/" + templateName
+
+	parts := strings.Split(baseTemplate, "/")
+	lastPart := parts[len(parts)-1]
+	baseTemplateID := strings.TrimSuffix(lastPart, path.Ext(lastPart))
+
+	// Parse the base and specific templates together
+	t, err := template.ParseFiles(baseTemplate, specificTemplate)
+	if err != nil {
+		return "", stacktrace.Propagate(err, "failed to parse templates")
+	}
+
+	// Execute the base template with the provided data
+	err = t.ExecuteTemplate(htmlBody, baseTemplateID, templateData)
+	if err != nil {
+		return "", stacktrace.Propagate(err, "failed to execute template")
+	}
+
+	return htmlBody.String(), nil
 }

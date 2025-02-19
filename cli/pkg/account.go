@@ -58,8 +58,12 @@ func (c *ClICtrl) AddAccount(cxt context.Context) {
 	if authResponse.IsMFARequired() {
 		authResponse, flowErr = c.validateTOTP(cxt, authResponse)
 	}
+
+	if authResponse.IsPasskeyRequired() {
+		authResponse, flowErr = c.verifyPassKey(cxt, authResponse, app)
+	}
 	if authResponse.EncryptedToken == "" || authResponse.KeyAttributes == nil {
-		panic("no encrypted token or keyAttributes")
+		log.Fatalf("missing key attributes or token.\nNote: Please use the mobile,web or desktop app to create a new account.\nIf you are trying to login to an existing account, report a bug.")
 	}
 	secretInfo, decErr := c.decryptAccSecretInfo(cxt, authResponse, keyEncKey)
 	if decErr != nil {
@@ -142,7 +146,7 @@ func (c *ClICtrl) ListAccounts(cxt context.Context) error {
 	return nil
 }
 
-func (c *ClICtrl) UpdateAccount(ctx context.Context, params model.UpdateAccountParams) error {
+func (c *ClICtrl) UpdateAccount(ctx context.Context, params model.AccountCommandParams) error {
 	accounts, err := c.GetAccounts(ctx)
 	if err != nil {
 		return err
@@ -177,5 +181,27 @@ func (c *ClICtrl) UpdateAccount(ctx context.Context, params model.UpdateAccountP
 		return b.Put([]byte(accountKey), accInfoBytes)
 	})
 	return err
+}
 
+func (c *ClICtrl) GetToken(ctx context.Context, params model.AccountCommandParams) error {
+	accounts, err := c.GetAccounts(ctx)
+	if err != nil {
+		return err
+	}
+	var acc *model.Account
+	for _, a := range accounts {
+		if a.Email == params.Email && a.App == params.App {
+			acc = &a
+			break
+		}
+	}
+	if acc == nil {
+		return fmt.Errorf("account not found, use `account list` to list accounts")
+	}
+	secretInfo, err := c.KeyHolder.LoadSecrets(*acc)
+	if err != nil {
+		return err
+	}
+	fmt.Println(secretInfo.TokenStr())
+	return nil
 }

@@ -4,6 +4,7 @@ import "dart:math";
 
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:dio/dio.dart';
+import 'package:ente_crypto/ente_crypto.dart';
 import "package:flutter/foundation.dart";
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
@@ -12,22 +13,26 @@ import 'package:photos/core/constants.dart';
 import "package:photos/core/errors.dart";
 import 'package:photos/core/event_bus.dart';
 import 'package:photos/core/network/network.dart';
-import 'package:photos/db/public_keys_db.dart';
 import "package:photos/events/account_configured_event.dart";
 import 'package:photos/events/two_factor_status_change_event.dart';
 import 'package:photos/events/user_details_changed_event.dart';
 import "package:photos/generated/l10n.dart";
+import "package:photos/l10n/l10n.dart";
+import "package:photos/models/account/two_factor.dart";
+import "package:photos/models/api/collection/user.dart";
+import 'package:photos/models/api/user/delete_account.dart';
+import 'package:photos/models/api/user/key_attributes.dart';
+import 'package:photos/models/api/user/key_gen_result.dart';
+import 'package:photos/models/api/user/sessions.dart';
+import 'package:photos/models/api/user/set_keys_request.dart';
+import 'package:photos/models/api/user/set_recovery_key_request.dart';
 import "package:photos/models/api/user/srp.dart";
-import 'package:photos/models/delete_account.dart';
-import 'package:photos/models/key_attributes.dart';
-import 'package:photos/models/key_gen_result.dart';
-import 'package:photos/models/public_key.dart' as public_key;
-import 'package:photos/models/sessions.dart';
-import 'package:photos/models/set_keys_request.dart';
-import 'package:photos/models/set_recovery_key_request.dart';
 import 'package:photos/models/user_details.dart';
+import "package:photos/services/collections_service.dart";
+import "package:photos/services/machine_learning/face_ml/person/person_service.dart";
 import 'package:photos/ui/account/login_page.dart';
 import 'package:photos/ui/account/ott_verification_page.dart';
+import "package:photos/ui/account/passkey_page.dart";
 import 'package:photos/ui/account/password_entry_page.dart';
 import 'package:photos/ui/account/password_reentry_page.dart';
 import "package:photos/ui/account/recovery_page.dart";
@@ -36,7 +41,6 @@ import 'package:photos/ui/account/two_factor_recovery_page.dart';
 import 'package:photos/ui/account/two_factor_setup_page.dart';
 import "package:photos/ui/common/progress_dialog.dart";
 import "package:photos/ui/tabs/home_widget.dart";
-import 'package:photos/utils/crypto_util.dart';
 import 'package:photos/utils/dialog_util.dart';
 import 'package:photos/utils/navigation_util.dart';
 import 'package:photos/utils/toast_util.dart';
@@ -88,13 +92,17 @@ class UserService {
     bool isChangeEmail = false,
     bool isCreateAccountScreen = false,
     bool isResetPasswordScreen = false,
+    String? purpose,
   }) async {
     final dialog = createProgressDialog(context, S.of(context).pleaseWait);
     await dialog.show();
     try {
       final response = await _dio.post(
         _config.getHttpEndpoint() + "/users/ott",
-        data: {"email": email, "purpose": isChangeEmail ? "change" : ""},
+        data: {
+          "email": email,
+          "purpose": isChangeEmail ? "change" : purpose ?? "",
+        },
       );
       await dialog.hide();
       if (response.statusCode == 200) {
@@ -116,10 +124,27 @@ class UserService {
       } else {
         throw Exception("send-ott action failed, non-200");
       }
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       await dialog.hide();
       _logger.info(e);
-      if (e.response != null && e.response!.statusCode == 403) {
+      final String? enteErrCode = e.response?.data["code"];
+      if (enteErrCode != null && enteErrCode == "USER_ALREADY_REGISTERED") {
+        unawaited(
+          showErrorDialog(
+            context,
+            context.l10n.oops,
+            context.l10n.emailAlreadyRegistered,
+          ),
+        );
+      } else if (enteErrCode != null && enteErrCode == "USER_NOT_REGISTERED") {
+        unawaited(
+          showErrorDialog(
+            context,
+            context.l10n.oops,
+            context.l10n.emailNotRegistered,
+          ),
+        );
+      } else if (e.response != null && e.response!.statusCode == 403) {
         unawaited(
           showErrorDialog(
             context,
@@ -159,14 +184,8 @@ class UserService {
         queryParameters: {"email": email},
       );
       final publicKey = response.data["publicKey"];
-      await PublicKeysDB.instance.setKey(
-        public_key.PublicKey(
-          email,
-          publicKey,
-        ),
-      );
       return publicKey;
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       if (e.response != null && e.response?.statusCode == 404) {
         return null;
       }
@@ -202,7 +221,7 @@ class UserService {
         }
       }
       return userDetails;
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       _logger.info(e);
       rethrow;
     }
@@ -212,7 +231,7 @@ class UserService {
     try {
       final response = await _enteDio.get("/users/sessions");
       return Sessions.fromMap(response.data);
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       _logger.info(e);
       rethrow;
     }
@@ -226,7 +245,7 @@ class UserService {
           "token": token,
         },
       );
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       _logger.info(e);
       rethrow;
     }
@@ -235,7 +254,7 @@ class UserService {
   Future<void> leaveFamilyPlan() async {
     try {
       await _enteDio.delete("/family/leave");
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       _logger.warning('failed to leave family plan', e);
       rethrow;
     }
@@ -252,7 +271,7 @@ class UserService {
       }
     } catch (e) {
       // check if token is already invalid
-      if (e is DioError && e.response?.statusCode == 401) {
+      if (e is DioException && e.response?.statusCode == 401) {
         await Configuration.instance.logout();
         Navigator.of(context).popUntil((route) => route.isFirst);
         return;
@@ -281,7 +300,7 @@ class UserService {
         throw Exception("delete action failed");
       }
     } catch (e) {
-      _logger.severe(e);
+      _logger.warning(e);
       await showGenericErrorDialog(context: context, error: e);
       return null;
     }
@@ -309,8 +328,71 @@ class UserService {
         throw Exception("delete action failed");
       }
     } catch (e) {
-      _logger.severe(e);
+      _logger.warning(e);
       rethrow;
+    }
+  }
+
+  Future<dynamic> getTokenForPasskeySession(String sessionID) async {
+    try {
+      final response = await _dio.get(
+        "${_config.getHttpEndpoint()}/users/two-factor/passkeys/get-token",
+        queryParameters: {
+          "sessionID": sessionID,
+        },
+      );
+      return response.data;
+    } on DioException catch (e) {
+      if (e.response != null) {
+        if (e.response!.statusCode == 404 || e.response!.statusCode == 410) {
+          throw PassKeySessionExpiredError();
+        }
+        if (e.response!.statusCode == 400) {
+          throw PassKeySessionNotVerifiedError();
+        }
+      }
+      rethrow;
+    } catch (e, s) {
+      _logger.warning("unexpected error", e, s);
+      rethrow;
+    }
+  }
+
+  Future<void> onPassKeyVerified(BuildContext context, Map response) async {
+    final ProgressDialog dialog =
+        createProgressDialog(context, context.l10n.pleaseWait);
+    await dialog.show();
+    try {
+      final userPassword = Configuration.instance.getVolatilePassword();
+      await _saveConfiguration(response);
+      if (userPassword == null) {
+        await dialog.hide();
+        // ignore: unawaited_futures
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (BuildContext context) {
+              return const PasswordReentryPage();
+            },
+          ),
+          (route) => route.isFirst,
+        );
+      } else {
+        if (Configuration.instance.getEncryptedToken() != null) {
+          await Configuration.instance.decryptSecretsAndGetKeyEncKey(
+            userPassword,
+            Configuration.instance.getKeyAttributes()!,
+          );
+        } else {
+          throw Exception("unexpected response during passkey verification");
+        }
+        await dialog.hide();
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        Bus.instance.fire(AccountConfiguredEvent());
+      }
+    } catch (e) {
+      _logger.warning(e);
+      await dialog.hide();
+      await showGenericErrorDialog(context: context, error: e);
     }
   }
 
@@ -336,8 +418,20 @@ class UserService {
       await dialog.hide();
       if (response.statusCode == 200) {
         Widget page;
-        final String twoFASessionID = response.data["twoFactorSessionID"];
-        if (twoFASessionID.isNotEmpty) {
+        final String passkeySessionID = response.data["passkeySessionID"];
+        final String accountsUrl = response.data["accountsUrl"] ?? kAccountsUrl;
+        String twoFASessionID = response.data["twoFactorSessionID"];
+        if (twoFASessionID.isEmpty &&
+            response.data["twoFactorSessionIDV2"] != null) {
+          twoFASessionID = response.data["twoFactorSessionIDV2"];
+        }
+        if (passkeySessionID.isNotEmpty) {
+          page = PasskeyPage(
+            passkeySessionID,
+            totp2FASessionID: twoFASessionID,
+            accountsUrl: accountsUrl,
+          );
+        } else if (twoFASessionID.isNotEmpty) {
           await setTwoFactor(value: true);
           page = TwoFactorAuthenticationPage(twoFASessionID);
         } else {
@@ -366,7 +460,7 @@ class UserService {
         // should never reach here
         throw Exception("unexpected response during email verification");
       }
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       _logger.info(e);
       await dialog.hide();
       if (e.response != null && e.response!.statusCode == 410) {
@@ -386,7 +480,7 @@ class UserService {
       }
     } catch (e) {
       await dialog.hide();
-      _logger.severe(e);
+      _logger.warning(e);
       // ignore: unawaited_futures
       showErrorDialog(
         context,
@@ -438,7 +532,7 @@ class UserService {
         S.of(context).oops,
         S.of(context).verificationFailedPleaseTryAgain,
       );
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       await dialog.hide();
       if (e.response != null && e.response!.statusCode == 403) {
         // ignore: unawaited_futures
@@ -457,7 +551,7 @@ class UserService {
       }
     } catch (e) {
       await dialog.hide();
-      _logger.severe(e);
+      _logger.warning(e);
       // ignore: unawaited_futures
       showErrorDialog(
         context,
@@ -498,7 +592,7 @@ class UserService {
       } else {
         throw Exception("get-srp-attributes action failed");
       }
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       if (e.response != null && e.response!.statusCode == 404) {
         throw SrpSetupNotCompleteError();
       }
@@ -548,7 +642,7 @@ class UserService {
             SetupSRPResponse.fromJson(response.data);
         final serverB =
             SRP6Util.decodeBigInt(base64Decode(setupSRPResponse.srpB));
-        // ignore: need to calculate secret to get M1, unused_local_variable
+        // ignore: unused_local_variable, need to calculate secret to get M1
         final clientS = client.calculateSecret(serverB);
         final clientM = client.calculateClientEvidenceMessage();
         // ignore: unused_local_variable
@@ -601,7 +695,7 @@ class UserService {
     late Uint8List keyEncryptionKey;
     _logger.finest('Start deriving key');
     keyEncryptionKey = await CryptoUtil.deriveKey(
-      utf8.encode(userPassword) as Uint8List,
+      utf8.encode(userPassword),
       CryptoUtil.base642bin(srpAttributes.kekSalt),
       srpAttributes.memLimit,
       srpAttributes.opsLimit,
@@ -627,14 +721,14 @@ class UserService {
       _config.getHttpEndpoint() + "/users/srp/create-session",
       data: {
         "srpUserID": srpAttributes.srpUserID,
-        "srpA": base64Encode(SRP6Util.encodeBigInt(A!)),
+        "srpA": base64Encode(SRP6Util.getPadded(A!, 512)),
       },
     );
     final String sessionID = createSessionResponse.data["sessionID"];
     final String srpB = createSessionResponse.data["srpB"];
 
     final serverB = SRP6Util.decodeBigInt(base64Decode(srpB));
-    // ignore: need to calculate secret to get M1, unused_local_variable
+    // ignore: unused_local_variable, need to calculate secret to get M1,
     final clientS = client.calculateSecret(serverB);
     final clientM = client.calculateClientEvidenceMessage();
     final response = await _dio.post(
@@ -642,14 +736,27 @@ class UserService {
       data: {
         "sessionID": sessionID,
         "srpUserID": srpAttributes.srpUserID,
-        "srpM1": base64Encode(SRP6Util.encodeBigInt(clientM!)),
+        "srpM1": base64Encode(SRP6Util.getPadded(clientM!, 32)),
       },
     );
     if (response.statusCode == 200) {
       Widget page;
-      final String twoFASessionID = response.data["twoFactorSessionID"];
+      String twoFASessionID = response.data["twoFactorSessionID"];
+      if (twoFASessionID.isEmpty &&
+          response.data["twoFactorSessionIDV2"] != null) {
+        twoFASessionID = response.data["twoFactorSessionIDV2"];
+      }
+      final String passkeySessionID = response.data["passkeySessionID"];
+      final String accountsUrl = response.data["accountsUrl"] ?? kAccountsUrl;
+
       Configuration.instance.setVolatilePassword(userPassword);
-      if (twoFASessionID.isNotEmpty) {
+      if (passkeySessionID.isNotEmpty) {
+        page = PasskeyPage(
+          passkeySessionID,
+          totp2FASessionID: twoFASessionID,
+          accountsUrl: accountsUrl,
+        );
+      } else if (twoFASessionID.isNotEmpty) {
         await setTwoFactor(value: true);
         page = TwoFactorAuthenticationPage(twoFASessionID);
       } else {
@@ -758,11 +865,11 @@ class UserService {
           (route) => route.isFirst,
         );
       }
-    } on DioError catch (e) {
+    } on DioException catch (e) {
       await dialog.hide();
       _logger.severe(e);
       if (e.response != null && e.response!.statusCode == 404) {
-        showToast(context, "Session expired");
+        showToast(context, S.of(context).sessionExpired);
         await Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (BuildContext context) {
@@ -791,22 +898,31 @@ class UserService {
     }
   }
 
-  Future<void> recoverTwoFactor(BuildContext context, String sessionID) async {
+  Future<void> recoverTwoFactor(
+    BuildContext context,
+    String sessionID,
+    TwoFactorType type,
+  ) async {
     final dialog = createProgressDialog(context, S.of(context).pleaseWait);
     await dialog.show();
     try {
+      _logger.info("recovering two factor");
       final response = await _dio.get(
         _config.getHttpEndpoint() + "/users/two-factor/recover",
         queryParameters: {
           "sessionID": sessionID,
+          "twoFactorType": twoFactorTypeToString(type),
         },
       );
+
+      await dialog.hide();
       if (response.statusCode == 200) {
         // ignore: unawaited_futures
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (BuildContext context) {
               return TwoFactorRecoveryPage(
+                type,
                 sessionID,
                 response.data["encryptedSecret"],
                 response.data["secretDecryptionNonce"],
@@ -816,8 +932,9 @@ class UserService {
           (route) => route.isFirst,
         );
       }
-    } on DioError catch (e) {
-      _logger.severe(e);
+    } on DioException catch (e) {
+      await dialog.hide();
+      _logger.severe('error while recovery 2fa', e);
       if (e.response != null && e.response!.statusCode == 404) {
         showToast(context, S.of(context).sessionExpired);
         // ignore: unawaited_futures
@@ -838,6 +955,8 @@ class UserService {
         );
       }
     } catch (e) {
+      _logger.severe('unexpected error while recovery 2fa', e);
+      await dialog.hide();
       _logger.severe(e);
       // ignore: unawaited_futures
       showErrorDialog(
@@ -852,6 +971,7 @@ class UserService {
 
   Future<void> removeTwoFactor(
     BuildContext context,
+    TwoFactorType type,
     String sessionID,
     String recoveryKey,
     String encryptedSecret,
@@ -891,8 +1011,10 @@ class UserService {
         data: {
           "sessionID": sessionID,
           "secret": secret,
+          "twoFactorType": twoFactorTypeToString(type),
         },
       );
+      await dialog.hide();
       if (response.statusCode == 200) {
         showShortToast(
           context,
@@ -909,10 +1031,11 @@ class UserService {
           (route) => route.isFirst,
         );
       }
-    } on DioError catch (e) {
-      _logger.severe(e);
+    } on DioException catch (e) {
+      await dialog.hide();
+      _logger.severe("error during recovery", e);
       if (e.response != null && e.response!.statusCode == 404) {
-        showToast(context, "Session expired");
+        showToast(context, S.of(context).sessionExpired);
         // ignore: unawaited_futures
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
@@ -931,7 +1054,9 @@ class UserService {
         );
       }
     } catch (e) {
-      _logger.severe(e);
+      await dialog.hide();
+      _logger.severe('unexpcted error during recovery', e);
+
       // ignore: unawaited_futures
       showErrorDialog(
         context,
@@ -1001,7 +1126,7 @@ class UserService {
     } catch (e, s) {
       await dialog.hide();
       _logger.severe(e, s);
-      if (e is DioError) {
+      if (e is DioException) {
         if (e.response != null && e.response!.statusCode == 401) {
           // ignore: unawaited_futures
           showErrorDialog(
@@ -1094,11 +1219,13 @@ class UserService {
     }
   }
 
-  Future<String> getFamiliesToken() async {
+  Future<String> getFamilyPortalUrl(bool familyExist) async {
     try {
       final response = await _enteDio.get("/users/families-token");
       if (response.statusCode == 200) {
-        return response.data["familiesToken"];
+        final String url = response.data["familyUrl"] ?? kFamilyUrl;
+        final String jwtToken = response.data["familiesToken"];
+        return '$url?token=$jwtToken&isFamilyCreated=$familyExist';
       } else {
         throw Exception("non 200 ok response");
       }
@@ -1108,16 +1235,19 @@ class UserService {
     }
   }
 
-  Future<void> _saveConfiguration(Response response) async {
-    await Configuration.instance.setUserID(response.data["id"]);
-    if (response.data["encryptedToken"] != null) {
+  Future<void> _saveConfiguration(dynamic response) async {
+    final responseData = response is Map ? response : response.data as Map?;
+    if (responseData == null) return;
+
+    await Configuration.instance.setUserID(responseData["id"]);
+    if (responseData["encryptedToken"] != null) {
       await Configuration.instance
-          .setEncryptedToken(response.data["encryptedToken"]);
+          .setEncryptedToken(responseData["encryptedToken"]);
       await Configuration.instance.setKeyAttributes(
-        KeyAttributes.fromMap(response.data["keyAttributes"]),
+        KeyAttributes.fromMap(responseData["keyAttributes"]),
       );
     } else {
-      await Configuration.instance.setToken(response.data["token"]);
+      await Configuration.instance.setToken(responseData["token"]);
     }
   }
 
@@ -1161,5 +1291,157 @@ class UserService {
       _logger.severe("Failed to update email mfa", e);
       rethrow;
     }
+  }
+
+  /// Returns Contacts(Users) that are relevant to the account owner.
+  /// Note: "User" refers to the account owner in the points below.
+  /// This includes:
+  /// 	- Collaborators and viewers of collections owned by user
+  ///   - Owners of collections shared to user.
+  ///   - All collaborators of collections in which user is a collaborator or
+  ///     a viewer.
+  ///   - All family members of user.
+  ///   - All contacts linked to a person.
+  List<User> getRelevantContacts() {
+    final List<User> relevantUsers = [];
+    final existingEmails = <String>{};
+    final int ownerID = Configuration.instance.getUserID()!;
+    final String ownerEmail = Configuration.instance.getEmail()!;
+    existingEmails.add(ownerEmail);
+
+    for (final c in CollectionsService.instance.getActiveCollections()) {
+      // Add collaborators and viewers of collections owned by user
+      if (c.owner.id == ownerID) {
+        for (final User u in c.sharees) {
+          if (u.id != null && u.email.isNotEmpty) {
+            if (!existingEmails.contains(u.email)) {
+              relevantUsers.add(u);
+              existingEmails.add(u.email);
+            }
+          }
+        }
+      } else if (c.owner.id != null && c.owner.email.isNotEmpty) {
+        // Add owners of collections shared with user
+        if (!existingEmails.contains(c.owner.email)) {
+          relevantUsers.add(c.owner);
+          existingEmails.add(c.owner.email);
+        }
+        // Add collaborators of collections shared with user where user is a
+        // viewer or a collaborator
+        for (final User u in c.sharees) {
+          if (u.id != null &&
+              u.email.isNotEmpty &&
+              u.email == ownerEmail &&
+              (u.isCollaborator || u.isViewer)) {
+            for (final User u in c.sharees) {
+              if (u.id != null && u.email.isNotEmpty && u.isCollaborator) {
+                if (!existingEmails.contains(u.email)) {
+                  relevantUsers.add(u);
+                  existingEmails.add(u.email);
+                }
+              }
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    // Add user's family members
+    final cachedUserDetails = getCachedUserDetails();
+    if (cachedUserDetails?.familyData?.members?.isNotEmpty ?? false) {
+      for (final member in cachedUserDetails!.familyData!.members!) {
+        if (!existingEmails.contains(member.email)) {
+          relevantUsers.add(User(email: member.email));
+          existingEmails.add(member.email);
+        }
+      }
+    }
+
+    // Add contacts linked to people
+    final cachedEmailToPartialPersonData =
+        PersonService.instance.emailToPartialPersonDataMapCache;
+    for (final email in cachedEmailToPartialPersonData.keys) {
+      if (!existingEmails.contains(email)) {
+        relevantUsers.add(User(email: email));
+        existingEmails.add(email);
+      }
+    }
+
+    return relevantUsers;
+  }
+
+  /// Returns emails of Users that are relevant to the account owner.
+  /// Note: "User" refers to the account owner in the points below.
+  /// This includes:
+  /// 	- Collaborators and viewers of collections owned by user
+  ///   - Owners of collections shared to user.
+  ///   - All collaborators of collections in which user is a collaborator or
+  ///     a viewer.
+  ///   - All family members of user.
+  ///   - All contacts linked to a person.
+  Set<String> getEmailIDsOfRelevantContacts() {
+    final emailIDs = <String>{};
+
+    final int ownerID = Configuration.instance.getUserID()!;
+    final String ownerEmail = Configuration.instance.getEmail()!;
+
+    for (final c in CollectionsService.instance.getActiveCollections()) {
+      // Add collaborators and viewers of collections owned by user
+      if (c.owner.id == ownerID) {
+        for (final User u in c.sharees) {
+          if (u.id != null && u.email.isNotEmpty) {
+            if (!emailIDs.contains(u.email)) {
+              emailIDs.add(u.email);
+            }
+          }
+        }
+      } else if (c.owner.id != null && c.owner.email.isNotEmpty) {
+        // Add owners of collections shared with user
+        if (!emailIDs.contains(c.owner.email)) {
+          emailIDs.add(c.owner.email);
+        }
+        // Add collaborators of collections shared with user where user is a
+        // viewer or a collaborator
+        for (final User u in c.sharees) {
+          if (u.id != null &&
+              u.email.isNotEmpty &&
+              u.email == ownerEmail &&
+              (u.isCollaborator || u.isViewer)) {
+            for (final User u in c.sharees) {
+              if (u.id != null && u.email.isNotEmpty && u.isCollaborator) {
+                if (!emailIDs.contains(u.email)) {
+                  emailIDs.add(u.email);
+                }
+              }
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    // Add user's family members
+    final cachedUserDetails = getCachedUserDetails();
+    if (cachedUserDetails?.familyData?.members?.isNotEmpty ?? false) {
+      for (final member in cachedUserDetails!.familyData!.members!) {
+        if (!emailIDs.contains(member.email)) {
+          emailIDs.add(member.email);
+        }
+      }
+    }
+
+    // Add contacts linked to people
+    final cachedEmailToPartialPersonData =
+        PersonService.instance.emailToPartialPersonDataMapCache;
+    for (final email in cachedEmailToPartialPersonData.keys) {
+      if (!emailIDs.contains(email)) {
+        emailIDs.add(email);
+      }
+    }
+
+    emailIDs.remove(ownerEmail);
+
+    return emailIDs;
   }
 }

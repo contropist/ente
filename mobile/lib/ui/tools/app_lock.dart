@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import "package:photos/generated/l10n.dart";
 import "package:photos/l10n/l10n.dart";
+import "package:photos/utils/lock_screen_settings.dart";
 
 /// A widget which handles app lifecycle events for showing and hiding a lock screen.
 /// This should wrap around a `MyApp` widget (or equivalent).
@@ -21,7 +22,7 @@ import "package:photos/l10n/l10n.dart";
 /// `AppLock.of(context).disable();` or the convenience method `AppLock.of(context).setEnabled(enabled);`
 /// using a bool argument.
 ///
-/// [backgroundLockLatency] determines how much time is allowed to pass when
+/// [_backgroundLockLatencyTimer] determines how much time is allowed to pass when
 /// the app is in the background state before the [lockScreen] widget should be
 /// shown upon returning. It defaults to instantly.
 ///
@@ -31,23 +32,21 @@ class AppLock extends StatefulWidget {
   final Widget Function(Object?) builder;
   final Widget lockScreen;
   final bool enabled;
-  final Duration backgroundLockLatency;
   final ThemeData? darkTheme;
   final ThemeData? lightTheme;
   final ThemeMode savedThemeMode;
-  final Locale locale;
+  final Locale? locale;
 
   const AppLock({
-    Key? key,
+    super.key,
     required this.builder,
     required this.lockScreen,
     required this.savedThemeMode,
     this.enabled = true,
-    this.locale = const Locale("en", "US"),
-    this.backgroundLockLatency = const Duration(seconds: 0),
+    this.locale,
     this.darkTheme,
     this.lightTheme,
-  }) : super(key: key);
+  });
 
   static _AppLockState? of(BuildContext context) =>
       context.findAncestorStateOfType<_AppLockState>();
@@ -84,8 +83,10 @@ class _AppLockState extends State<AppLock> with WidgetsBindingObserver {
 
     if (state == AppLifecycleState.paused &&
         (!this._isLocked && this._didUnlockForAppLaunch)) {
-      this._backgroundLockLatencyTimer =
-          Timer(this.widget.backgroundLockLatency, () => this.showLockScreen());
+      this._backgroundLockLatencyTimer = Timer(
+        Duration(milliseconds: LockScreenSettings.instance.getAutoLockTime()),
+        () => this.showLockScreen(),
+      );
     }
 
     if (state == AppLifecycleState.resumed) {
@@ -113,6 +114,7 @@ class _AppLockState extends State<AppLock> with WidgetsBindingObserver {
       theme: widget.lightTheme,
       darkTheme: widget.darkTheme,
       locale: widget.locale,
+      debugShowCheckedModeBanner: false,
       supportedLocales: appSupportedLocales,
       localeListResolutionCallback: localResolutionCallBack,
       localizationsDelegates: const [
@@ -137,9 +139,9 @@ class _AppLockState extends State<AppLock> with WidgetsBindingObserver {
   }
 
   Widget get _lockScreen {
-    return WillPopScope(
+    return PopScope(
+      canPop: false,
       child: this.widget.lockScreen,
-      onWillPop: () => Future.value(false),
     );
   }
 

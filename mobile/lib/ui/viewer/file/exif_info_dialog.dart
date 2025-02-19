@@ -1,4 +1,3 @@
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import "package:photos/generated/l10n.dart";
@@ -9,7 +8,7 @@ import 'package:photos/utils/exif_util.dart';
 
 class ExifInfoDialog extends StatelessWidget {
   final EnteFile file;
-  const ExifInfoDialog(this.file, {Key? key}) : super(key: key);
+  const ExifInfoDialog(this.file, {super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +40,7 @@ class ExifInfoDialog extends StatelessWidget {
             style: textTheme.body,
           ),
           onPressed: () {
-            Navigator.of(context, rootNavigator: true).pop('dialog');
+            Navigator.of(context).pop('dialog');
           },
         ),
       ],
@@ -54,10 +53,9 @@ class ExifInfoDialog extends StatelessWidget {
       builder: (BuildContext context, AsyncSnapshot snapshot) {
         if (snapshot.hasData) {
           final exif = snapshot.data;
-          String data = "";
-          for (String key in exif.keys) {
-            data += "$key: ${exif[key]}\n";
-          }
+          String data = exif.entries
+              .map((entry) => "${entry.key}: ${entry.value}")
+              .join("\n");
           if (data.isEmpty) {
             data = "no exif data found";
           }

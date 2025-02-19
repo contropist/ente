@@ -155,7 +155,7 @@ func (repo *CollectionRepository) GetCollectionsOwnedByUserV2(userID int64, upda
 		SELECT 
 c.collection_id, c.owner_id, c.encrypted_key,c.key_decryption_nonce, c.name, c.encrypted_name, c.name_decryption_nonce, c.type, c.app, c.attributes, c.updation_time, c.is_deleted, c.magic_metadata, c.pub_magic_metadata,
 users.user_id, users.encrypted_email, users.email_decryption_nonce, cs.role_type,
-pct.access_token, pct.valid_till, pct.device_limit, pct.created_at, pct.updated_at, pct.pw_hash, pct.pw_nonce, pct.mem_limit, pct.ops_limit, pct.enable_download, pct.enable_collect 
+pct.access_token, pct.valid_till, pct.device_limit, pct.created_at, pct.updated_at, pct.pw_hash, pct.pw_nonce, pct.mem_limit, pct.ops_limit, pct.enable_download, pct.enable_collect, pct.enable_join 
     FROM collections c
     LEFT JOIN collection_shares cs
     ON (cs.collection_id = c.collection_id AND cs.is_deleted = false)
@@ -175,14 +175,14 @@ pct.access_token, pct.valid_till, pct.device_limit, pct.created_at, pct.updated_
 		var c ente.Collection
 		var name, encryptedName, nameDecryptionNonce sql.NullString
 		var pctDeviceLimit sql.NullInt32
-		var pctEnableDownload, pctEnableCollect sql.NullBool
+		var pctEnableDownload, pctEnableCollect, pctEnableJoin sql.NullBool
 		var shareUserID, pctValidTill, pctCreatedAt, pctUpdatedAt, pctMemLimit, pctOpsLimit sql.NullInt64
 		var encryptedEmail, nonce []byte
 		var shareeRoleType, pctToken, pctPwHash, pctPwNonce sql.NullString
 
 		if err := rows.Scan(&c.ID, &c.Owner.ID, &c.EncryptedKey, &c.KeyDecryptionNonce, &name, &encryptedName, &nameDecryptionNonce, &c.Type, &c.App, &c.Attributes, &c.UpdationTime, &c.IsDeleted, &c.MagicMetadata, &c.PublicMagicMetadata,
 			&shareUserID, &encryptedEmail, &nonce, &shareeRoleType,
-			&pctToken, &pctValidTill, &pctDeviceLimit, &pctCreatedAt, &pctUpdatedAt, &pctPwHash, &pctPwNonce, &pctMemLimit, &pctOpsLimit, &pctEnableDownload, &pctEnableCollect); err != nil {
+			&pctToken, &pctValidTill, &pctDeviceLimit, &pctCreatedAt, &pctUpdatedAt, &pctPwHash, &pctPwNonce, &pctMemLimit, &pctOpsLimit, &pctEnableDownload, &pctEnableCollect, &pctEnableJoin); err != nil {
 			return nil, stacktrace.Propagate(err, "")
 		}
 
@@ -216,12 +216,13 @@ pct.access_token, pct.valid_till, pct.device_limit, pct.created_at, pct.updated_
 			if _, ok := addPublicUrlMap[pctToken.String]; !ok {
 				addPublicUrlMap[pctToken.String] = true
 				url := ente.PublicURL{
-					URL:             fmt.Sprintf(BaseShareURL, pctToken.String),
+					URL:             repo.PublicCollectionRepo.GetAlbumUrl(pctToken.String),
 					DeviceLimit:     int(pctDeviceLimit.Int32),
 					ValidTill:       pctValidTill.Int64,
 					EnableDownload:  pctEnableDownload.Bool,
 					EnableCollect:   pctEnableCollect.Bool,
 					PasswordEnabled: pctPwNonce.Valid,
+					EnableJoin:      pctEnableJoin.Bool,
 				}
 				if pctPwNonce.Valid {
 					url.Nonce = &pctPwNonce.String
@@ -317,6 +318,29 @@ func (repo *CollectionRepository) GetCollectionIDsSharedWithUser(userID int64) (
 	return cIDs, nil
 }
 
+func (repo *CollectionRepository) GetCollectionsSharedWithOrByUser(userID int64) ([]int64, error) {
+	rows, err := repo.DB.Query(`
+		SELECT collection_id
+		FROM collection_shares
+		WHERE (to_user_id = $1 OR from_user_id = $1)
+		AND is_deleted = $2`, userID, false)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "")
+	}
+	defer rows.Close()
+
+	cIDs := make([]int64, 0)
+	for rows.Next() {
+		var cID int64
+		if err := rows.Scan(&cID); err != nil {
+			return cIDs, stacktrace.Propagate(err, "")
+		}
+		cIDs = append(cIDs, cID)
+	}
+	return cIDs, nil
+
+}
+
 // GetCollectionIDsOwnedByUser returns the map of collectionID (owned by user) to collection deletion status
 func (repo *CollectionRepository) GetCollectionIDsOwnedByUser(userID int64) (map[int64]bool, error) {
 	rows, err := repo.DB.Query(`
@@ -372,6 +396,76 @@ func (repo *CollectionRepository) DoesFileExistInCollections(fileID int64, cIDs 
 	err := repo.DB.QueryRow(`SELECT EXISTS (SELECT 1 FROM collection_files WHERE file_id = $1 AND is_deleted = $2 AND collection_id = ANY ($3))`,
 		fileID, false, pq.Array(cIDs)).Scan(&exists)
 	return exists, stacktrace.Propagate(err, "")
+}
+
+func (repo *CollectionRepository) DoAllFilesExistInGivenCollections(fileIDs []int64, cIDs []int64) error {
+	// Query to get all distinct file_ids that exist in the collections
+	rows, err := repo.DB.Query(`
+        SELECT DISTINCT file_id 
+        FROM collection_files 
+        WHERE file_id = ANY ($1) 
+        AND is_deleted = false 
+        AND collection_id = ANY ($2)`,
+		pq.Array(fileIDs), pq.Array(cIDs))
+
+	if err != nil {
+		return stacktrace.Propagate(err, "")
+	}
+	defer rows.Close()
+
+	// Create a map of input fileIDs for easy lookup
+	fileIDMap := make(map[int64]bool)
+	for _, id := range fileIDs {
+		fileIDMap[id] = false // false means not found yet
+	}
+	// Mark files that were found
+	for rows.Next() {
+		var fileID int64
+		if err := rows.Scan(&fileID); err != nil {
+			return stacktrace.Propagate(err, "")
+		}
+		fileIDMap[fileID] = true // mark as found
+	}
+
+	if err = rows.Err(); err != nil {
+		return stacktrace.Propagate(err, "")
+	}
+
+	// Collect missing files
+	var missingFiles []int64
+	for id, found := range fileIDMap {
+		if !found {
+			missingFiles = append(missingFiles, id)
+		}
+	}
+	if len(missingFiles) > 0 {
+		return stacktrace.Propagate(fmt.Errorf("missing files %v", missingFiles), "")
+	}
+	return nil
+}
+
+// VerifyAllFileIDsExistsInCollection returns error if the fileIDs don't exist in the collection
+func (repo *CollectionRepository) VerifyAllFileIDsExistsInCollection(ctx context.Context, cID int64, fileIDs []int64) error {
+	fileIdMap := make(map[int64]bool)
+	rows, err := repo.DB.QueryContext(ctx, `SELECT file_id FROM collection_files WHERE collection_id = $1 AND is_deleted = $2 AND file_id = ANY ($3)`,
+		cID, false, pq.Array(fileIDs))
+	if err != nil {
+		return stacktrace.Propagate(err, "")
+	}
+	for rows.Next() {
+		var fileID int64
+		if err := rows.Scan(&fileID); err != nil {
+			return stacktrace.Propagate(err, "")
+		}
+		fileIdMap[fileID] = true
+	}
+	// find fileIds that are not present in the collection
+	for _, fileID := range fileIDs {
+		if _, ok := fileIdMap[fileID]; !ok {
+			return stacktrace.Propagate(fmt.Errorf("fileID %d not found in collection %d", fileID, cID), "")
+		}
+	}
+	return nil
 }
 
 // GetCollectionShareeRole returns true if the collection is shared with the user
@@ -775,27 +869,6 @@ func (repo *CollectionRepository) GetSharees(cID int64) ([]ente.CollectionUser, 
 	return users, nil
 }
 
-// getCollectionExclusiveFiles return a list of filesIDs that are exclusive to the collection
-func (repo *CollectionRepository) getCollectionExclusiveFiles(collectionID int64, collectionOwnerID int64) ([]int64, error) {
-	rows, err := repo.DB.Query(`
-	SELECT file_id
-	FROM collection_files
-	WHERE is_deleted=false
-		AND file_id IN (
-			SELECT file_id   
-			FROM collection_files
-			WHERE is_deleted=false
-				AND collection_id =$1
-		)
-	AND collection_id IN (SELECT collection_id from collections where owner_id = $2)
-	GROUP BY file_id
-	HAVING COUNT(file_id) = 1`, collectionID, collectionOwnerID)
-	if err != nil {
-		return make([]int64, 0), stacktrace.Propagate(err, "")
-	}
-	return convertRowsToFileId(rows)
-}
-
 // GetCollectionFileIDs return list of fileIDs are  currently present in the given collection
 // and fileIDs are owned by the collection owner
 func (repo *CollectionRepository) GetCollectionFileIDs(collectionID int64, collectionOwnerID int64) ([]int64, error) {
@@ -822,41 +895,6 @@ func convertRowsToFileId(rows *sql.Rows) ([]int64, error) {
 		fileIDs = append(fileIDs, fileID)
 	}
 	return fileIDs, nil
-}
-
-// TrashV2 removes an entry in the database for the collection referred to by `collectionID` and move all files
-// which are exclusive to this collection to trash
-// Deprecated. Please use TrashV3
-func (repo *CollectionRepository) TrashV2(collectionID int64, userID int64) error {
-	ctx := context.Background()
-	tx, err := repo.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return stacktrace.Propagate(err, "")
-	}
-	fileIDs, err := repo.getCollectionExclusiveFiles(collectionID, userID)
-	if err != nil {
-		tx.Rollback()
-		return stacktrace.Propagate(err, "")
-	}
-	items := make([]ente.TrashItemRequest, 0)
-	for _, fileID := range fileIDs {
-		items = append(items, ente.TrashItemRequest{
-			FileID:       fileID,
-			CollectionID: collectionID,
-		})
-	}
-	_, err = tx.ExecContext(ctx, `UPDATE collection_files SET is_deleted = true WHERE collection_id = $1`, collectionID)
-	if err != nil {
-		tx.Rollback()
-		return stacktrace.Propagate(err, "")
-	}
-	err = repo.TrashRepo.InsertItems(ctx, tx, userID, items)
-
-	if err != nil {
-		tx.Rollback()
-		return stacktrace.Propagate(err, "")
-	}
-	return tx.Commit()
 }
 
 // TrashV3  move the files belonging to the collection owner to the trash
@@ -949,11 +987,8 @@ func (repo *CollectionRepository) removeAllFilesAddedByOthers(collectionID int64
 
 // ScheduleDelete marks the collection as deleted and queue up an operation to
 // move the collection files to user's trash.
-// The deleteOnlyExcluiveFiles flag is true for v2 collection delete and is false for v3 version.
 // See [Collection Delete Versions] for more details
-func (repo *CollectionRepository) ScheduleDelete(
-	collectionID int64,
-	deleteOnlyExcluiveFiles bool) error {
+func (repo *CollectionRepository) ScheduleDelete(collectionID int64) error {
 	updationTime := time.Microseconds()
 	ctx := context.Background()
 	tx, err := repo.DB.BeginTx(ctx, nil)
@@ -974,12 +1009,7 @@ func (repo *CollectionRepository) ScheduleDelete(
 		tx.Rollback()
 		return stacktrace.Propagate(err, "")
 	}
-	if deleteOnlyExcluiveFiles {
-		err = repo.QueueRepo.AddItems(ctx, tx, TrashCollectionQueue, []string{strconv.FormatInt(collectionID, 10)})
-	} else {
-		err = repo.QueueRepo.AddItems(ctx, tx, TrashCollectionQueueV3, []string{strconv.FormatInt(collectionID, 10)})
-	}
-
+	err = repo.QueueRepo.AddItems(ctx, tx, TrashCollectionQueueV3, []string{strconv.FormatInt(collectionID, 10)})
 	if err != nil {
 		tx.Rollback()
 		return stacktrace.Propagate(err, "")

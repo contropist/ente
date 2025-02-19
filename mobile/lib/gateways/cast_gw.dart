@@ -12,10 +12,14 @@ class CastGateway {
       );
       return response.data["publicKey"];
     } catch (e) {
-      if (e is DioError &&
-          e.response != null &&
-          e.response!.statusCode == 404) {
-        return null;
+      if (e is DioException && e.response != null) {
+        if (e.response!.statusCode == 404) {
+          return null;
+        } else if (e.response!.statusCode == 403) {
+          throw CastIPMismatchException();
+        } else {
+          rethrow;
+        }
       }
       rethrow;
     }
@@ -28,7 +32,7 @@ class CastGateway {
     String castToken,
   ) {
     return _enteDio.post(
-      "/cast/cast-data/",
+      "/cast/cast-data",
       data: {
         "deviceCode": code,
         "encPayload": castPayload,
@@ -41,10 +45,14 @@ class CastGateway {
   Future<void> revokeAllTokens() async {
     try {
       await _enteDio.delete(
-        "/cast/revoke-all-tokens/",
+        "/cast/revoke-all-tokens",
       );
     } catch (e) {
       // swallow error
     }
   }
+}
+
+class CastIPMismatchException implements Exception {
+  CastIPMismatchException();
 }

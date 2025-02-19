@@ -1,14 +1,16 @@
-import { setRecoveryKey } from "@ente/accounts/api/user";
-import { logError } from "@ente/shared/sentry";
-import { LS_KEYS, getData, setData } from "@ente/shared/storage/localStorage";
+import { setRecoveryKey } from "@/accounts/services/user";
+import { sharedCryptoWorker } from "@/base/crypto";
+import log from "@/base/log";
+import {
+    LS_KEYS,
+    getData,
+    setData,
+    setLSUser,
+} from "@ente/shared/storage/localStorage";
 import { getToken } from "@ente/shared/storage/localStorage/helpers";
 import { SESSION_KEYS, setKey } from "@ente/shared/storage/sessionStorage";
 import { getActualKey } from "@ente/shared/user";
-import { KeyAttributes } from "@ente/shared/user/types";
-import isElectron from "is-electron";
-import ComlinkCryptoWorker from ".";
-import ElectronAPIs from "../electron";
-import { addLogLine } from "../logging";
+import type { KeyAttributes } from "@ente/shared/user/types";
 
 const LOGIN_SUB_KEY_LENGTH = 32;
 const LOGIN_SUB_KEY_ID = 1;
@@ -19,7 +21,7 @@ export async function decryptAndStoreToken(
     keyAttributes: KeyAttributes,
     masterKey: string,
 ) {
-    const cryptoWorker = await ComlinkCryptoWorker.getInstance();
+    const cryptoWorker = await sharedCryptoWorker();
     const user = getData(LS_KEYS.USER);
     let decryptedToken = null;
     const { encryptedToken } = user;
@@ -37,8 +39,8 @@ export async function decryptAndStoreToken(
         const decryptedTokenBytes = await cryptoWorker.fromB64(
             urlUnsafeB64DecryptedToken,
         );
-        decryptedToken = await cryptoWorker.toURLSafeB64(decryptedTokenBytes);
-        setData(LS_KEYS.USER, {
+        decryptedToken = await cryptoWorker.toB64URLSafe(decryptedTokenBytes);
+        await setLSUser({
             ...user,
             token: decryptedToken,
             encryptedToken: null,
@@ -55,7 +57,7 @@ export async function generateAndSaveIntermediateKeyAttributes(
     existingKeyAttributes: KeyAttributes,
     key: string,
 ): Promise<KeyAttributes> {
-    const cryptoWorker = await ComlinkCryptoWorker.getInstance();
+    const cryptoWorker = await sharedCryptoWorker();
     const intermediateKekSalt = await cryptoWorker.generateSaltToDeriveKey();
     const intermediateKek = await cryptoWorker.deriveInteractiveKey(
         passphrase,
@@ -78,7 +80,7 @@ export async function generateAndSaveIntermediateKeyAttributes(
 }
 
 export const generateLoginSubKey = async (kek: string) => {
-    const cryptoWorker = await ComlinkCryptoWorker.getInstance();
+    const cryptoWorker = await sharedCryptoWorker();
     const kekSubKeyString = await cryptoWorker.generateSubKey(
         kek,
         LOGIN_SUB_KEY_LENGTH,
@@ -100,22 +102,18 @@ export const saveKeyInSessionStore = async (
     key: string,
     fromDesktop?: boolean,
 ) => {
-    const cryptoWorker = await ComlinkCryptoWorker.getInstance();
+    const cryptoWorker = await sharedCryptoWorker();
     const sessionKeyAttributes =
         await cryptoWorker.generateKeyAndEncryptToB64(key);
     setKey(keyType, sessionKeyAttributes);
-    addLogLine("fromDesktop", fromDesktop);
-    if (
-        isElectron() &&
-        !fromDesktop &&
-        keyType === SESSION_KEYS.ENCRYPTION_KEY
-    ) {
-        ElectronAPIs.setEncryptionKey(key);
+    const electron = globalThis.electron;
+    if (electron && !fromDesktop && keyType === SESSION_KEYS.ENCRYPTION_KEY) {
+        electron.saveMasterKeyB64(key);
     }
 };
 
 export async function encryptWithRecoveryKey(key: string) {
-    const cryptoWorker = await ComlinkCryptoWorker.getInstance();
+    const cryptoWorker = await sharedCryptoWorker();
     const hexRecoveryKey = await getRecoveryKey();
     const recoveryKey = await cryptoWorker.fromHex(hexRecoveryKey);
     const encryptedKey = await cryptoWorker.encryptToB64(key, recoveryKey);
@@ -123,9 +121,8 @@ export async function encryptWithRecoveryKey(key: string) {
 }
 
 export const getRecoveryKey = async () => {
-    let recoveryKey: string = null;
     try {
-        const cryptoWorker = await ComlinkCryptoWorker.getInstance();
+        const cryptoWorker = await sharedCryptoWorker();
 
         const keyAttributes: KeyAttributes = getData(LS_KEYS.KEY_ATTRIBUTES);
         const {
@@ -133,10 +130,11 @@ export const getRecoveryKey = async () => {
             recoveryKeyDecryptionNonce,
         } = keyAttributes;
         const masterKey = await getActualKey();
+        let recoveryKey: string;
         if (recoveryKeyEncryptedWithMasterKey) {
             recoveryKey = await cryptoWorker.decryptB64(
-                recoveryKeyEncryptedWithMasterKey,
-                recoveryKeyDecryptionNonce,
+                recoveryKeyEncryptedWithMasterKey!,
+                recoveryKeyDecryptionNonce!,
                 masterKey,
             );
         } else {
@@ -145,8 +143,7 @@ export const getRecoveryKey = async () => {
         recoveryKey = await cryptoWorker.toHex(recoveryKey);
         return recoveryKey;
     } catch (e) {
-        console.log(e);
-        logError(e, "getRecoveryKey failed");
+        log.error("getRecoveryKey failed", e);
         throw e;
     }
 };
@@ -157,7 +154,7 @@ async function createNewRecoveryKey() {
     const masterKey = await getActualKey();
     const existingAttributes = getData(LS_KEYS.KEY_ATTRIBUTES);
 
-    const cryptoWorker = await ComlinkCryptoWorker.getInstance();
+    const cryptoWorker = await sharedCryptoWorker();
 
     const recoveryKey = await cryptoWorker.generateEncryptionKey();
     const encryptedMasterKey = await cryptoWorker.encryptToB64(

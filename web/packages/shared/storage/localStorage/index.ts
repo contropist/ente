@@ -1,50 +1,28 @@
-import { logError } from "@ente/shared/sentry";
+import { getKVS, removeKV, setKV } from "@/base/kv";
+import log from "@/base/log";
 
 export enum LS_KEYS {
     USER = "user",
-    SESSION = "session",
     KEY_ATTRIBUTES = "keyAttributes",
     ORIGINAL_KEY_ATTRIBUTES = "originalKeyAttributes",
-    SUBSCRIPTION = "subscription",
-    FAMILY_DATA = "familyData",
-    PLANS = "plans",
     IS_FIRST_LOGIN = "isFirstLogin",
     JUST_SIGNED_UP = "justSignedUp",
     SHOW_BACK_BUTTON = "showBackButton",
     EXPORT = "export",
-    AnonymizedUserID = "anonymizedUserID",
-    THUMBNAIL_FIX_STATE = "thumbnailFixState",
-    LIVE_PHOTO_INFO_SHOWN_COUNT = "livePhotoInfoShownCount",
-    LOGS = "logs",
-    USER_DETAILS = "userDetails",
+    // LOGS = "logs",
+    // Migrated to (and only used by) useCollectionsSortByLocalState.
     COLLECTION_SORT_BY = "collectionSortBy",
-    THEME = "theme",
-    WAIT_TIME = "waitTime",
-    API_ENDPOINT = "apiEndpoint",
-    // Moved to the new wrapper @/utils/local-storage
+    // Moved to the new wrapper @/base/local-storage
     // LOCALE = 'locale',
-    MAP_ENABLED = "mapEnabled",
     SRP_SETUP_ATTRIBUTES = "srpSetupAttributes",
     SRP_ATTRIBUTES = "srpAttributes",
-    OPT_OUT_OF_CRASH_REPORTS = "optOutOfCrashReports",
-    CF_PROXY_DISABLED = "cfProxyDisabled",
     REFERRAL_SOURCE = "referralSource",
-    CLIENT_PACKAGE = "clientPackage",
 }
 
-export const setData = (key: LS_KEYS, value: object) => {
-    if (typeof localStorage === "undefined") {
-        return null;
-    }
+export const setData = (key: LS_KEYS, value: object) =>
     localStorage.setItem(key, JSON.stringify(value));
-};
 
-export const removeData = (key: LS_KEYS) => {
-    if (typeof localStorage === "undefined") {
-        return null;
-    }
-    localStorage.removeItem(key);
-};
+export const removeData = (key: LS_KEYS) => localStorage.removeItem(key);
 
 export const getData = (key: LS_KEYS) => {
     try {
@@ -59,13 +37,78 @@ export const getData = (key: LS_KEYS) => {
         const data = localStorage.getItem(key);
         return data && JSON.parse(data);
     } catch (e) {
-        logError(e, "Failed to Parse JSON for key " + key);
+        log.error(`Failed to Parse JSON for key ${key}`, e);
     }
 };
 
-export const clearData = () => {
-    if (typeof localStorage === "undefined") {
-        return null;
-    }
-    localStorage.clear();
+// TODO: Migrate this to `local-user.ts`, with (a) more precise optionality
+// indication of the constituent fields, (b) moving any fields that need to be
+// accessed from web workers to KV DB.
+//
+// Creating a new function here to act as a funnel point.
+export const setLSUser = async (user: object) => {
+    await migrateKVToken(user);
+    setData(LS_KEYS.USER, user);
+};
+
+/**
+ * Update the "token" KV with the token (if any) for the given {@link user}.
+ *
+ * This is an internal implementation details of {@link setLSUser} and doesn't
+ * need to exposed conceptually. For now though, we need to call this externally
+ * at an early point in the app startup to also copy over the token into KV DB
+ * for existing users.
+ *
+ * This was added 1 July 2024, can be removed after a while and this code
+ * inlined into `setLSUser` (tag: Migration).
+ */
+export const migrateKVToken = async (user: unknown) => {
+    // Throw an error if the data is in local storage but not in IndexedDB. This
+    // is a pre-cursor to inlining this code.
+    // TODO(REL): Remove this sanity check after a few days.
+    const oldLSUser = getData(LS_KEYS.USER);
+    const wasMissing =
+        oldLSUser &&
+        typeof oldLSUser == "object" &&
+        "token" in oldLSUser &&
+        typeof oldLSUser.token == "string" &&
+        !(await getKVS("token"));
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    user &&
+    typeof user == "object" &&
+    "id" in user &&
+    typeof user.id == "number"
+        ? await setKV("userID", user.id)
+        : await removeKV("userID");
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    user &&
+    typeof user == "object" &&
+    "token" in user &&
+    typeof user.token == "string"
+        ? await setKV("token", user.token)
+        : await removeKV("token");
+
+    if (wasMissing)
+        throw new Error(
+            "The user's token was present in local storage but not in IndexedDB",
+        );
+};
+
+/**
+ * Return true if the user's data is in local storage but not in IndexedDB.
+ *
+ * This acts a sanity check on IndexedDB by ensuring that if the user has a
+ * token in local storage, then it should also be present in IndexedDB.
+ */
+export const isLocalStorageAndIndexedDBMismatch = async () => {
+    const oldLSUser = getData(LS_KEYS.USER);
+    return (
+        oldLSUser &&
+        typeof oldLSUser == "object" &&
+        "token" in oldLSUser &&
+        typeof oldLSUser.token == "string" &&
+        !(await getKVS("token"))
+    );
 };

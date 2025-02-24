@@ -3,7 +3,9 @@ package storagebonus
 import (
 	"database/sql"
 	"errors"
-	"fmt"
+	goaway "github.com/TwiN/go-away"
+	"github.com/ente-io/museum/pkg/utils/random"
+	"strings"
 
 	"github.com/ente-io/museum/ente"
 	entity "github.com/ente-io/museum/ente/storagebonus"
@@ -13,7 +15,6 @@ import (
 	"github.com/ente-io/museum/pkg/repo"
 	"github.com/ente-io/museum/pkg/repo/storagebonus"
 	"github.com/ente-io/museum/pkg/utils/auth"
-	enteTime "github.com/ente-io/museum/pkg/utils/time"
 	"github.com/ente-io/stacktrace"
 	"github.com/gin-gonic/gin"
 )
@@ -22,7 +23,6 @@ const (
 	codeLength                 = 6
 	referralAmountInGb         = 10
 	maxClaimableReferralAmount = 2000
-	numOfDaysToClaimReferral   = 32
 	defaultPlanType            = entity.TenGbOnUpgrade
 )
 
@@ -49,7 +49,7 @@ func (c *Controller) GetUserReferralView(ctx *gin.Context) (*entity.GetUserRefer
 		return nil, stacktrace.Propagate(err, "")
 	}
 	isFamilyMember := user.FamilyAdminID != nil && *user.FamilyAdminID != userID
-	enableApplyCode := !appliedReferral && user.CreationTime > enteTime.MicrosecondBeforeDays(numOfDaysToClaimReferral) && !isFamilyMember
+	enableApplyCode := !appliedReferral && !isFamilyMember
 	// Get the referral code for the user or family admin
 	codeUser := userID
 	if isFamilyMember {
@@ -100,9 +100,7 @@ func (c *Controller) ApplyReferralCode(ctx *gin.Context, code string) error {
 		return stacktrace.Propagate(err, "failed to get user")
 	}
 
-	if user.CreationTime < enteTime.MicrosecondBeforeDays(numOfDaysToClaimReferral) {
-		return stacktrace.Propagate(entity.CanNotApplyCodeErr, "account is too old to apply code")
-	} else if user.FamilyAdminID != nil && userID != *user.FamilyAdminID {
+	if user.FamilyAdminID != nil && userID != *user.FamilyAdminID {
 		return stacktrace.Propagate(entity.CanNotApplyCodeErr, "user is member of a family plan")
 	}
 
@@ -119,7 +117,7 @@ func (c *Controller) GetOrCreateReferralCode(ctx *gin.Context, userID int64) (*s
 		if !errors.Is(err, sql.ErrNoRows) {
 			return nil, stacktrace.Propagate(err, "failed to get storagebonus code")
 		}
-		code, err := generateAlphaNumString(codeLength)
+		code, err := random.GenerateAlphaNumString(codeLength)
 		if err != nil {
 			return nil, stacktrace.Propagate(err, "")
 		}
@@ -132,29 +130,23 @@ func (c *Controller) GetOrCreateReferralCode(ctx *gin.Context, userID int64) (*s
 	return referralCode, nil
 }
 
-// generateAlphaNumString returns AlphaNumeric code of given length
-// which exclude number 0 and letter O. The code always starts with an
-// alphabet
-func generateAlphaNumString(length int) (string, error) {
-	// Define the alphabet and numbers to be used in the string.
-	alphabet := "ABCDEFGHIJKLMNPQRSTUVWXYZ"
-	// Define the alphabet and numbers to be used in the string.
-	alphaNum := fmt.Sprintf("%s123456789", alphabet)
-	// Allocate a byte slice with the desired length.
-	result := make([]byte, length)
-	// Generate the first letter as an alphabet.
-	r0, err := auth.GenerateRandomInt(int64(len(alphabet)))
+func (c *Controller) UpdateReferralCode(ctx *gin.Context, userID int64, code string, isAdminEdit bool) error {
+	code = strings.ToUpper(code)
+	if !random.IsAlphanumeric(code) {
+		return stacktrace.Propagate(ente.NewBadRequestWithMessage("code is not alphanumeric"), "")
+	}
+	if len(code) < 4 || len(code) > 20 {
+		return stacktrace.Propagate(ente.NewBadRequestWithMessage("code length should be between 4 and 8"), "")
+	}
+
+	// Check if the code contains any offensive language using the go-away library
+	if goaway.IsProfane(code) {
+		return stacktrace.Propagate(ente.NewBadRequestWithMessage("Referral code contains offensive language and cannot be used"), "")
+	}
+
+	err := c.StorageBonus.AddNewCode(ctx, userID, code, isAdminEdit)
 	if err != nil {
-		return "", stacktrace.Propagate(err, "")
+		return stacktrace.Propagate(err, "failed to update referral code")
 	}
-	result[0] = alphabet[r0]
-	// Generate the remaining characters as alphanumeric.
-	for i := 1; i < length; i++ {
-		ri, err := auth.GenerateRandomInt(int64(len(alphaNum)))
-		if err != nil {
-			return "", stacktrace.Propagate(err, "")
-		}
-		result[i] = alphaNum[ri]
-	}
-	return string(result), nil
+	return nil
 }

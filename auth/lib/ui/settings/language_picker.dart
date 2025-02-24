@@ -18,53 +18,58 @@ class LanguageSelectorPage extends StatelessWidget {
     this.supportedLocales,
     this.onLocaleChanged,
     this.currentLocale, {
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     return Scaffold(
-      body: CustomScrollView(
-        primary: false,
-        slivers: <Widget>[
-          TitleBarWidget(
-            flexibleSpaceTitle: TitleBarTitleWidget(
-              title: l10n.selectLanguage,
-            ),
-          ),
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 20,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ClipRRect(
-                        borderRadius:
-                            const BorderRadius.all(Radius.circular(8)),
-                        child: ItemsWidget(
-                          supportedLocales,
-                          onLocaleChanged,
-                          currentLocale,
-                        ),
+      body: Center(
+        child: Container(
+          constraints: const BoxConstraints.tightFor(width: 450),
+          child: CustomScrollView(
+            primary: false,
+            slivers: <Widget>[
+              TitleBarWidget(
+                flexibleSpaceTitle: TitleBarTitleWidget(
+                  title: l10n.selectLanguage,
+                ),
+              ),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 20,
                       ),
-                      // MenuSectionDescriptionWidget(
-                      //   content: context.l10n.maxDeviceLimitSpikeHandling(50),
-                      // )
-                    ],
-                  ),
-                );
-              },
-              childCount: 1,
-            ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ClipRRect(
+                            borderRadius:
+                                const BorderRadius.all(Radius.circular(8)),
+                            child: ItemsWidget(
+                              supportedLocales,
+                              onLocaleChanged,
+                              currentLocale,
+                            ),
+                          ),
+                          // MenuSectionDescriptionWidget(
+                          //   content: context.l10n.maxDeviceLimitSpikeHandling(50),
+                          // )
+                        ],
+                      ),
+                    );
+                  },
+                  childCount: 1,
+                ),
+              ),
+              const SliverPadding(padding: EdgeInsets.symmetric(vertical: 12)),
+            ],
           ),
-          const SliverPadding(padding: EdgeInsets.symmetric(vertical: 12)),
-        ],
+        ),
       ),
     );
   }
@@ -79,8 +84,8 @@ class ItemsWidget extends StatefulWidget {
     this.supportedLocales,
     this.onLocaleChanged,
     this.currentLocale, {
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<ItemsWidget> createState() => _ItemsWidgetState();
@@ -119,8 +124,18 @@ class _ItemsWidgetState extends State<ItemsWidget> {
 
   String _getLanguageName(Locale locale) {
     switch (locale.languageCode) {
+      case 'ar':
+        return 'العربية';
+      case 'ca':
+        return 'Català';
+      case 'cs':
+        return 'Čeština';
       case 'en':
         return 'English';
+      case 'bg':
+        return 'Български';
+      case 'el':
+        return 'Ελληνικά';
       case 'es':
         switch (locale.countryCode) {
           case 'ES':
@@ -132,8 +147,14 @@ class _ItemsWidgetState extends State<ItemsWidget> {
         return 'Français';
       case 'de':
         return 'Deutsch';
+      case 'hu':
+        return 'Magyar';
+      case 'id':
+        return 'Bahasa Indonesia';
       case 'it':
         return 'Italiano';
+      case 'lt':
+        return 'Lietuvių';
       case 'nl':
         return 'Nederlands';
       case 'pl':
@@ -147,8 +168,16 @@ class _ItemsWidgetState extends State<ItemsWidget> {
         }
       case 'ru':
         return 'Русский';
+      case 'sl':
+        return 'Slovenščina';
+      case 'sk':
+        return 'Slovenčina';
       case 'tr':
         return 'Türkçe';
+      case 'uk':
+        return 'Українська';
+      case 'vi':
+        return 'Tiếng Việt';
       case 'fi':
         return 'Suomi';
       case 'zh':
@@ -164,8 +193,6 @@ class _ItemsWidgetState extends State<ItemsWidget> {
         return '日本語';
       case 'ko':
         return '한국어';
-      case 'ar':
-        return 'العربية';
       case 'fa':
         return 'فارسی';
       default:

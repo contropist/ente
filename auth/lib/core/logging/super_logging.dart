@@ -1,5 +1,3 @@
-library super_logging;
-
 import 'dart:async';
 import 'dart:collection';
 import 'dart:core';
@@ -167,7 +165,7 @@ class SuperLogging {
       await setupLogDir();
     }
     if (sentryIsEnabled) {
-      setupSentry();
+      setupSentry().ignore();
     }
 
     Logger.root.level = Level.ALL;
@@ -235,14 +233,14 @@ class SuperLogging {
       extraLines = null;
     }
 
-    final str = (config.prefix) + " " + rec.toPrettyString(extraLines);
+    final str = "${config.prefix} ${rec.toPrettyString(extraLines)}";
 
     // write to stdout
     printLog(str);
 
     // push to log queue
     if (fileIsEnabled) {
-      fileQueueEntries.add(str + '\n');
+      fileQueueEntries.add('$str\n');
       if (fileQueueEntries.length == 1) {
         flushQueue();
       }
@@ -250,7 +248,7 @@ class SuperLogging {
 
     // add error to sentry queue
     if (sentryIsEnabled && rec.error != null) {
-      _sendErrorToSentry(rec.error!, null);
+      _sendErrorToSentry(rec.error!, null).ignore();
     }
   }
 
@@ -275,7 +273,7 @@ class SuperLogging {
   static var logChunkSize = 800;
 
   static void printLog(String text) {
-    text.chunked(logChunkSize).forEach(print);
+    text.chunked(logChunkSize).forEach(debugPrint);
   }
 
   /// A queue to be consumed by [setupSentry].
@@ -289,7 +287,7 @@ class SuperLogging {
     SuperLogging.setUserID(await _getOrCreateAnonymousUserID());
     await for (final error in sentryQueueControl.stream.asBroadcastStream()) {
       try {
-        Sentry.captureException(
+        await Sentry.captureException(
           error,
         );
       } catch (e) {
@@ -354,7 +352,7 @@ class SuperLogging {
         final date = config.dateFmt!.parse(basename(file.path));
         dates[file as File] = date;
         files.add(file);
-      } on FormatException {}
+      } on Exception catch (_) {}
     }
     final nowTime = DateTime.now();
 
@@ -374,7 +372,7 @@ class SuperLogging {
             "deleting log file ${file.path}",
           );
           await file.delete();
-        } catch (ignore) {}
+        } on Exception catch (_) {}
       }
     }
 

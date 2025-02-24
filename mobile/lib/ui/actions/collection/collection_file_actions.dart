@@ -147,7 +147,7 @@ extension CollectionFileActions on CollectionActions {
         // Newly created collection might not be cached
         final Collection? c =
             CollectionsService.instance.getCollectionByID(collectionID);
-        if (c != null && c.owner!.id != currentUserID) {
+        if (c != null && c.owner.id != currentUserID) {
           if (!showProgressDialog) {
             dialog = createProgressDialog(
               context,
@@ -184,7 +184,8 @@ extension CollectionFileActions on CollectionActions {
         }
       }
       if (files.isNotEmpty) {
-        await CollectionsService.instance.addToCollection(collectionID, files);
+        await CollectionsService.instance
+            .addOrCopyToCollection(collectionID, files);
       }
       unawaited(RemoteSyncService.instance.sync(silently: true));
       await dialog?.hide();

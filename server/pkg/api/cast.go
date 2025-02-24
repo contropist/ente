@@ -1,22 +1,23 @@
 package api
 
 import (
-	entity "github.com/ente-io/museum/ente/cast"
-	"github.com/ente-io/museum/pkg/controller/cast"
-	"net/http"
-	"strconv"
-
 	"github.com/ente-io/museum/ente"
+	entity "github.com/ente-io/museum/ente/cast"
 	"github.com/ente-io/museum/pkg/controller"
+	"github.com/ente-io/museum/pkg/controller/cast"
+	"github.com/ente-io/museum/pkg/controller/collections"
 	"github.com/ente-io/museum/pkg/utils/handler"
 	"github.com/ente-io/stacktrace"
 	"github.com/gin-gonic/gin"
+	"net/http"
+	"strconv"
+	"strings"
 )
 
 // CastHandler exposes request handlers for publicly accessible collections
 type CastHandler struct {
 	FileCtrl       *controller.FileController
-	CollectionCtrl *controller.CollectionController
+	CollectionCtrl *collections.CollectionController
 	Ctrl           *cast.Controller
 }
 
@@ -126,7 +127,7 @@ func (h *CastHandler) GetDiff(c *gin.Context) {
 }
 
 func getDeviceCode(c *gin.Context) string {
-	return c.Param("deviceCode")
+	return strings.ToUpper(c.Param("deviceCode"))
 }
 
 func (h *CastHandler) getFileForType(c *gin.Context, objectType ente.ObjectType) {

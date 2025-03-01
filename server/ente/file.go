@@ -134,6 +134,7 @@ type UpdateMagicMetadata struct {
 // UpdateMultipleMagicMetadataRequest request payload for updating magic metadata for list of files
 type UpdateMultipleMagicMetadataRequest struct {
 	MetadataList []UpdateMagicMetadata `json:"metadataList" binding:"required"`
+	SkipVersion  *bool                 `json:"skipVersion"`
 }
 
 // UploadURL represents the upload url for a specific object
@@ -152,8 +153,11 @@ type MultipartUploadURLs struct {
 type ObjectType string
 
 const (
-	FILE      ObjectType = "file"
-	THUMBNAIL ObjectType = "thumbnail"
+	FILE         ObjectType = "file"
+	THUMBNAIL    ObjectType = "thumbnail"
+	PreviewImage ObjectType = "img_preview"
+	PreviewVideo ObjectType = "vid_preview"
+	MlData       ObjectType = "mldata"
 )
 
 // S3ObjectKey represents the s3 object key and corresponding fileID for it
@@ -198,7 +202,7 @@ type TempObject struct {
 	ObjectKey   string
 	IsMultipart bool
 	UploadID    string
-	DataCenter  string
+	BucketId    string
 }
 
 // DuplicateFiles represents duplicate files

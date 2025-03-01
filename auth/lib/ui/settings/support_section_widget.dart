@@ -5,14 +5,14 @@ import 'package:ente_auth/ui/components/captioned_text_widget.dart';
 import 'package:ente_auth/ui/components/expandable_menu_item_widget.dart';
 import 'package:ente_auth/ui/components/menu_item_widget.dart';
 import 'package:ente_auth/ui/settings/common_settings.dart';
-import 'package:ente_auth/ui/settings/faq.dart';
 import 'package:ente_auth/utils/email_util.dart';
+import 'package:ente_auth/utils/platform_util.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
 class SupportSectionWidget extends StatefulWidget {
-  const SupportSectionWidget({Key? key}) : super(key: key);
+  const SupportSectionWidget({super.key});
 
   @override
   State<SupportSectionWidget> createState() => _SupportSectionWidgetState();
@@ -42,14 +42,15 @@ class _SupportSectionWidgetState extends State<SupportSectionWidget> {
           trailingIcon: Icons.chevron_right_outlined,
           trailingIconIsMuted: true,
           onTap: () async {
-            showModalBottomSheet<void>(
-              backgroundColor: Theme.of(context).colorScheme.background,
-              barrierColor: Colors.black87,
-              context: context,
-              builder: (context) {
-                return const FAQQuestionsWidget();
-              },
-            );
+            try {
+              PlatformUtil.openWebView(
+                context,
+                context.l10n.faq,
+                "https://help.ente.io/auth/faq",
+              );
+            } catch (e) {
+              Logger("SupportSection").severe("Failed to open FAQ", e);
+            }
           },
         ),
         sectionOptionSpacing,
@@ -61,25 +62,26 @@ class _SupportSectionWidgetState extends State<SupportSectionWidget> {
           trailingIcon: Icons.chevron_right_outlined,
           trailingIconIsMuted: true,
           onTap: () async {
+            // ignore: unawaited_futures
             launchUrlString(
-              githubDiscussionsUrl,
+              githubFeatureRequestUrl,
               mode: LaunchMode.externalApplication,
             );
           },
         ),
         sectionOptionSpacing,
-        MenuItemWidget(
-          captionedTextWidget: CaptionedTextWidget(
-            title: l10n.email,
-          ),
-          pressedColor: getEnteColorScheme(context).fillFaint,
-          trailingIcon: Icons.chevron_right_outlined,
-          trailingIconIsMuted: true,
-          onTap: () async {
-            await sendEmail(context, to: supportEmail);
-          },
-        ),
-        sectionOptionSpacing,
+        // MenuItemWidget(
+        //   captionedTextWidget: CaptionedTextWidget(
+        //     title: l10n.email,
+        //   ),
+        //   pressedColor: getEnteColorScheme(context).fillFaint,
+        //   trailingIcon: Icons.chevron_right_outlined,
+        //   trailingIconIsMuted: true,
+        //   onTap: () async {
+        //     await sendEmail(context, to: supportEmail);
+        //   },
+        // ),
+        // sectionOptionSpacing,
         MenuItemWidget(
           captionedTextWidget: CaptionedTextWidget(
             title: l10n.reportABug,
@@ -88,7 +90,7 @@ class _SupportSectionWidgetState extends State<SupportSectionWidget> {
           trailingIcon: Icons.chevron_right_outlined,
           trailingIconIsMuted: true,
           onTap: () async {
-            await sendLogs(context, l10n.reportBug, "auth@ente.io");
+            await sendLogs(context, l10n.reportBug);
           },
           onDoubleTap: () async {
             try {

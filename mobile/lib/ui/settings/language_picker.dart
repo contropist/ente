@@ -18,8 +18,8 @@ class LanguageSelectorPage extends StatelessWidget {
     this.supportedLocales,
     this.onLocaleChanged,
     this.currentLocale, {
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -78,8 +78,8 @@ class ItemsWidget extends StatefulWidget {
     this.supportedLocales,
     this.onLocaleChanged,
     this.currentLocale, {
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<ItemsWidget> createState() => _ItemsWidgetState();
@@ -128,8 +128,12 @@ class _ItemsWidgetState extends State<ItemsWidget> {
         return 'Deutsch';
       case 'it':
         return 'Italiano';
+      case 'ja':
+        return '日本語';
       case 'nl':
         return 'Nederlands';
+      case 'pl':
+        return 'Polski';
       case 'pt':
         return 'Português';
       case 'ru':
@@ -142,12 +146,14 @@ class _ItemsWidgetState extends State<ItemsWidget> {
         return '中文';
       case 'zh-CN':
         return '中文';
-      case 'ja':
-        return '日本語';
       case 'ko':
         return '한국어';
       case 'ar':
         return 'العربية';
+      case 'uk':
+        return 'Українська';
+      case 'vi':
+        return 'Tiếng Việt';
       default:
         return locale.languageCode;
     }

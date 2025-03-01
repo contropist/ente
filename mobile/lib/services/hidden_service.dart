@@ -1,8 +1,8 @@
 import "dart:async";
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:collection/collection.dart';
+import 'package:ente_crypto/ente_crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import "package:photos/core/constants.dart";
@@ -10,14 +10,14 @@ import 'package:photos/core/event_bus.dart';
 import "package:photos/db/files_db.dart";
 import 'package:photos/events/files_updated_event.dart';
 import 'package:photos/events/local_photos_updated_event.dart';
+import "package:photos/generated/l10n.dart";
 import 'package:photos/models/api/collection/create_request.dart';
+import "package:photos/models/api/metadata.dart";
 import 'package:photos/models/collection/collection.dart';
 import 'package:photos/models/file/file.dart';
 import "package:photos/models/metadata/collection_magic.dart";
 import "package:photos/models/metadata/common_keys.dart";
 import 'package:photos/services/collections_service.dart';
-import 'package:photos/services/file_magic_service.dart';
-import 'package:photos/utils/crypto_util.dart';
 import 'package:photos/utils/dialog_util.dart';
 
 extension HiddenService on CollectionsService {
@@ -31,7 +31,7 @@ extension HiddenService on CollectionsService {
     final int userID = config.getUserID()!;
     final allDefaultHidden = collectionIDToCollections.values
         .where(
-          (element) => element.isDefaultHidden() && element.owner!.id == userID,
+          (element) => element.isDefaultHidden() && element.owner.id == userID,
         )
         .toList();
 
@@ -100,7 +100,7 @@ extension HiddenService on CollectionsService {
         collectionIDToCollections.values.firstWhereOrNull(
       (element) =>
           element.type == CollectionType.uncategorized &&
-          element.owner!.id == userID,
+          element.owner.id == userID,
     );
     if (matchedCollection != null) {
       cachedUncategorizedCollection = matchedCollection;
@@ -165,7 +165,9 @@ extension HiddenService on CollectionsService {
       await dialog.hide();
     } on AssertionError catch (e) {
       await dialog.hide();
-      unawaited(showErrorDialog(context, "Oops", e.message as String));
+      unawaited(
+        showErrorDialog(context, S.of(context).oops, e.message as String),
+      );
       return false;
     } catch (e, s) {
       _logger.severe("Could not hide", e, s);
@@ -213,7 +215,7 @@ extension HiddenService on CollectionsService {
     final encKey =
         CryptoUtil.encryptSync(uncategorizedCollectionKey, config.getKey()!);
     final encName = CryptoUtil.encryptSync(
-      utf8.encode("Uncategorized") as Uint8List,
+      utf8.encode("Uncategorized"),
       uncategorizedCollectionKey,
     );
     final collection = await createAndCacheCollection(
@@ -239,7 +241,7 @@ extension HiddenService on CollectionsService {
     final encryptedKeyData =
         CryptoUtil.encryptSync(collectionKey, config.getKey()!);
     final encryptedName = CryptoUtil.encryptSync(
-      utf8.encode(name) as Uint8List,
+      utf8.encode(name),
       collectionKey,
     );
     final jsonToUpdate = CollectionMagicMetadata(
@@ -248,7 +250,7 @@ extension HiddenService on CollectionsService {
     ).toJson();
     assert(jsonToUpdate.length == 2, "metadata should have two keys");
     final encryptedMMd = await CryptoUtil.encryptChaCha(
-      utf8.encode(jsonEncode(jsonToUpdate)) as Uint8List,
+      utf8.encode(jsonEncode(jsonToUpdate)),
       collectionKey,
     );
     final MetadataRequest metadataRequest = MetadataRequest(

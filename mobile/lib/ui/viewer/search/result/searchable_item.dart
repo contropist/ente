@@ -1,10 +1,12 @@
 import "package:dotted_border/dotted_border.dart";
 import "package:flutter/material.dart";
+import "package:photos/models/search/generic_search_result.dart";
 import "package:photos/models/search/recent_searches.dart";
 import "package:photos/models/search/search_result.dart";
 import "package:photos/models/search/search_types.dart";
 import "package:photos/theme/ente_theme.dart";
 import "package:photos/ui/components/buttons/icon_button_widget.dart";
+import "package:photos/ui/viewer/search/result/contact_result_page.dart";
 import "package:photos/ui/viewer/search/result/search_result_page.dart";
 import "package:photos/ui/viewer/search/result/search_thumbnail_widget.dart";
 import "package:photos/utils/navigation_util.dart";
@@ -15,10 +17,10 @@ class SearchableItemWidget extends StatelessWidget {
   final Function? onResultTap;
   const SearchableItemWidget(
     this.searchResult, {
-    Key? key,
+    super.key,
     this.resultCount,
     this.onResultTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +32,8 @@ class SearchableItemWidget extends StatelessWidget {
     final heroTagPrefix = additionalPrefix + searchResult.heroTag();
     final textTheme = getEnteTextTheme(context);
     final colorScheme = getEnteColorScheme(context);
+    final bool isCluster = (searchResult.type() == ResultType.faces &&
+        int.tryParse(searchResult.name()) != null);
 
     return GestureDetector(
       onTap: () {
@@ -37,13 +41,23 @@ class SearchableItemWidget extends StatelessWidget {
         if (onResultTap != null) {
           onResultTap!();
         } else {
-          routeToPage(
-            context,
-            SearchResultPage(
-              searchResult,
-              tagPrefix: additionalPrefix,
-            ),
-          );
+          if (searchResult.type() == ResultType.shared) {
+            routeToPage(
+              context,
+              ContactResultPage(
+                searchResult,
+                tagPrefix: additionalPrefix,
+              ),
+            );
+          } else {
+            routeToPage(
+              context,
+              SearchResultPage(
+                searchResult,
+                tagPrefix: additionalPrefix,
+              ),
+            );
+          }
         }
       },
       child: Container(
@@ -63,10 +77,16 @@ class SearchableItemWidget extends StatelessWidget {
                   SizedBox(
                     width: 60,
                     height: 60,
-                    child: SearchThumbnailWidget(
-                      searchResult.previewThumbnail(),
-                      heroTagPrefix,
-                    ),
+                    child: searchResult.type() == ResultType.shared
+                        ? ContactSearchThumbnailWidget(
+                            heroTagPrefix,
+                            searchResult: searchResult as GenericSearchResult,
+                          )
+                        : SearchThumbnailWidget(
+                            searchResult.previewThumbnail(),
+                            heroTagPrefix,
+                            searchResult: searchResult,
+                          ),
                   ),
                   const SizedBox(width: 12),
                   Flexible(
@@ -75,14 +95,16 @@ class SearchableItemWidget extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            searchResult.name(),
-                            style: searchResult.type() ==
-                                    ResultType.locationSuggestion
-                                ? textTheme.bodyFaint
-                                : textTheme.body,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          isCluster
+                              ? const SizedBox.shrink()
+                              : Text(
+                                  searchResult.name(),
+                                  style: searchResult.type() ==
+                                          ResultType.locationSuggestion
+                                      ? textTheme.bodyFaint
+                                      : textTheme.body,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                           const SizedBox(
                             height: 2,
                           ),

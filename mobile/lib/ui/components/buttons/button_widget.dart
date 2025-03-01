@@ -202,14 +202,14 @@ class _ButtonChildWidgetState extends State<ButtonChildWidget> {
 
   @override
   void initState() {
-    _setButtonTheme();
     super.initState();
+    _setButtonTheme();
   }
 
   @override
   void didUpdateWidget(covariant ButtonChildWidget oldWidget) {
-    _setButtonTheme();
     super.didUpdateWidget(oldWidget);
+    _setButtonTheme();
   }
 
   @override
@@ -416,13 +416,13 @@ class _ButtonChildWidgetState extends State<ButtonChildWidget> {
         onError: (error, stackTrace) {
           executionState = ExecutionState.error;
           _exception = error as Exception;
-          _debouncer.cancelDebounce();
+          _debouncer.cancelDebounceTimer();
         },
       );
       widget.shouldShowSuccessConfirmation && _debouncer.isActive()
           ? executionState = ExecutionState.successful
           : null;
-      _debouncer.cancelDebounce();
+      _debouncer.cancelDebounceTimer();
       if (executionState == ExecutionState.successful) {
         setState(() {});
       }

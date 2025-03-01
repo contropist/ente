@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:ente_auth/core/constants.dart';
 import 'package:ente_auth/core/network.dart';
 import 'package:ente_auth/services/notification_service.dart';
+import 'package:ente_auth/utils/platform_util.dart';
 import 'package:logging/logging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -57,9 +59,9 @@ class UpdateService {
     return _latestVersion;
   }
 
-  Future<void> showUpdateNotification() async {
+  Future<bool> showUpdateNotification() async {
     if (!isIndependent()) {
-      return;
+      return false;
     }
     final shouldUpdate = await this.shouldUpdate();
     final lastNotificationShownTime =
@@ -70,13 +72,19 @@ class UpdateService {
     if (shouldUpdate &&
         hasBeen3DaysSinceLastNotification &&
         _latestVersion!.shouldNotify!) {
-      NotificationService.instance.showNotification(
-        "Update available",
-        "Click to install our best version yet",
-      );
       await _prefs.setInt(kUpdateAvailableShownTimeKey, now);
+      if (Platform.isAndroid) {
+        unawaited(
+          NotificationService.instance.showNotification(
+            "Update available",
+            "Click to install our best version yet",
+          ),
+        );
+      }
+      return true;
     } else {
       _logger.info("Debouncing notification");
+      return false;
     }
   }
 
@@ -95,7 +103,7 @@ class UpdateService {
       if (flavor == "playstore") {
         return const Tuple2(
           "Play Store",
-          "market://details??id=io.ente.auth",
+          "market://details?id=io.ente.auth",
         );
       }
       return const Tuple2(
@@ -127,7 +135,8 @@ class UpdateService {
 
   bool isIndependent() {
     return flavor == "independent" ||
-        _packageInfo.packageName.endsWith("independent");
+        _packageInfo.packageName.endsWith("independent") ||
+        PlatformUtil.isDesktop();
   }
 }
 
@@ -138,6 +147,7 @@ class LatestVersionInfo {
   final bool? shouldForceUpdate;
   final int lastSupportedVersionCode;
   final String? url;
+  final String? release;
   final int? size;
   final bool? shouldNotify;
 
@@ -148,6 +158,7 @@ class LatestVersionInfo {
     this.shouldForceUpdate,
     this.lastSupportedVersionCode,
     this.url,
+    this.release,
     this.size,
     this.shouldNotify,
   );
@@ -160,6 +171,7 @@ class LatestVersionInfo {
       map['shouldForceUpdate'],
       map['lastSupportedVersionCode'] ?? 1,
       map['url'],
+      map['release'],
       map['size'],
       map['shouldNotify'],
     );

@@ -20,8 +20,10 @@ import 'package:photos/services/app_lifecycle_service.dart';
 import "package:photos/services/ignored_files_service.dart";
 import 'package:photos/services/local/local_sync_util.dart';
 import "package:photos/utils/debouncer.dart";
+import "package:photos/utils/photo_manager_util.dart";
+import "package:photos/utils/sqlite_util.dart";
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:synchronized/synchronized.dart';
 import 'package:tuple/tuple.dart';
 
 class LocalSyncService {
@@ -30,15 +32,12 @@ class LocalSyncService {
   late SharedPreferences _prefs;
   Completer<void>? _existingSync;
   late Debouncer _changeCallbackDebouncer;
+  final Lock _lock = Lock();
 
   static const kDbUpdationTimeKey = "db_updation_time";
   static const kHasCompletedFirstImportKey = "has_completed_firstImport";
   static const kHasGrantedPermissionsKey = "has_granted_permissions";
   static const kPermissionStateKey = "permission_state";
-
-  // Adding `_2` as a suffic to pull files that were earlier ignored due to permission errors
-  // See https://github.com/CaiJingLong/flutter_photo_manager/issues/589
-  static const kInvalidFileIDsKey = "invalid_file_ids_2";
 
   LocalSyncService._privateConstructor();
 
@@ -61,7 +60,7 @@ class LocalSyncService {
       return;
     }
     if (Platform.isAndroid && AppLifecycleService.instance.isForeground) {
-      final permissionState = await PhotoManager.requestPermissionExtend();
+      final permissionState = await requestPhotoMangerPermissions();
       if (permissionState != PermissionState.authorized) {
         _logger.severe(
           "sync requested with invalid permission",
@@ -76,50 +75,58 @@ class LocalSyncService {
     }
     _existingSync = Completer<void>();
     final int ownerID = Configuration.instance.getUserID()!;
-    final existingLocalFileIDs = await _db.getExistingLocalFileIDs(ownerID);
-    _logger.info("${existingLocalFileIDs.length} localIDs were discovered");
 
-    final syncStartTime = DateTime.now().microsecondsSinceEpoch;
-    final lastDBUpdationTime = _prefs.getInt(kDbUpdationTimeKey) ?? 0;
-    final startTime = DateTime.now().microsecondsSinceEpoch;
-    if (lastDBUpdationTime != 0) {
-      await _loadAndStoreDiff(
-        existingLocalFileIDs,
-        fromTime: lastDBUpdationTime,
-        toTime: syncStartTime,
-      );
-    } else {
-      // Load from 0 - 01.01.2010
-      Bus.instance.fire(SyncStatusUpdate(SyncStatus.startedFirstGalleryImport));
-      var startTime = 0;
-      var toYear = 2010;
-      var toTime = DateTime(toYear).microsecondsSinceEpoch;
-      while (toTime < syncStartTime) {
+    // We use a lock to prevent synchronisation to occur while it is downloading
+    // as this introduces wrong entry in FilesDB due to race condition
+    // This is a fix for https://github.com/ente-io/ente/issues/4296
+    await _lock.synchronized(() async {
+      final existingLocalFileIDs = await _db.getExistingLocalFileIDs(ownerID);
+      _logger.info("${existingLocalFileIDs.length} localIDs were discovered");
+
+      final syncStartTime = DateTime.now().microsecondsSinceEpoch;
+      final lastDBUpdationTime = _prefs.getInt(kDbUpdationTimeKey) ?? 0;
+      final startTime = DateTime.now().microsecondsSinceEpoch;
+      if (lastDBUpdationTime != 0) {
+        await _loadAndStoreDiff(
+          existingLocalFileIDs,
+          fromTime: lastDBUpdationTime,
+          toTime: syncStartTime,
+        );
+      } else {
+        // Load from 0 - 01.01.2010
+        Bus.instance
+            .fire(SyncStatusUpdate(SyncStatus.startedFirstGalleryImport));
+        var startTime = 0;
+        var toYear = 2010;
+        var toTime = DateTime(toYear).microsecondsSinceEpoch;
+        while (toTime < syncStartTime) {
+          await _loadAndStoreDiff(
+            existingLocalFileIDs,
+            fromTime: startTime,
+            toTime: toTime,
+          );
+          startTime = toTime;
+          toYear++;
+          toTime = DateTime(toYear).microsecondsSinceEpoch;
+        }
         await _loadAndStoreDiff(
           existingLocalFileIDs,
           fromTime: startTime,
-          toTime: toTime,
+          toTime: syncStartTime,
         );
-        startTime = toTime;
-        toYear++;
-        toTime = DateTime(toYear).microsecondsSinceEpoch;
       }
-      await _loadAndStoreDiff(
-        existingLocalFileIDs,
-        fromTime: startTime,
-        toTime: syncStartTime,
-      );
-    }
-    if (!hasCompletedFirstImport()) {
-      await _prefs.setBool(kHasCompletedFirstImportKey, true);
-      await _refreshDeviceFolderCountAndCover(isFirstSync: true);
-      _logger.fine("first gallery import finished");
-      Bus.instance
-          .fire(SyncStatusUpdate(SyncStatus.completedFirstGalleryImport));
-    }
-    final endTime = DateTime.now().microsecondsSinceEpoch;
-    final duration = Duration(microseconds: endTime - startTime);
-    _logger.info("Load took " + duration.inMilliseconds.toString() + "ms");
+      if (!hasCompletedFirstImport()) {
+        await _prefs.setBool(kHasCompletedFirstImportKey, true);
+        await _refreshDeviceFolderCountAndCover(isFirstSync: true);
+        _logger.fine("first gallery import finished");
+        Bus.instance
+            .fire(SyncStatusUpdate(SyncStatus.completedFirstGalleryImport));
+      }
+      final endTime = DateTime.now().microsecondsSinceEpoch;
+      final duration = Duration(microseconds: endTime - startTime);
+      _logger.info("Load took " + duration.inMilliseconds.toString() + "ms");
+    });
+
     _existingSync?.complete();
     _existingSync = null;
   }
@@ -160,12 +167,11 @@ class LocalSyncService {
     final existingLocalFileIDs = await _db.getExistingLocalFileIDs(ownerID);
     final Map<String, Set<String>> pathToLocalIDs =
         await _db.getDevicePathIDToLocalIDMap();
-    final invalidIDs = _getInvalidFileIDs().toSet();
+
     final localDiffResult = await getDiffWithLocal(
       localAssets,
       existingLocalFileIDs,
       pathToLocalIDs,
-      invalidIDs,
     );
     bool hasAnyMappingChanged = false;
     if (localDiffResult.newPathToLocalIDs?.isNotEmpty ?? false) {
@@ -183,7 +189,7 @@ class LocalSyncService {
     if (hasUnsyncedFiles) {
       await _db.insertMultiple(
         localDiffResult.uniqueLocalFiles!,
-        conflictAlgorithm: ConflictAlgorithm.ignore,
+        conflictAlgorithm: SqliteAsyncConflictAlgorithm.ignore,
       );
       _logger.info(
         "Inserted ${localDiffResult.uniqueLocalFiles?.length} "
@@ -213,6 +219,11 @@ class LocalSyncService {
       _logger.warning('Invalid file received for ignoring: $file');
       return;
     }
+    if (Platform.isIOS && error.reason == InvalidReason.sourceFileMissing) {
+      // ignoreSourceFileMissing error on iOS as the file fetch from iCloud might have failed,
+      // but the file might be available later
+      return;
+    }
     final ignored = IgnoredFile(
       file.localID,
       file.title,
@@ -222,16 +233,8 @@ class LocalSyncService {
     await IgnoredFilesService.instance.cacheAndInsert([ignored]);
   }
 
-  @Deprecated(
-    "remove usage after few releases as we will switch to ignored files. Keeping it now to clear the invalid file ids from shared prefs",
-  )
-  List<String> _getInvalidFileIDs() {
-    if (_prefs.containsKey(kInvalidFileIDsKey)) {
-      _prefs.remove(kInvalidFileIDsKey);
-      return <String>[];
-    } else {
-      return <String>[];
-    }
+  Lock getLock() {
+    return _lock;
   }
 
   bool hasGrantedPermissions() {
@@ -315,7 +318,7 @@ class LocalSyncService {
       files.removeWhere((file) => existingLocalDs.contains(file.localID));
       await _db.insertMultiple(
         files,
-        conflictAlgorithm: ConflictAlgorithm.ignore,
+        conflictAlgorithm: SqliteAsyncConflictAlgorithm.ignore,
       );
       _logger.info('Inserted ${files.length} files');
       Bus.instance.fire(

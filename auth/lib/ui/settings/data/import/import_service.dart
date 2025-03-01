@@ -1,4 +1,3 @@
-import 'package:ente_auth/ui/settings/data/import/2fas_import.dart';
 import 'package:ente_auth/ui/settings/data/import/aegis_import.dart';
 import 'package:ente_auth/ui/settings/data/import/bitwarden_import.dart';
 import 'package:ente_auth/ui/settings/data/import/encrypted_ente_import.dart';
@@ -6,6 +5,7 @@ import 'package:ente_auth/ui/settings/data/import/google_auth_import.dart';
 import 'package:ente_auth/ui/settings/data/import/lastpass_import.dart';
 import 'package:ente_auth/ui/settings/data/import/plain_text_import.dart';
 import 'package:ente_auth/ui/settings/data/import/raivo_plain_text_import.dart';
+import 'package:ente_auth/ui/settings/data/import/two_fas_import.dart';
 import 'package:ente_auth/ui/settings/data/import_page.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -19,29 +19,29 @@ class ImportService {
   Future<void> initiateImport(BuildContext context, ImportType type) async {
     switch (type) {
       case ImportType.plainText:
-        showImportInstructionDialog(context);
+        await showImportInstructionDialog(context);
         break;
       case ImportType.encrypted:
-        showEncryptedImportInstruction(context);
+        await showEncryptedImportInstruction(context);
         break;
       case ImportType.ravio:
-        showRaivoImportInstruction(context);
+        await showRaivoImportInstruction(context);
         break;
       case ImportType.googleAuthenticator:
-        showGoogleAuthInstruction(context);
+        await showGoogleAuthInstruction(context);
         // showToast(context, 'coming soon');
         break;
       case ImportType.aegis:
-        showAegisImportInstruction(context);
+        await showAegisImportInstruction(context);
         break;
       case ImportType.twoFas:
-        show2FasImportInstruction(context);
+        await show2FasImportInstruction(context);
         break;
       case ImportType.bitwarden:
-        showBitwardenImportInstruction(context);
+        await showBitwardenImportInstruction(context);
         break;
       case ImportType.lastpass:
-        showLastpassImportInstruction(context);
+        await showLastpassImportInstruction(context);
         break;
     }
   }

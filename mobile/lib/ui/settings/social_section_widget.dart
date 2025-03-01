@@ -2,7 +2,7 @@ import "dart:io";
 
 import 'package:flutter/material.dart';
 import "package:photos/generated/l10n.dart";
-import 'package:photos/services/update_service.dart';
+import "package:photos/service_locator.dart";
 import 'package:photos/theme/ente_theme.dart';
 import 'package:photos/ui/components/captioned_text_widget.dart';
 import 'package:photos/ui/components/expandable_menu_item_widget.dart';
@@ -11,7 +11,7 @@ import 'package:photos/ui/settings/common_settings.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
 class SocialSectionWidget extends StatelessWidget {
-  const SocialSectionWidget({Key? key}) : super(key: key);
+  const SocialSectionWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +24,7 @@ class SocialSectionWidget extends StatelessWidget {
 
   Widget _getSectionOptions(BuildContext context) {
     final List<Widget> options = [];
-    final result = UpdateService.instance.getRateDetails();
+    final result = updateService.getRateDetails();
     final String ratePlace = result.item1;
     final String rateUrl = result.item2;
     options.addAll(
@@ -55,7 +55,7 @@ class SocialSectionWidget extends StatelessWidget {
         sectionOptionSpacing,
         SocialsMenuItemWidget(
           S.of(context).mastodon,
-          "https://mstdn.social/@ente",
+          "https://fosstodon.org/@ente",
         ),
         sectionOptionSpacing,
         SocialsMenuItemWidget(
@@ -85,9 +85,9 @@ class SocialsMenuItemWidget extends StatelessWidget {
   const SocialsMenuItemWidget(
     this.text,
     this.url, {
-    Key? key,
+    super.key,
     this.launchInExternalApp = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

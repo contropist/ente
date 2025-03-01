@@ -3,15 +3,24 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  app_links
+  connectivity_plus
   file_saver
+  flutter_inappwebview_windows
+  flutter_local_authentication
   flutter_secure_storage_windows
   local_auth_windows
-  sentry_flutter
+  screen_retriever
   share_plus
+  sodium_libs
+  sqlite3_flutter_libs
+  tray_manager
   url_launcher_windows
+  window_manager
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
+  sentry_flutter
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

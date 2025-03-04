@@ -1,21 +1,23 @@
-import 'dart:ui';
-
 import 'package:ente_auth/l10n/l10n.dart';
+import 'package:ente_auth/models/account/two_factor.dart';
 import 'package:ente_auth/services/user_service.dart';
-import 'package:ente_auth/utils/dialog_util.dart';
+import 'package:ente_auth/theme/ente_theme.dart';
+import 'package:ente_auth/utils/email_util.dart';
 import 'package:flutter/material.dart';
 
 class TwoFactorRecoveryPage extends StatefulWidget {
   final String sessionID;
   final String encryptedSecret;
   final String secretDecryptionNonce;
+  final TwoFactorType type;
 
   const TwoFactorRecoveryPage(
+    this.type,
     this.sessionID,
     this.encryptedSecret,
     this.secretDecryptionNonce, {
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<TwoFactorRecoveryPage> createState() => _TwoFactorRecoveryPageState();
@@ -72,6 +74,7 @@ class _TwoFactorRecoveryPageState extends State<TwoFactorRecoveryPage> {
                   ? () async {
                       await UserService.instance.removeTwoFactor(
                         context,
+                        widget.type,
                         widget.sessionID,
                         _recoveryKey.text,
                         widget.encryptedSecret,
@@ -84,12 +87,8 @@ class _TwoFactorRecoveryPageState extends State<TwoFactorRecoveryPage> {
           ),
           GestureDetector(
             behavior: HitTestBehavior.translucent,
-            onTap: () {
-              showErrorDialog(
-                context,
-                l10n.contactSupport,
-                l10n.contactSupportViaEmailMessage("support@ente.io"),
-              );
+            onTap: () async {
+              await openSupportPage(null, null);
             },
             child: Container(
               padding: const EdgeInsets.all(40),
@@ -99,7 +98,8 @@ class _TwoFactorRecoveryPageState extends State<TwoFactorRecoveryPage> {
                   style: TextStyle(
                     decoration: TextDecoration.underline,
                     fontSize: 12,
-                    color: Colors.white.withOpacity(0.9),
+                    color:
+                        getEnteColorScheme(context).textBase.withOpacity(0.9),
                   ),
                 ),
               ),

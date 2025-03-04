@@ -6,22 +6,27 @@ class SpeedDialLabelWidget extends StatelessWidget {
 
   const SpeedDialLabelWidget(
     this.label, {
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(4),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: Theme.of(context).colorScheme.fabBackgroundColor,
+    return MediaQuery(
+      data: const MediaQueryData(
+        textScaler: TextScaler.linear(1),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.fabForegroundColor,
+      child: Container(
+        margin: const EdgeInsets.all(4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: Theme.of(context).colorScheme.fabBackgroundColor,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.fabForegroundColor,
+          ),
         ),
       ),
     );

@@ -1,186 +1,186 @@
-import { logError } from "@ente/shared/sentry";
-import PairedSuccessfullyOverlay from "components/PairedSuccessfullyOverlay";
-import Theatre from "components/Theatre";
-import { FILE_TYPE } from "constants/file";
+import log from "@/base/log";
+import { Stack, styled, Typography } from "@mui/material";
+import { FilledCircleCheck } from "components/FilledCircleCheck";
 import { useRouter } from "next/router";
-import { createContext, useEffect, useState } from "react";
-import {
-    getCastCollection,
-    getLocalFiles,
-    syncPublicFiles,
-} from "services/cast/castService";
-import { Collection } from "types/collection";
-import { EnteFile } from "types/file";
-import { getPreviewableImage, isRawFileFromFileName } from "utils/file";
+import React, { useEffect, useState } from "react";
+import { readCastData } from "services/cast-data";
+import { isChromecast } from "services/chromecast-receiver";
+import { imageURLGenerator } from "services/render";
 
-export const SlideshowContext = createContext<{
-    showNextSlide: () => void;
-}>(null);
-
-const renderableFileURLCache = new Map<number, string>();
-
-export default function Slideshow() {
-    const [collectionFiles, setCollectionFiles] = useState<EnteFile[]>([]);
-
-    const [currentFile, setCurrentFile] = useState<EnteFile | undefined>(
-        undefined,
-    );
-    const [nextFile, setNextFile] = useState<EnteFile | undefined>(undefined);
-
-    const [loading, setLoading] = useState(true);
-    const [castToken, setCastToken] = useState<string>("");
-    const [castCollection, setCastCollection] = useState<
-        Collection | undefined
-    >(undefined);
-
-    const syncCastFiles = async (token: string) => {
-        try {
-            const castToken = window.localStorage.getItem("castToken");
-            const requestedCollectionKey =
-                window.localStorage.getItem("collectionKey");
-            const collection = await getCastCollection(
-                castToken,
-                requestedCollectionKey,
-            );
-            if (
-                castCollection === undefined ||
-                castCollection.updationTime !== collection.updationTime
-            ) {
-                setCastCollection(collection);
-                await syncPublicFiles(token, collection, () => {});
-                const files = await getLocalFiles(String(collection.id));
-                setCollectionFiles(
-                    files.filter((file) => isFileEligibleForCast(file)),
-                );
-            }
-        } catch (e) {
-            logError(e, "error during sync");
-            router.push("/");
-        }
-    };
-
-    const init = async () => {
-        try {
-            const castToken = window.localStorage.getItem("castToken");
-            setCastToken(castToken);
-        } catch (e) {
-            logError(e, "error during sync");
-            router.push("/");
-        }
-    };
-
-    useEffect(() => {
-        if (castToken) {
-            const intervalId = setInterval(() => {
-                syncCastFiles(castToken);
-            }, 5000);
-
-            return () => clearInterval(intervalId);
-        }
-    }, [castToken]);
-
-    const isFileEligibleForCast = (file: EnteFile) => {
-        const fileType = file.metadata.fileType;
-        if (fileType !== FILE_TYPE.IMAGE && fileType !== FILE_TYPE.LIVE_PHOTO) {
-            return false;
-        }
-
-        const fileSizeLimit = 100 * 1024 * 1024;
-
-        if (file.info.fileSize > fileSizeLimit) {
-            return false;
-        }
-
-        const name = file.metadata.title;
-
-        if (fileType === FILE_TYPE.IMAGE) {
-            if (isRawFileFromFileName(name)) {
-                return false;
-            }
-        }
-
-        return true;
-    };
+const Page: React.FC = () => {
+    const [isEmpty, setIsEmpty] = useState(false);
+    const [imageURL, setImageURL] = useState<string | undefined>();
 
     const router = useRouter();
 
     useEffect(() => {
-        init();
-    }, []);
+        /** Go back to pairing page */
+        const pair = () => void router.push("/");
 
-    useEffect(() => {
-        if (collectionFiles.length < 1) return;
-        showNextSlide();
-    }, [collectionFiles]);
+        let stop = false;
 
-    const showNextSlide = () => {
-        const currentIndex = collectionFiles.findIndex(
-            (file) => file.id === currentFile?.id,
-        );
+        const loop = async () => {
+            try {
+                const urlGenerator = imageURLGenerator(readCastData()!);
+                while (!stop) {
+                    const { value: url, done } = await urlGenerator.next();
+                    if (done == true || !url) {
+                        // No items in this callection can be shown.
+                        setIsEmpty(true);
+                        // Go back to pairing screen after 5 seconds.
+                        setTimeout(pair, 5000);
+                        return;
+                    }
 
-        const nextIndex = (currentIndex + 1) % collectionFiles.length;
-        const nextNextIndex = (nextIndex + 1) % collectionFiles.length;
+                    setImageURL(url);
+                }
+            } catch (e) {
+                log.error("Failed to prepare generator", e);
+                pair();
+            }
+        };
 
-        const nextFile = collectionFiles[nextIndex];
-        const nextNextFile = collectionFiles[nextNextIndex];
+        void loop();
 
-        setCurrentFile(nextFile);
-        setNextFile(nextNextFile);
-    };
+        return () => {
+            stop = true;
+        };
+    }, [router]);
 
-    const [renderableFileURL, setRenderableFileURL] = useState<string>("");
+    if (isEmpty) return <NoItems />;
+    if (!imageURL) return <PairingComplete />;
 
-    const getRenderableFileURL = async () => {
-        if (!currentFile) return;
-
-        const cacheValue = renderableFileURLCache.get(currentFile.id);
-        if (cacheValue) {
-            setRenderableFileURL(cacheValue);
-            setLoading(false);
-            return;
-        }
-
-        try {
-            const blob = await getPreviewableImage(
-                currentFile as EnteFile,
-                castToken,
-            );
-
-            const url = URL.createObjectURL(blob);
-
-            renderableFileURLCache.set(currentFile?.id, url);
-
-            setRenderableFileURL(url);
-        } catch (e) {
-            return;
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (currentFile) {
-            getRenderableFileURL();
-        }
-    }, [currentFile]);
-
-    return (
-        <>
-            <SlideshowContext.Provider value={{ showNextSlide }}>
-                <Theatre
-                    file1={{
-                        fileName: currentFile?.metadata.title,
-                        fileURL: renderableFileURL,
-                        type: currentFile?.metadata.fileType,
-                    }}
-                    file2={{
-                        fileName: nextFile?.metadata.title,
-                        fileURL: renderableFileURL,
-                        type: nextFile?.metadata.fileType,
-                    }}
-                />
-            </SlideshowContext.Provider>
-            {loading && <PairedSuccessfullyOverlay />}
-        </>
+    return isChromecast() ? (
+        <SlideViewChromecast url={imageURL} />
+    ) : (
+        <SlideView url={imageURL} />
     );
+};
+
+export default Page;
+
+const PairingComplete: React.FC = () => {
+    return (
+        <Message>
+            <FilledCircleCheck />
+            <Typography variant="h3" sx={{ mt: 2, mb: 2 }}>
+                Pairing Complete
+            </Typography>
+            <Stack sx={{ gap: "4px" }}>
+                <Typography>{"We're preparing your album"}</Typography>
+                <Typography>This should only take a few seconds.</Typography>
+            </Stack>
+        </Message>
+    );
+};
+
+const Message = styled(Stack)`
+    height: 100vh;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    gap: 1rem;
+`;
+
+const NoItems: React.FC = () => {
+    return (
+        <Message>
+            <Typography variant="h3">Try another album</Typography>
+            <Stack sx={{ gap: "4px" }}>
+                <Typography>
+                    This album has no photos that can be shown here
+                </Typography>
+                <Typography>Please try another album</Typography>
+            </Stack>
+        </Message>
+    );
+};
+
+interface SlideViewProps {
+    /** The URL of the image to show. */
+    url: string;
 }
+
+const SlideView: React.FC<SlideViewProps> = ({ url }) => {
+    return (
+        <SlideView_ style={{ backgroundImage: `url(${url})` }}>
+            <img src={url} decoding="sync" alt="" />
+        </SlideView_>
+    );
+};
+
+const SlideView_ = styled("div")`
+    height: 100vh;
+
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-blend-mode: multiply;
+    background-color: rgba(0, 0, 0, 0.5);
+
+    /* Smooth out the transition a bit.
+     *
+     * For the img itself, we set decoding="sync" to have it switch seamlessly.
+     * But there does not seem to be a way of setting decoding sync for the
+     * background image, and for large (multi-MB) images the background image
+     * switch is still visually non-atomic.
+     *
+     * As a workaround, add a long transition so that the background image
+     * transitions in a more "fade-to" manner. This effect might or might not be
+     * visually the best though.
+     *
+     * Does not work in Firefox, but that's fine, this is only a slight tweak,
+     * not a functional requirement.
+     */
+    transition: all 2s;
+
+    img {
+        width: 100%;
+        height: 100%;
+        backdrop-filter: blur(10px);
+        object-fit: contain;
+    }
+`;
+
+/**
+ * Variant of {@link SlideView} for use when we're running on Chromecast.
+ *
+ * Chromecast devices have trouble with
+ *
+ *     backdrop-filter: blur(10px);
+ *
+ * So emulate a cheaper approximation for use on Chromecast.
+ */
+const SlideViewChromecast: React.FC<SlideViewProps> = ({ url }) => {
+    return (
+        <SlideViewChromecast_>
+            <img className="svc-bg" src={url} alt="" />
+            <img className="svc-content" src={url} decoding="sync" alt="" />
+        </SlideViewChromecast_>
+    );
+};
+
+const SlideViewChromecast_ = styled("div")`
+    height: 100vh;
+
+    /* We can't set opacity of background-image, so use a wrapper */
+    position: relative;
+    overflow: hidden;
+
+    img.svc-bg {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0.1;
+    }
+
+    img.svc-content {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+`;

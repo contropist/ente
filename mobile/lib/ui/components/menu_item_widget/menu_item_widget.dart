@@ -88,8 +88,8 @@ class MenuItemWidget extends StatefulWidget {
     this.showOnlyLoadingState = false,
     this.surfaceExecutionStates = true,
     this.alwaysShowSuccessState = false,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<MenuItemWidget> createState() => _MenuItemWidgetState();
@@ -213,7 +213,9 @@ class _MenuItemWidgetState extends State<MenuItemWidget> {
 
   Future<void> _onTap() async {
     if (executionStateNotifier.value == ExecutionState.inProgress ||
-        executionStateNotifier.value == ExecutionState.successful) return;
+        executionStateNotifier.value == ExecutionState.successful) {
+      return;
+    }
     _debouncer.run(
       () => Future(
         () {
@@ -227,9 +229,9 @@ class _MenuItemWidgetState extends State<MenuItemWidget> {
             ? executionStateNotifier.value = ExecutionState.successful
             : null;
       },
-      onError: (error, stackTrace) => _debouncer.cancelDebounce(),
+      onError: (error, stackTrace) => _debouncer.cancelDebounceTimer(),
     );
-    _debouncer.cancelDebounce();
+    _debouncer.cancelDebounceTimer();
     if (widget.alwaysShowSuccessState) {
       Future.delayed(const Duration(seconds: 2), () {
         executionStateNotifier.value = ExecutionState.idle;
@@ -250,7 +252,9 @@ class _MenuItemWidgetState extends State<MenuItemWidget> {
 
   void _onTapDown(details) {
     if (executionStateNotifier.value == ExecutionState.inProgress ||
-        executionStateNotifier.value == ExecutionState.successful) return;
+        executionStateNotifier.value == ExecutionState.successful) {
+      return;
+    }
     setState(() {
       if (widget.pressedColor == null) {
         hasPassedGestureCallbacks()
@@ -270,7 +274,9 @@ class _MenuItemWidgetState extends State<MenuItemWidget> {
 
   void _onTapUp(details) {
     if (executionStateNotifier.value == ExecutionState.inProgress ||
-        executionStateNotifier.value == ExecutionState.successful) return;
+        executionStateNotifier.value == ExecutionState.successful) {
+      return;
+    }
     Future.delayed(
       const Duration(milliseconds: 100),
       () => setState(() {
@@ -281,7 +287,9 @@ class _MenuItemWidgetState extends State<MenuItemWidget> {
 
   void _onCancel() {
     if (executionStateNotifier.value == ExecutionState.inProgress ||
-        executionStateNotifier.value == ExecutionState.successful) return;
+        executionStateNotifier.value == ExecutionState.successful) {
+      return;
+    }
     setState(() {
       menuItemColor = widget.menuItemColor;
     });

@@ -5,16 +5,16 @@ import 'package:flutter/material.dart';
 import "package:logging/logging.dart";
 import "package:photo_manager/photo_manager.dart";
 import "package:photos/generated/l10n.dart";
-import "package:photos/services/local_sync_service.dart";
+import "package:photos/services/sync/local_sync_service.dart";
 import 'package:photos/ui/components/buttons/icon_button_widget.dart';
 import "package:photos/ui/settings/backup/backup_folder_selection_page.dart";
 import "package:photos/utils/dialog_util.dart";
 import "package:photos/utils/navigation_util.dart";
+import "package:photos/utils/photo_manager_util.dart";
 
 class HomeHeaderWidget extends StatefulWidget {
   final Widget centerWidget;
-  const HomeHeaderWidget({required this.centerWidget, Key? key})
-      : super(key: key);
+  const HomeHeaderWidget({required this.centerWidget, super.key});
 
   @override
   State<HomeHeaderWidget> createState() => _HomeHeaderWidgetState();
@@ -48,7 +48,7 @@ class _HomeHeaderWidgetState extends State<HomeHeaderWidget> {
           onTap: () async {
             try {
               final PermissionState state =
-                  await PhotoManager.requestPermissionExtend();
+                  await requestPhotoMangerPermissions();
               await LocalSyncService.instance.onUpdatePermission(state);
             } on Exception catch (e) {
               Logger("HomeHeaderWidget").severe(
@@ -85,8 +85,8 @@ class _HomeHeaderWidgetState extends State<HomeHeaderWidget> {
               unawaited(
                 routeToPage(
                   context,
-                  BackupFolderSelectionPage(
-                    buttonText: S.of(context).backup,
+                  const BackupFolderSelectionPage(
+                    isFirstBackup: false,
                   ),
                 ),
               );

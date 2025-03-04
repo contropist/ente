@@ -2,19 +2,13 @@
 
 The sweetness of Ente Photos, right on your computer. Linux, Windows and macOS.
 
-You can [**download** a pre-built binary from
-releases](https://github.com/ente-io/photos-desktop/releases/latest).
+You can
+[**download** a pre-built binary from releases](https://github.com/ente-io/photos-desktop/releases/latest).
 
 To know more about Ente, see [our main README](../README.md) or visit
 [ente.io](https://ente.io).
 
 ## Building from source
-
-> [!CAUTION]
->
-> We moved a few things around when switching to a monorepo recently, so this
-> folder might not build with the instructions below. Hang tight, we're on it,
-> will fix things if.
 
 Fetch submodules
 
@@ -28,15 +22,17 @@ Install dependencies
 yarn install
 ```
 
-Run the app
+Run in development mode (supports hot reload for the renderer process)
 
 ```sh
-yarn start
+yarn dev
 ```
 
-To recompile automatically using electron-reload, run this in a separate
-terminal:
+Or create a binary for your platform
 
-```bash
-yarn watch
+```sh
+yarn build
 ```
+
+That's the gist of it. For more development related documentation, see
+[docs](docs/README.md).

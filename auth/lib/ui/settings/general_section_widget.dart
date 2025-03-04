@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:ente_auth/app/view/app.dart';
+import 'package:ente_auth/core/event_bus.dart';
 import 'package:ente_auth/core/logging/super_logging.dart';
+import 'package:ente_auth/events/icons_changed_event.dart';
 import 'package:ente_auth/l10n/l10n.dart';
 import 'package:ente_auth/locale.dart';
 import 'package:ente_auth/services/preference_service.dart';
@@ -17,7 +19,7 @@ import 'package:ente_auth/utils/toast_util.dart';
 import 'package:flutter/material.dart';
 
 class AdvancedSectionWidget extends StatefulWidget {
-  const AdvancedSectionWidget({Key? key}) : super(key: key);
+  const AdvancedSectionWidget({super.key});
 
   @override
   State<AdvancedSectionWidget> createState() => _AdvancedSectionWidgetState();
@@ -47,7 +49,8 @@ class _AdvancedSectionWidgetState extends State<AdvancedSectionWidget> {
           trailingIcon: Icons.chevron_right_outlined,
           trailingIconIsMuted: true,
           onTap: () async {
-            final locale = await getLocale();
+            final locale = (await getLocale())!;
+            // ignore: unawaited_futures
             routeToPage(
               context,
               LanguageSelectorPage(
@@ -79,6 +82,22 @@ class _AdvancedSectionWidgetState extends State<AdvancedSectionWidget> {
         sectionOptionSpacing,
         MenuItemWidget(
           captionedTextWidget: CaptionedTextWidget(
+            title: l10n.compactMode,
+          ),
+          trailingWidget: ToggleSwitchWidget(
+            value: () => PreferenceService.instance.isCompactMode(),
+            onChanged: () async {
+              await PreferenceService.instance.setCompactMode(
+                !PreferenceService.instance.isCompactMode(),
+              );
+              Bus.instance.fire(IconsChangedEvent());
+              setState(() {});
+            },
+          ),
+        ),
+        sectionOptionSpacing,
+        MenuItemWidget(
+          captionedTextWidget: CaptionedTextWidget(
             title: l10n.shouldHideCode,
           ),
           trailingWidget: ToggleSwitchWidget(
@@ -87,7 +106,7 @@ class _AdvancedSectionWidgetState extends State<AdvancedSectionWidget> {
               await PreferenceService.instance.setHideCodes(
                 !PreferenceService.instance.shouldHideCodes(),
               );
-              if(PreferenceService.instance.shouldHideCodes()) {
+              if (PreferenceService.instance.shouldHideCodes()) {
                 showToast(context, context.l10n.doubleTapToViewHiddenCode);
               }
               setState(() {});

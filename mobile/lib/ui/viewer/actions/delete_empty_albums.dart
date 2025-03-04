@@ -6,14 +6,14 @@ import "package:photos/generated/l10n.dart";
 import 'package:photos/models/collection/collection.dart';
 import 'package:photos/models/file/file.dart';
 import 'package:photos/services/collections_service.dart';
-import "package:photos/services/remote_sync_service.dart";
+import "package:photos/services/sync/remote_sync_service.dart";
 import 'package:photos/ui/components/action_sheet_widget.dart';
 import 'package:photos/ui/components/buttons/button_widget.dart';
 import 'package:photos/ui/components/models/button_type.dart';
 
 class DeleteEmptyAlbums extends StatefulWidget {
   final List<Collection> collections;
-  const DeleteEmptyAlbums(this.collections, {Key? key}) : super(key: key);
+  const DeleteEmptyAlbums(this.collections, {super.key});
 
   @override
   State<DeleteEmptyAlbums> createState() => _DeleteEmptyAlbumsState();
@@ -84,7 +84,7 @@ class _DeleteEmptyAlbumsState extends State<DeleteEmptyAlbums> {
                   onTap: () async {
                     await _deleteEmptyAlbums();
                     if (!_isCancelled) {
-                      Navigator.of(context, rootNavigator: true).pop();
+                      Navigator.of(context).pop();
                     }
                     Bus.instance.fire(
                       CollectionUpdatedEvent(
@@ -104,7 +104,7 @@ class _DeleteEmptyAlbumsState extends State<DeleteEmptyAlbums> {
                   shouldStickToDarkTheme: true,
                   onTap: () async {
                     _isCancelled = true;
-                    Navigator.of(context, rootNavigator: true).pop();
+                    Navigator.of(context).pop();
                   },
                 ),
               ],

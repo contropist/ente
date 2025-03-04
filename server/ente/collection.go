@@ -97,10 +97,26 @@ type AlterShareRequest struct {
 	Role         *CollectionParticipantRole `json:"role"`
 }
 
+type JoinCollectionViaLinkRequest struct {
+	CollectionID int64  `json:"collectionID" binding:"required"`
+	EncryptedKey string `json:"encryptedKey" binding:"required"`
+}
+
 // AddFilesRequest represents a request to add files to a collection
 type AddFilesRequest struct {
 	CollectionID int64                `json:"collectionID" binding:"required"`
 	Files        []CollectionFileItem `json:"files" binding:"required"`
+}
+
+// CopyFileSyncRequest is request object for creating copy of CollectionFileItems, and those copy to the destination collection
+type CopyFileSyncRequest struct {
+	SrcCollectionID     int64                `json:"srcCollectionID" binding:"required"`
+	DstCollection       int64                `json:"dstCollectionID" binding:"required"`
+	CollectionFileItems []CollectionFileItem `json:"files" binding:"required"`
+}
+
+type CopyResponse struct {
+	OldToNewFileIDMap map[int64]int64 `json:"oldToNewFileIDMap"`
 }
 
 // RemoveFilesRequest represents a request to remove files from a collection

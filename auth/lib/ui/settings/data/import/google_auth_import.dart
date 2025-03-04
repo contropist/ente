@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
+
 import 'package:base32/base32.dart';
 import 'package:ente_auth/l10n/l10n.dart';
 import 'package:ente_auth/models/code.dart';
@@ -12,6 +12,8 @@ import 'package:ente_auth/ui/components/dialog_widget.dart';
 import 'package:ente_auth/ui/components/models/button_type.dart';
 import 'package:ente_auth/ui/scanner_gauth_page.dart';
 import 'package:ente_auth/ui/settings/data/import/import_success.dart';
+import 'package:ente_auth/utils/platform_util.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 
@@ -24,13 +26,14 @@ Future<void> showGoogleAuthInstruction(BuildContext context) async {
     title: l10n.importFromApp("Google Authenticator"),
     body: l10n.importGoogleAuthGuide,
     buttons: [
-      ButtonWidget(
-        buttonType: ButtonType.primary,
-        labelText: l10n.scanAQrCode,
-        isInAlert: true,
-        buttonSize: ButtonSize.large,
-        buttonAction: ButtonAction.first,
-      ),
+      if (PlatformUtil.isMobile())
+        ButtonWidget(
+          buttonType: ButtonType.primary,
+          labelText: l10n.scanAQrCode,
+          isInAlert: true,
+          buttonSize: ButtonSize.large,
+          buttonAction: ButtonAction.first,
+        ),
       ButtonWidget(
         buttonType: ButtonType.secondary,
         labelText: context.l10n.cancel,
@@ -56,6 +59,7 @@ Future<void> showGoogleAuthInstruction(BuildContext context) async {
         await CodeStore.instance.addCode(code, shouldSync: false);
       }
       unawaited(AuthenticatorService.instance.onlineSync());
+      // ignore: unawaited_futures
       importSuccessDialog(context, codes.length);
     }
   }
@@ -114,14 +118,14 @@ List<Code> parseGoogleAuth(String qrCodeData) {
       if (otpParameter.type == MigrationPayload_OtpType.OTP_TYPE_TOTP ||
           otpParameter.type == MigrationPayload_OtpType.OTP_TYPE_UNSPECIFIED) {
         otpUrl =
-            'otpauth://totp/$issuer:$account?secret=$secret&issuer=$issuer&algorithm=$algorithm&digits=$digits&period=$timer';
+            'otpauth://totp/$issuer:$account?secret=$secret&issuer=$issuer&algorithm=${algorithm.name}&digits=$digits&period=$timer';
       } else if (otpParameter.type == MigrationPayload_OtpType.OTP_TYPE_HOTP) {
         otpUrl =
-            'otpauth://hotp/$issuer:$account?secret=$secret&issuer=$issuer&algorithm=$algorithm&digits=$digits&counter=$counter';
+            'otpauth://hotp/$issuer:$account?secret=$secret&issuer=$issuer&algorithm=${algorithm.name}&digits=$digits&counter=$counter';
       } else {
         throw Exception('Invalid OTP type');
       }
-      codes.add(Code.fromRawData(otpUrl));
+      codes.add(Code.fromOTPAuthUrl(otpUrl));
     }
     return codes;
   } catch (e, s) {

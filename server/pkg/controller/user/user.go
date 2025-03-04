@@ -3,6 +3,8 @@ package user
 import (
 	"errors"
 	"fmt"
+	"github.com/ente-io/museum/pkg/controller/collections"
+	"github.com/ente-io/museum/pkg/repo/two_factor_recovery"
 	"strings"
 
 	cache2 "github.com/ente-io/museum/ente/cache"
@@ -21,15 +23,14 @@ import (
 	"github.com/ente-io/museum/pkg/utils/email"
 	"github.com/ente-io/stacktrace"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt"
 	"github.com/patrickmn/go-cache"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 )
 
 // UserController exposes request handlers for all user related requests
 type UserController struct {
 	UserRepo               *repo.UserRepository
+	TwoFactorRecoveryRepo  *two_factor_recovery.Repository
 	UsageRepo              *repo.UsageRepository
 	UserAuthRepo           *repo.UserAuthRepository
 	TwoFactorRepo          *repo.TwoFactorRepository
@@ -38,7 +39,7 @@ type UserController struct {
 	FileRepo               *repo.FileRepository
 	CollectionRepo         *repo.CollectionRepository
 	DataCleanupRepo        *datacleanup.Repository
-	CollectionCtrl         *controller.CollectionController
+	CollectionCtrl         *collections.CollectionController
 	BillingRepo            *repo.BillingRepository
 	BillingController      *controller.BillingController
 	FamilyController       *family.Controller
@@ -50,8 +51,6 @@ type UserController struct {
 	JwtSecret              []byte
 	Cache                  *cache.Cache // refers to the auth token cache
 	HardCodedOTT           HardCodedOTT
-	roadmapURLPrefix       string
-	roadmapSSOSecret       string
 	UserCache              *cache2.UserCache
 	UserCacheController    *usercache.Controller
 }
@@ -91,7 +90,7 @@ const (
 	// their account.
 	AccountDeletedEmailTemplate                       = "account_deleted.html"
 	AccountDeletedWithActiveSubscriptionEmailTemplate = "account_deleted_active_sub.html"
-	AccountDeletedEmailSubject                        = "Your ente account has been deleted"
+	AccountDeletedEmailSubject                        = "Your Ente account has been deleted"
 )
 
 func NewUserController(
@@ -99,10 +98,11 @@ func NewUserController(
 	usageRepo *repo.UsageRepository,
 	userAuthRepo *repo.UserAuthRepository,
 	twoFactorRepo *repo.TwoFactorRepository,
+	twoFactorRecoveryRepo *two_factor_recovery.Repository,
 	passkeyRepo *passkey.Repository,
 	storageBonusRepo *storageBonusRepo.Repository,
 	fileRepo *repo.FileRepository,
-	collectionController *controller.CollectionController,
+	collectionController *collections.CollectionController,
 	collectionRepo *repo.CollectionRepository,
 	dataCleanupRepository *datacleanup.Repository,
 	billingRepo *repo.BillingRepository,
@@ -121,6 +121,7 @@ func NewUserController(
 	return &UserController{
 		UserRepo:               userRepo,
 		UsageRepo:              usageRepo,
+		TwoFactorRecoveryRepo:  twoFactorRecoveryRepo,
 		UserAuthRepo:           userAuthRepo,
 		StorageBonusRepo:       storageBonusRepo,
 		TwoFactorRepo:          twoFactorRepo,
@@ -140,8 +141,6 @@ func NewUserController(
 		MailingListsController: mailingListsController,
 		PushController:         pushController,
 		HardCodedOTT:           ReadHardCodedOTTFromConfig(),
-		roadmapURLPrefix:       viper.GetString("roadmap.url-prefix"),
-		roadmapSSOSecret:       viper.GetString("roadmap.sso-secret"),
 		UserCache:              userCache,
 		UserCacheController:    userCacheController,
 	}
@@ -186,31 +185,6 @@ func (c *UserController) UpdateEmailMFA(context *gin.Context, userID int64, isEn
 	return c.UserAuthRepo.UpdateEmailMFA(context, userID, isEnabled)
 }
 
-// UpdateKeys updates the user keys on password change
-func (c *UserController) UpdateKeys(context *gin.Context, userID int64,
-	request ente.UpdateKeysRequest, token string) error {
-	/*
-		todo: send email to the user on password change and may be keep history of old keys for X days.
-			History will allow easy recovery of the account when password is changed by a bad actor
-	*/
-	isSRPSetupDone, err := c.UserAuthRepo.IsSRPSetupDone(context, userID)
-	if err != nil {
-		return err
-	}
-	if isSRPSetupDone {
-		return stacktrace.Propagate(ente.NewBadRequestWithMessage("Need to upgrade client"), "can not use old API to change password after SRP is setup")
-	}
-	err = c.UserRepo.UpdateKeys(userID, request)
-	if err != nil {
-		return stacktrace.Propagate(err, "")
-	}
-	err = c.UserAuthRepo.RemoveAllOtherTokens(userID, token)
-	if err != nil {
-		return stacktrace.Propagate(err, "")
-	}
-	return nil
-}
-
 // SetRecoveryKey sets the recovery key attributes for a user, if not already set
 func (c *UserController) SetRecoveryKey(userID int64, request ente.SetRecoveryKeyRequest) error {
 	keyAttr, keyErr := c.UserRepo.GetKeyAttributes(userID)
@@ -238,28 +212,6 @@ func (c *UserController) GetPublicKey(email string) (string, error) {
 		return "", stacktrace.Propagate(err, "")
 	}
 	return key, nil
-}
-
-// GetRoadmapURL redirects the user to the feedback page
-func (c *UserController) GetRoadmapURL(userID int64) (string, error) {
-	// If SSO is not configured, redirect the user to the plain roadmap
-	if c.roadmapURLPrefix == "" || c.roadmapSSOSecret == "" {
-		return "https://roadmap.ente.io", nil
-	}
-	user, err := c.UserRepo.Get(userID)
-	if err != nil {
-		return "", stacktrace.Propagate(err, "")
-	}
-	userData := jwt.MapClaims{
-		"full_name": "",
-		"email":     user.Hash + "@ente.io",
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, userData)
-	signature, err := token.SignedString([]byte(c.roadmapSSOSecret))
-	if err != nil {
-		return "", stacktrace.Propagate(err, "")
-	}
-	return c.roadmapURLPrefix + signature, nil
 }
 
 // GetTwoFactorStatus returns a user's two factor status
@@ -364,7 +316,15 @@ func (c *UserController) HandleAccountRecovery(ctx *gin.Context, req ente.Recove
 		return stacktrace.Propagate(err, "")
 	}
 	err = c.UserRepo.UpdateEmail(req.UserID, encryptedEmail, emailHash)
-	return stacktrace.Propagate(err, "failed to update email")
+	if err != nil {
+		return stacktrace.Propagate(err, "failed to update email")
+	}
+	err = c.DataCleanupRepo.RemoveScheduledDelete(ctx, req.UserID)
+	if err != nil {
+		logrus.WithError(err).Error("failed to remove scheduled delete")
+		return stacktrace.Propagate(err, "")
+	}
+	return stacktrace.Propagate(err, "")
 }
 
 func (c *UserController) attachFreeSubscription(userID int64) (ente.Subscription, error) {

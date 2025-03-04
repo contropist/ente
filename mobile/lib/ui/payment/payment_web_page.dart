@@ -5,21 +5,22 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:logging/logging.dart';
+import "package:photos/core/constants.dart";
 import 'package:photos/ente_theme_data.dart';
 import "package:photos/generated/l10n.dart";
-import 'package:photos/models/subscription.dart';
-import 'package:photos/services/billing_service.dart';
-import 'package:photos/services/user_service.dart';
+import 'package:photos/models/api/billing/subscription.dart';
+import "package:photos/service_locator.dart";
+import 'package:photos/services/account/billing_service.dart';
+import 'package:photos/services/account/user_service.dart';
 import 'package:photos/ui/common/loading_widget.dart';
-import 'package:photos/ui/common/progress_dialog.dart';
 import 'package:photos/utils/dialog_util.dart';
+import "package:photos/utils/email_util.dart";
 
 class PaymentWebPage extends StatefulWidget {
   final String? planId;
   final String? actionType;
 
-  const PaymentWebPage({Key? key, this.planId, this.actionType})
-      : super(key: key);
+  const PaymentWebPage({super.key, this.planId, this.actionType});
 
   @override
   State<StatefulWidget> createState() => _PaymentWebPageState();
@@ -28,12 +29,11 @@ class PaymentWebPage extends StatefulWidget {
 class _PaymentWebPageState extends State<PaymentWebPage> {
   final _logger = Logger("PaymentWebPageState");
   final UserService userService = UserService.instance;
-  final BillingService billingService = BillingService.instance;
+  late final BillingService billService = billingService;
   final String basePaymentUrl = kWebPaymentBaseEndpoint;
-  late ProgressDialog _dialog;
   InAppWebViewController? webView;
   double progress = 0;
-  Uri? initPaymentUrl;
+  WebUri? initPaymentUrl;
 
   @override
   void initState() {
@@ -42,23 +42,25 @@ class _PaymentWebPageState extends State<PaymentWebPage> {
       setState(() {});
     });
     if (Platform.isAndroid && kDebugMode) {
-      AndroidInAppWebViewController.setWebContentsDebuggingEnabled(true);
+      InAppWebViewController.setWebContentsDebuggingEnabled(true);
     }
     super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
-    _dialog = createProgressDialog(
-      context,
-      S.of(context).pleaseWait,
-      isDismissible: true,
-    );
     if (initPaymentUrl == null) {
       return const EnteLoadingWidget();
     }
-    return WillPopScope(
-      onWillPop: (() async => _buildPageExitWidget(context)),
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        final shouldPop = await _buildPageExitWidget(context);
+        if (shouldPop) {
+          Navigator.of(context).pop();
+        }
+      },
       child: Scaffold(
         appBar: AppBar(
           title: Text(S.of(context).subscription),
@@ -77,10 +79,8 @@ class _PaymentWebPageState extends State<PaymentWebPage> {
                     this.progress = progress / 100;
                   });
                 },
-                initialOptions: InAppWebViewGroupOptions(
-                  crossPlatform: InAppWebViewOptions(
-                    useShouldOverrideUrlLoading: true,
-                  ),
+                initialSettings: InAppWebViewSettings(
+                  useShouldOverrideUrlLoading: true,
                 ),
                 shouldOverrideUrlLoading: (controller, navigationAction) async {
                   final loadingUri = navigationAction.request.url;
@@ -93,27 +93,20 @@ class _PaymentWebPageState extends State<PaymentWebPage> {
                   return NavigationActionPolicy.ALLOW;
                 },
                 onConsoleMessage: (controller, consoleMessage) {
-                  _logger.info(consoleMessage);
+                  _logger.info("onConsoleMessage $consoleMessage");
                 },
                 onLoadStart: (controller, navigationAction) async {
-                  if (!_dialog.isShowing()) {
-                    await _dialog.show();
-                  }
+                  _logger.info("onLoadStart $navigationAction");
                 },
-                onLoadError: (controller, navigationAction, code, msg) async {
-                  if (_dialog.isShowing()) {
-                    await _dialog.hide();
-                  }
+                onReceivedError: (controller, navigationAction, code) async {
+                  _logger.severe("onLoadError $navigationAction $code");
                 },
-                onLoadHttpError:
-                    (controller, navigationAction, code, msg) async {
-                  _logger.info("onHttpError with $code and msg = $msg");
+                onReceivedHttpError:
+                    (controller, navigationAction, code) async {
+                  _logger.info("onHttpError with $code");
                 },
                 onLoadStop: (controller, navigationAction) async {
-                  _logger.info("loadStart" + navigationAction.toString());
-                  if (_dialog.isShowing()) {
-                    await _dialog.hide();
-                  }
+                  _logger.info("onLoadStop $navigationAction");
                 },
               ),
             ),
@@ -125,11 +118,10 @@ class _PaymentWebPageState extends State<PaymentWebPage> {
 
   @override
   void dispose() {
-    _dialog.hide();
     super.dispose();
   }
 
-  Uri _getPaymentUrl(String? paymentToken) {
+  WebUri _getPaymentUrl(String? paymentToken) {
     final queryParameters = {
       'productID': widget.planId,
       'paymentToken': paymentToken,
@@ -138,15 +130,20 @@ class _PaymentWebPageState extends State<PaymentWebPage> {
     };
     final tryParse = Uri.tryParse(kWebPaymentBaseEndpoint);
     if (kDebugMode && kWebPaymentBaseEndpoint.startsWith("http://")) {
-      return Uri.http(tryParse!.authority, tryParse.path, queryParameters);
+      return WebUri.uri(
+        Uri.http(tryParse!.authority, tryParse.path, queryParameters),
+      );
     } else {
-      return Uri.https(tryParse!.authority, tryParse.path, queryParameters);
+      return WebUri.uri(
+        Uri.https(tryParse!.authority, tryParse.path, queryParameters),
+      );
     }
   }
 
   // show dialog to handle accidental back press.
   Future<bool> _buildPageExitWidget(BuildContext context) async {
     final result = await showDialog(
+      useRootNavigator: false,
       context: context,
       builder: (context) => AlertDialog(
         title: Text(S.of(context).areYouSureYouWantToExit),
@@ -203,16 +200,22 @@ class _PaymentWebPageState extends State<PaymentWebPage> {
 
   Future<void> _handlePaymentFailure(String reason) async {
     await showDialog(
+      useRootNavigator: false,
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: Text(S.of(context).paymentFailed),
-        content: Text(S.of(context).paymentFailedWithReason(reason)),
+        content: Text(S.of(context).paymentFailedMessage),
         actions: <Widget>[
           TextButton(
-            child: Text(S.of(context).ok),
-            onPressed: () {
+            child: Text(S.of(context).contactSupport),
+            onPressed: () async {
               Navigator.of(context).pop('dialog');
+              await sendEmail(
+                context,
+                to: supportEmail,
+                subject: "Billing issue",
+              );
             },
           ),
         ],
@@ -224,15 +227,13 @@ class _PaymentWebPageState extends State<PaymentWebPage> {
   // return true if verifySubscription didn't throw any exceptions
   Future<void> _handlePaymentSuccess(Map<String, String> queryParams) async {
     final checkoutSessionID = queryParams['session_id'] ?? '';
-    await _dialog.show();
     try {
       // ignore: unused_local_variable
-      final response = await billingService.verifySubscription(
+      final response = await billService.verifySubscription(
         widget.planId,
         checkoutSessionID,
         paymentProvider: stripe,
       );
-      await _dialog.hide();
       final content = widget.actionType == 'buy'
           ? S.of(context).yourPurchaseWasSuccessful
           : S.of(context).yourSubscriptionWasUpdatedSuccessfully;
@@ -242,7 +243,6 @@ class _PaymentWebPageState extends State<PaymentWebPage> {
       );
     } catch (error) {
       _logger.severe(error);
-      await _dialog.hide();
       await _showExitPageDialog(
         title: S.of(context).failedToVerifyPaymentStatus,
         content: S.of(context).pleaseWaitForSometimeBeforeRetrying,
@@ -253,6 +253,7 @@ class _PaymentWebPageState extends State<PaymentWebPage> {
   // warn the user to wait for sometime before trying another payment
   Future<dynamic> _showExitPageDialog({String? title, String? content}) {
     return showDialog(
+      useRootNavigator: false,
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(

@@ -44,9 +44,7 @@ class DeviceFolderVerticalGridView extends StatelessWidget {
 }
 
 class _DeviceFolderVerticalGridViewBody extends StatefulWidget {
-  const _DeviceFolderVerticalGridViewBody({
-    Key? key,
-  }) : super(key: key);
+  const _DeviceFolderVerticalGridViewBody();
 
   @override
   State<_DeviceFolderVerticalGridViewBody> createState() =>
@@ -74,6 +72,7 @@ class _DeviceFolderVerticalGridViewBodyState
 
   @override
   void initState() {
+    super.initState();
     _backupFoldersUpdatedEvent =
         Bus.instance.on<BackupFoldersUpdatedEvent>().listen((event) {
       _loadReason = event.reason;
@@ -90,7 +89,6 @@ class _DeviceFolderVerticalGridViewBodyState
         }
       });
     });
-    super.initState();
   }
 
   @override
@@ -158,7 +156,7 @@ class _DeviceFolderVerticalGridViewBodyState
   void dispose() {
     _backupFoldersUpdatedEvent?.cancel();
     _localFilesSubscription?.cancel();
-    _debouncer.cancelDebounce();
+    _debouncer.cancelDebounceTimer();
     super.dispose();
   }
 }

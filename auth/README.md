@@ -12,7 +12,7 @@ multi-device sync.
 ### Android
 
 This repository's [GitHub
-releases](https://github.com/ente-io/ente/releases/latest/download/ente-auth.apk)
+releases](https://github.com/ente-io/ente/releases?q=tag%3Aauth-v4)
 contains APKs, built straight from source. These builds keep themselves updated,
 without relying on third party stores.
 
@@ -31,14 +31,16 @@ You can alternatively install the build from PlayStore or F-Droid.
   <img height="59" src="../.github/assets/app-store-badge.svg">
 </a>
 
+### Desktop
+
+You can [**download**](https://github.com/ente-io/ente/releases?q=tag%3Aauth-v4)
+a native desktop app from this repository's GitHub releases. The desktop app
+works on Windows, Linux and macOS.
+
 ### Web
 
 You can view your 2FA codes at [auth.ente.io](https://auth.ente.io). For adding
-or managing your secrets, please use our mobile app.
-
-### Desktop
-
-A native desktop app is coming soon!
+or managing your secrets, please use our mobile or desktop app.
 
 ## 🧑‍💻 Build from source
 
@@ -93,13 +95,20 @@ more, see [docs/adding-icons](docs/adding-icons.md).
 
 ## 💚 Contribute
 
+The best way to support this project is by checking out [Ente
+Photos](../mobile/README.md) or spreading the word.
+
 For more ways to contribute, see [../CONTRIBUTING.md](../CONTRIBUTING.md).
 
-You can also support us by giving this project a ⭐ star on GitHub or by leaving
-a review on
-[PlayStore](https://play.google.com/store/apps/details?id=io.ente.auth),
-[AppStore](https://apps.apple.com/us/app/ente-authenticator/id6444121398) or
-[AlternativeTo](https://alternativeto.net/software/ente-authenticator/).
+## Certificate Fingerprints
+
+- **SHA1**: 57:E8:C6:59:C3:AA:C9:38:B0:10:70:5E:90:85:BC:20:67:E6:8F:4B
+- **SHA256**: BA:8B:F0:32:98:62:70:05:ED:DF:F6:B1:D6:0B:3B:FA:A1:4E:E8:BD:C7:61:4F:FB:3B:B1:1C:58:8D:9E:3A:D7
+
+To verify these fingerprints, use the following command:
+```bash
+apksigner verify --print-certs <path_to_apk>
+```
 
 ## ⭐️ About
 

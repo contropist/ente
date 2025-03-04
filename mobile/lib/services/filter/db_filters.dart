@@ -1,7 +1,9 @@
+import "package:photos/core/configuration.dart";
 import 'package:photos/models/file/file.dart';
 import "package:photos/services/filter/collection_ignore.dart";
 import "package:photos/services/filter/dedupe_by_upload_id.dart";
 import "package:photos/services/filter/filter.dart";
+import "package:photos/services/filter/only_uploaded_files_filter.dart";
 import "package:photos/services/filter/upload_ignore.dart";
 import "package:photos/services/ignored_files_service.dart";
 
@@ -12,11 +14,16 @@ class DBFilterOptions {
   Set<int>? ignoredCollectionIDs;
   bool dedupeUploadID;
   bool hideIgnoredForUpload;
+  // If true, shared files that are already saved in the users account will be ignored.
+  bool ignoreSavedFiles;
+  bool onlyUploadedFiles;
 
   DBFilterOptions({
     this.ignoredCollectionIDs,
     this.hideIgnoredForUpload = false,
     this.dedupeUploadID = true,
+    this.ignoreSavedFiles = false,
+    this.onlyUploadedFiles = false,
   });
 
   static DBFilterOptions dedupeOption = DBFilterOptions(
@@ -42,12 +49,22 @@ Future<List<EnteFile>> applyDBFilters(
   if (options.dedupeUploadID) {
     filters.add(DedupeUploadIDFilter());
   }
-  if (options.ignoredCollectionIDs != null &&
-      options.ignoredCollectionIDs!.isNotEmpty) {
-    final collectionIgnoreFilter =
-        CollectionsIgnoreFilter(options.ignoredCollectionIDs!, files);
+
+  if ((options.ignoredCollectionIDs ?? <int>{}).isNotEmpty ||
+      options.ignoreSavedFiles) {
+    final collectionIgnoreFilter = CollectionsAndSavedFileFilter(
+      options.ignoredCollectionIDs ?? <int>{},
+      Configuration.instance.getUserID() ?? 0,
+      files,
+      options.ignoreSavedFiles,
+    );
     filters.add(collectionIgnoreFilter);
   }
+
+  if (options.onlyUploadedFiles) {
+    filters.add(OnlyUploadedFilesFilter());
+  }
+
   final List<EnteFile> filterFiles = [];
   for (final file in files) {
     if (filters.every((f) => f.filter(file))) {

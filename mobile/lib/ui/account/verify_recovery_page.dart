@@ -1,25 +1,24 @@
-import 'dart:ui';
-
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:dio/dio.dart';
+import 'package:ente_crypto/ente_crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:photos/core/event_bus.dart';
 import 'package:photos/ente_theme_data.dart';
 import 'package:photos/events/notification_event.dart';
 import "package:photos/generated/l10n.dart";
+import "package:photos/service_locator.dart";
+import 'package:photos/services/account/user_service.dart';
 import 'package:photos/services/local_authentication_service.dart';
-import 'package:photos/services/user_remote_flag_service.dart';
-import 'package:photos/services/user_service.dart';
+import "package:photos/theme/ente_theme.dart";
 import 'package:photos/ui/account/recovery_key_page.dart';
 import 'package:photos/ui/common/gradient_button.dart';
 import 'package:photos/ui/components/buttons/button_widget.dart';
-import 'package:photos/utils/crypto_util.dart';
 import 'package:photos/utils/dialog_util.dart';
 import 'package:photos/utils/navigation_util.dart';
 
 class VerifyRecoveryPage extends StatefulWidget {
-  const VerifyRecoveryPage({Key? key}) : super(key: key);
+  const VerifyRecoveryPage({super.key});
 
   @override
   State<VerifyRecoveryPage> createState() => _VerifyRecoveryPageState();
@@ -41,14 +40,14 @@ class _VerifyRecoveryPageState extends State<VerifyRecoveryPage> {
       final String recoveryKeyWords = bip39.entropyToMnemonic(recoveryKey);
       if (inputKey == recoveryKey || inputKey == recoveryKeyWords) {
         try {
-          await UserRemoteFlagService.instance.markRecoveryVerificationAsDone();
+          await flagService.setRecoveryKeyVerified(true);
         } catch (e) {
           await dialog.hide();
-          if (e is DioError && e.type == DioErrorType.other) {
+          if (e is DioException && e.type == DioExceptionType.connectionError) {
             await showErrorDialog(
               context,
-              "No internet connection",
-              "Please check your internet connection and try again.",
+              S.of(context).noInternetConnection,
+              S.of(context).pleaseCheckYourInternetConnectionAndTryAgain,
             );
           } else {
             await showGenericErrorDialog(context: context, error: e);
@@ -162,6 +161,7 @@ class _VerifyRecoveryPageState extends State<VerifyRecoveryPage> {
                       TextFormField(
                         decoration: InputDecoration(
                           filled: true,
+                          fillColor: getEnteColorScheme(context).fillFaint,
                           hintText: S.of(context).enterYourRecoveryKey,
                           contentPadding: const EdgeInsets.all(20),
                           border: UnderlineInputBorder(

@@ -28,6 +28,27 @@ bool areFromSameDay(int firstCreationTime, int secondCreationTime) {
       firstDate.day == secondDate.day;
 }
 
+bool areDatesInSameWeek(DateTime date1, DateTime date2) {
+  if (date1.year == date2.year &&
+      date1.month == date2.month &&
+      date1.day == date2.day) {
+    return true;
+  }
+  final int dayOfWeek1 = date1.weekday;
+  final int dayOfWeek2 = date2.weekday;
+  // Calculate the start and end dates of the week for both dates
+  final DateTime startOfWeek1 = date1.subtract(Duration(days: dayOfWeek1 - 1));
+  final DateTime endOfWeek1 = startOfWeek1.add(const Duration(days: 6));
+  final DateTime startOfWeek2 = date2.subtract(Duration(days: dayOfWeek2 - 1));
+  final DateTime endOfWeek2 = startOfWeek2.add(const Duration(days: 6));
+  // Check if the two dates fall within the same week range
+  if ((date1.isAfter(startOfWeek2) && date1.isBefore(endOfWeek2)) ||
+      (date2.isAfter(startOfWeek1) && date2.isBefore(endOfWeek1))) {
+    return true;
+  }
+  return false;
+}
+
 // Create link default names:
 // Same day: "Dec 19, 2022"
 // Same month: "Dec 19 - 22, 2022"
@@ -174,7 +195,7 @@ DateTime? parseDateTimeFromFileNameV2(
     }
   } else if (countOfHyphen == 2) {
     valForParser = val.replaceAll(".", ":");
-  } else if (countOfHyphen == 6) {
+  } else if (countOfHyphen == 6 || countOfHyphen == 7) {
     final splits = val.split("-");
     valForParser =
         "${splits[0]}${splits[1]}${splits[2]}T${splits[3]}${splits[4]}${splits[5]}";
@@ -194,4 +215,41 @@ bool isNumeric(String? s) {
     return false;
   }
   return double.tryParse(s) != null;
+}
+
+/// Returns the duration in seconds from the format "h:mm:ss" or "m:ss".
+int? durationToSeconds(String? duration) {
+  if (duration == null) {
+    return null;
+  }
+  final parts = duration.split(':');
+  int seconds = 0;
+
+  if (parts.length == 3) {
+    // Format: "h:mm:ss"
+    seconds += int.parse(parts[0]) * 3600; // Hours to seconds
+    seconds += int.parse(parts[1]) * 60; // Minutes to seconds
+    seconds += int.parse(parts[2]); // Seconds
+  } else if (parts.length == 2) {
+    // Format: "m:ss"
+    seconds += int.parse(parts[0]) * 60; // Minutes to seconds
+    seconds += int.parse(parts[1]); // Seconds
+  } else {
+    throw FormatException('Invalid duration format: $duration');
+  }
+
+  return seconds;
+}
+
+/// Returns the duration in the format "h:mm:ss" or "m:ss".
+String secondsToDuration(int totalSeconds) {
+  final hours = totalSeconds ~/ 3600;
+  final minutes = (totalSeconds % 3600) ~/ 60;
+  final seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return '${hours.toString().padLeft(1, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  } else {
+    return '${minutes.toString().padLeft(1, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
 }

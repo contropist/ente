@@ -7,15 +7,16 @@ import "package:photos/core/event_bus.dart";
 import "package:photos/db/files_db.dart";
 import "package:photos/events/collection_updated_event.dart";
 import "package:photos/events/files_updated_event.dart";
+import "package:photos/generated/l10n.dart";
 import 'package:photos/models/file/file.dart';
 import "package:photos/models/ignored_file.dart";
 import "package:photos/services/collections_service.dart";
 import "package:photos/services/hidden_service.dart";
 import "package:photos/services/ignored_files_service.dart";
-import "package:photos/services/remote_sync_service.dart";
-import "package:photos/services/sync_service.dart";
+import "package:photos/services/sync/remote_sync_service.dart";
+import "package:photos/services/sync/sync_service.dart";
 import "package:photos/ui/common/loading_widget.dart";
-import "package:photos/utils/toast_util.dart";
+import "package:photos/ui/notification/toast.dart";
 
 class UploadIconWidget extends StatefulWidget {
   final EnteFile file;
@@ -101,14 +102,13 @@ class _UpdateIconWidgetState extends State<UploadIconWidget> {
           if (isIgnored && (kDebugMode || ignoreReason != kIgnoreReasonTrash)) {
             showToast(
               context,
-              'Upload is ignored due to $ignoreReason',
+              S.of(context).uploadIsIgnoredDueToIgnorereason(ignoreReason),
             );
           }
           return Tooltip(
             message: isIgnored
-                ? "Tap to upload, upload is currently ignored due "
-                    "to $ignoreReason"
-                : "Tap to upload",
+                ? S.of(context).tapToUploadIsIgnoredDue(ignoreReason)
+                : S.of(context).tapToUpload,
             child: IconButton(
               icon: const Icon(
                 Icons.upload_rounded,
@@ -125,6 +125,8 @@ class _UpdateIconWidgetState extends State<UploadIconWidget> {
                       .id;
                   await FilesDB.instance.insert(widget.file);
                 }
+                await RemoteSyncService.instance
+                    .whiteListVideoForUpload(widget.file);
                 RemoteSyncService.instance.sync().ignore();
                 if (mounted) {
                   setState(() {

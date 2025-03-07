@@ -2,13 +2,14 @@ import "package:flutter/material.dart";
 import "package:flutter_map/flutter_map.dart";
 import "package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart";
 import "package:latlong2/latlong.dart";
+import "package:maps_launcher/maps_launcher.dart";
 import "package:photos/ui/map/image_marker.dart";
 import "package:photos/ui/map/map_button.dart";
-import 'package:photos/ui/map/map_gallery_tile.dart';
-import 'package:photos/ui/map/map_gallery_tile_badge.dart';
+import "package:photos/ui/map/map_gallery_tile.dart";
+import "package:photos/ui/map/map_gallery_tile_badge.dart";
 import "package:photos/ui/map/map_marker.dart";
 import "package:photos/ui/map/tile/layers.dart";
-import "package:photos/utils/debouncer.dart";
+import "package:photos/utils/standalone/debouncer.dart";
 
 class MapView extends StatefulWidget {
   final List<ImageMarker> imageMarkers;
@@ -27,7 +28,7 @@ class MapView extends StatefulWidget {
   static const defaultMarkerSize = Size(75, 75);
 
   const MapView({
-    Key? key,
+    super.key,
     required this.updateVisibleImages,
     required this.imageMarkers,
     required this.controller,
@@ -41,7 +42,7 @@ class MapView extends StatefulWidget {
     this.onTap,
     this.interactiveFlags = InteractiveFlag.all,
     this.showControls = true,
-  }) : super(key: key);
+  });
 
   @override
   State<StatefulWidget> createState() => _MapViewState();
@@ -58,11 +59,6 @@ class _MapViewState extends State<MapView> {
   void initState() {
     super.initState();
     _markers = _buildMakers();
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   void onChange(LatLngBounds bounds) {
@@ -85,55 +81,44 @@ class _MapViewState extends State<MapView> {
                     widget.onTap!.call();
                   }
                 : null,
-            center: widget.center,
+            initialCenter: widget.center,
             minZoom: widget.minZoom,
             maxZoom: widget.maxZoom,
-            enableMultiFingerGestureRace: true,
-            zoom: widget.initialZoom,
-            maxBounds: LatLngBounds(
-              const LatLng(-90, -180),
-              const LatLng(90, 180),
+            interactionOptions: InteractionOptions(
+              flags: widget.interactiveFlags,
+              enableMultiFingerGestureRace: true,
+            ),
+            initialZoom: widget.initialZoom,
+            cameraConstraint: CameraConstraint.contain(
+              bounds: LatLngBounds(
+                const LatLng(-90, -180),
+                const LatLng(90, 180),
+              ),
             ),
             onPositionChanged: (position, hasGesture) {
               if (position.bounds != null) {
                 onChange(position.bounds!);
               }
             },
-            interactiveFlags: widget.interactiveFlags,
           ),
-          nonRotatedChildren: [
-            Padding(
-              padding: EdgeInsets.only(
-                bottom: widget.bottomSheetDraggableAreaHeight,
-              ),
-              child: OSMFranceTileAttributes(
-                options: widget.mapAttributionOptions,
-              ),
-            ),
-          ],
           children: [
             const OSMFranceTileLayer(),
             MarkerClusterLayerWidget(
               options: MarkerClusterLayerOptions(
-                anchorPos: AnchorPos.align(AnchorAlign.top),
+                alignment: Alignment.topCenter,
                 maxClusterRadius: 100,
                 showPolygon: false,
                 size: widget.markerSize,
-                fitBoundsOptions: const FitBoundsOptions(
-                  padding: EdgeInsets.all(80),
-                ),
+                padding: const EdgeInsets.all(80),
                 markers: _markers,
                 onClusterTap: (_) {
-                  onChange(widget.controller.bounds!);
+                  onChange(widget.controller.camera.visibleBounds);
                 },
                 builder: (context, List<Marker> markers) {
-                  final index = int.parse(
-                    markers.first.key
-                        .toString()
-                        .replaceAll(RegExp(r'[^0-9]'), ''),
-                  );
-                  final String clusterKey =
-                      'map-badge-$index-len-${markers.length}';
+                  final valueKey = markers.first.key as ValueKey;
+                  final index = valueKey.value as int;
+
+                  final clusterKey = 'map-badge-$index-len-${markers.length}';
 
                   return Stack(
                     key: ValueKey(clusterKey),
@@ -146,6 +131,14 @@ class _MapViewState extends State<MapView> {
                     ],
                   );
                 },
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: widget.bottomSheetDraggableAreaHeight,
+              ),
+              child: OSMFranceTileAttributes(
+                options: widget.mapAttributionOptions,
               ),
             ),
           ],
@@ -167,6 +160,24 @@ class _MapViewState extends State<MapView> {
             : const SizedBox.shrink(),
         widget.showControls
             ? Positioned(
+                top: 4,
+                right: 10,
+                child: SafeArea(
+                  child: MapButton(
+                    icon: Icons.navigation_outlined,
+                    onPressed: () {
+                      MapsLauncher.launchCoordinates(
+                        widget.controller.camera.center.latitude,
+                        widget.controller.camera.center.longitude,
+                      );
+                    },
+                    heroTag: 'open-map',
+                  ),
+                ),
+              )
+            : const SizedBox.shrink(),
+        widget.showControls
+            ? Positioned(
                 bottom: widget.bottomSheetDraggableAreaHeight + 10,
                 right: 10,
                 child: Column(
@@ -175,8 +186,8 @@ class _MapViewState extends State<MapView> {
                       icon: Icons.add,
                       onPressed: () {
                         widget.controller.move(
-                          widget.controller.center,
-                          widget.controller.zoom + 1,
+                          widget.controller.camera.center,
+                          widget.controller.camera.zoom + 1,
                         );
                       },
                       heroTag: 'zoom-in',
@@ -185,8 +196,8 @@ class _MapViewState extends State<MapView> {
                       icon: Icons.remove,
                       onPressed: () {
                         widget.controller.move(
-                          widget.controller.center,
-                          widget.controller.zoom - 1,
+                          widget.controller.camera.center,
+                          widget.controller.camera.zoom - 1,
                         );
                       },
                       heroTag: 'zoom-out',
@@ -204,7 +215,7 @@ class _MapViewState extends State<MapView> {
       final imageMarker = widget.imageMarkers[index];
       return mapMarker(
         imageMarker,
-        index.toString(),
+        ValueKey(index),
         markerSize: widget.markerSize,
       );
     });

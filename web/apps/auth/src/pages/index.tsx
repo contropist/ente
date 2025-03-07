@@ -1,14 +1,11 @@
 import { PHOTOS_PAGES as PAGES } from "@ente/shared/constants/pages";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 
-const IndexPage = () => {
+const Page: React.FC = () => {
     const router = useRouter();
-    useEffect(() => {
-        router.push(PAGES.LOGIN);
-    }, []);
-
+    useEffect(() => void router.push(PAGES.LOGIN), [router]);
     return <></>;
 };
 
-export default IndexPage;
+export default Page;

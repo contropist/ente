@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import "package:photos/generated/l10n.dart";
-import 'package:photos/services/update_service.dart';
-import 'package:photos/theme/ente_theme.dart';
-import 'package:photos/ui/common/web_page.dart';
+import "package:photos/service_locator.dart";
+import "package:photos/theme/ente_theme.dart";
+import "package:photos/ui/common/web_page.dart";
 import 'package:photos/ui/components/captioned_text_widget.dart';
 import 'package:photos/ui/components/expandable_menu_item_widget.dart';
 import 'package:photos/ui/components/menu_item_widget/menu_item_widget.dart';
+import 'package:photos/ui/notification/toast.dart';
 import 'package:photos/ui/settings/app_update_dialog.dart';
 import 'package:photos/ui/settings/common_settings.dart';
 import 'package:photos/utils/dialog_util.dart';
-import 'package:photos/utils/toast_util.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AboutSectionWidget extends StatelessWidget {
-  const AboutSectionWidget({Key? key}) : super(key: key);
+  const AboutSectionWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +51,7 @@ class AboutSectionWidget extends StatelessWidget {
           url: "https://ente.io/terms",
         ),
         sectionOptionSpacing,
-        UpdateService.instance.isIndependent()
+        updateService.isIndependent()
             ? Column(
                 children: [
                   MenuItemWidget(
@@ -65,16 +65,16 @@ class AboutSectionWidget extends StatelessWidget {
                       final dialog =
                           createProgressDialog(context, S.of(context).checking);
                       await dialog.show();
-                      final shouldUpdate =
-                          await UpdateService.instance.shouldUpdate();
+                      final shouldUpdate = await updateService.shouldUpdate();
                       await dialog.hide();
                       if (shouldUpdate) {
                         // ignore: unawaited_futures
                         showDialog(
+                          useRootNavigator: false,
                           context: context,
                           builder: (BuildContext context) {
                             return AppUpdateDialog(
-                              UpdateService.instance.getLatestVersionInfo(),
+                              updateService.getLatestVersionInfo(),
                             );
                           },
                           barrierColor: Colors.black.withOpacity(0.85),
@@ -104,8 +104,8 @@ class AboutMenuItemWidget extends StatelessWidget {
     required this.title,
     required this.url,
     this.webPageTitle,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {

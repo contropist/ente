@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
-import "package:cross_file/cross_file.dart";
 import 'package:email_validator/email_validator.dart';
 import "package:file_saver/file_saver.dart";
 import 'package:flutter/cupertino.dart';
@@ -16,12 +15,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:photos/core/configuration.dart';
 import 'package:photos/core/error-reporting/super_logging.dart';
 import "package:photos/generated/l10n.dart";
+import "package:photos/ui/common/progress_dialog.dart";
 import 'package:photos/ui/components/buttons/button_widget.dart';
 import 'package:photos/ui/components/dialog_widget.dart';
 import 'package:photos/ui/components/models/button_type.dart';
+import 'package:photos/ui/notification/toast.dart';
 import 'package:photos/ui/tools/debug/log_file_viewer.dart';
 import 'package:photos/utils/dialog_util.dart';
-import 'package:photos/utils/toast_util.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -71,6 +71,7 @@ Future<void> sendLogs(
         onTap: () async {
           // ignore: unawaited_futures
           showDialog(
+            useRootNavigator: false,
             context: context,
             builder: (BuildContext context) {
               return LogFileViewer(SuperLogging.logFile!);
@@ -117,14 +118,33 @@ Future<void> _sendLogs(
     await FlutterEmailSender.send(email);
   } catch (e, s) {
     _logger.severe('email sender failed', e, s);
-    Navigator.of(context, rootNavigator: true).pop();
+    Navigator.of(context).pop();
     await shareLogs(context, toEmail, zipFilePath);
   }
 }
 
-Future<String> getZippedLogsFile(BuildContext context) async {
-  final dialog = createProgressDialog(context, S.of(context).preparingLogs);
-  await dialog.show();
+Future<void> triggerSendLogs(
+  String toEmail,
+  String? subject,
+  String? body,
+) async {
+  final String zipFilePath = await getZippedLogsFile(null);
+  final Email email = Email(
+    recipients: [toEmail],
+    subject: subject ?? '',
+    body: body ?? '',
+    attachmentPaths: [zipFilePath],
+    isHTML: false,
+  );
+  await FlutterEmailSender.send(email);
+}
+
+Future<String> getZippedLogsFile(BuildContext? context) async {
+  late final ProgressDialog dialog;
+  if (context != null) {
+    dialog = createProgressDialog(context, S.of(context).preparingLogs);
+    await dialog.show();
+  }
   final logsPath = (await getApplicationSupportDirectory()).path;
   final logsDirectory = Directory(logsPath + "/logs");
   final tempPath = (await getTemporaryDirectory()).path;
@@ -133,8 +153,10 @@ Future<String> getZippedLogsFile(BuildContext context) async {
   final encoder = ZipFileEncoder();
   encoder.create(zipFilePath);
   await encoder.addDirectory(logsDirectory);
-  encoder.close();
-  await dialog.hide();
+  await encoder.close();
+  if (context != null) {
+    await dialog.hide();
+  }
   return zipFilePath;
 }
 
@@ -239,7 +261,7 @@ Future<void> sendEmail(
         await showCupertinoModalPopup(
           context: context,
           builder: (_) => CupertinoActionSheet(
-            title: Text("Select mail app \n $to"),
+            title: Text(S.of(context).selectMailApp + " \n $to"),
             actions: [
               for (var app in result.options)
                 CupertinoActionSheetAction(
@@ -252,14 +274,14 @@ Future<void> sendEmail(
                       emailContent: content,
                     );
 
-                    Navigator.of(context, rootNavigator: true).pop();
+                    Navigator.of(context).pop();
                   },
                 ),
             ],
             cancelButton: CupertinoActionSheetAction(
               child: Text(S.of(context).cancel),
               onPressed: () {
-                Navigator.of(context, rootNavigator: true).pop();
+                Navigator.of(context).pop();
               },
             ),
           ),

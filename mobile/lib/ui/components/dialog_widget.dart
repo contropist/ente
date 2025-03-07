@@ -22,11 +22,13 @@ Future<ButtonResult?> showDialogWidget({
   required List<ButtonWidget> buttons,
   IconData? icon,
   bool isDismissible = true,
+  bool useRootNavigator = false,
 }) {
   return showDialog(
     barrierDismissible: isDismissible,
     barrierColor: backdropFaintDark,
     context: context,
+    useRootNavigator: useRootNavigator,
     builder: (context) {
       final widthOfScreen = MediaQuery.of(context).size.width;
       final isMobileSmall = widthOfScreen <= mobileSmallThreshold;
@@ -76,17 +78,19 @@ class DialogWidget extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ContentContainer(
-              title: title,
-              body: body,
-              icon: icon,
-            ),
-            const SizedBox(height: 36),
-            Actions(buttons),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ContentContainer(
+                title: title,
+                body: body,
+                icon: icon,
+              ),
+              const SizedBox(height: 36),
+              Actions(buttons),
+            ],
+          ),
         ),
       ),
     );
@@ -178,6 +182,7 @@ class TextInputDialog extends StatefulWidget {
   final TextEditingController? textEditingController;
   final List<TextInputFormatter>? textInputFormatter;
   final TextInputType? textInputType;
+  final bool popnavAfterSubmission;
   const TextInputDialog({
     required this.title,
     this.body,
@@ -198,6 +203,7 @@ class TextInputDialog extends StatefulWidget {
     this.textEditingController,
     this.textInputFormatter,
     this.textInputType,
+    this.popnavAfterSubmission = true,
     super.key,
   });
 
@@ -271,14 +277,14 @@ class _TextInputDialogState extends State<TextInputDialog> {
                 maxLength: widget.maxLength,
                 submitNotifier: _submitNotifier,
                 onSubmit: widget.onSubmit,
-                popNavAfterSubmission: true,
+                popNavAfterSubmission: widget.popnavAfterSubmission,
                 showOnlyLoadingState: widget.showOnlyLoadingState,
                 textCapitalization: widget.textCapitalization,
                 alwaysShowSuccessState: widget.alwaysShowSuccessState,
                 isPasswordInput: widget.isPasswordInput,
                 textEditingController: _textEditingController,
                 textInputFormatter: widget.textInputFormatter,
-                textInputType: widget.textInputType,
+                keyboardType: widget.textInputType,
               ),
             ),
             const SizedBox(height: 36),

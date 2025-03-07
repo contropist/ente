@@ -3,15 +3,16 @@ import 'package:logging/logging.dart';
 import 'package:photos/core/configuration.dart';
 import 'package:photos/ente_theme_data.dart';
 import "package:photos/generated/l10n.dart";
-import 'package:photos/models/sessions.dart';
-import 'package:photos/services/user_service.dart';
+import 'package:photos/models/api/user/sessions.dart';
+import 'package:photos/services/account/user_service.dart';
+import "package:photos/theme/ente_theme.dart";
 import 'package:photos/ui/common/loading_widget.dart';
-import "package:photos/utils/date_time_util.dart";
+import 'package:photos/ui/notification/toast.dart';
 import 'package:photos/utils/dialog_util.dart';
-import 'package:photos/utils/toast_util.dart';
+import "package:photos/utils/standalone/date_time.dart";
 
 class SessionsPage extends StatefulWidget {
-  const SessionsPage({Key? key}) : super(key: key);
+  const SessionsPage({super.key});
 
   @override
   State<SessionsPage> createState() => _SessionsPageState();
@@ -24,7 +25,7 @@ class _SessionsPageState extends State<SessionsPage> {
   @override
   void initState() {
     _fetchActiveSessions().onError((error, stackTrace) {
-      showToast(context, "Failed to fetch active sessions");
+      showToast(context, S.of(context).failedToFetchActiveSessions);
     });
     super.initState();
   }
@@ -106,7 +107,9 @@ class _SessionsPageState extends State<SessionsPage> {
             ),
           ),
         ),
-        const Divider(),
+        Divider(
+          color: getEnteColorScheme(context).strokeFaint,
+        ),
       ],
     );
   }
@@ -181,7 +184,7 @@ class _SessionsPageState extends State<SessionsPage> {
             ),
           ),
           onPressed: () async {
-            Navigator.of(context, rootNavigator: true).pop('dialog');
+            Navigator.of(context).pop('dialog');
             if (isLoggingOutFromThisDevice) {
               await UserService.instance.logout(context);
             } else {
@@ -199,13 +202,14 @@ class _SessionsPageState extends State<SessionsPage> {
             ),
           ),
           onPressed: () {
-            Navigator.of(context, rootNavigator: true).pop('dialog');
+            Navigator.of(context).pop('dialog');
           },
         ),
       ],
     );
 
     showDialog(
+      useRootNavigator: false,
       context: context,
       builder: (BuildContext context) {
         return alert;

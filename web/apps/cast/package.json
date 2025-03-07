@@ -3,14 +3,13 @@
     "version": "0.0.0",
     "private": true,
     "dependencies": {
-        "@/next": "*",
-        "@ente/accounts": "*",
-        "@ente/eslint-config": "*",
-        "@ente/shared": "*",
-        "jszip": "3.10.1",
-        "mime-types": "^2.1.35"
+        "@/accounts": "*",
+        "@/base": "*",
+        "@/media": "*",
+        "@ente/shared": "*"
     },
     "devDependencies": {
-        "sass": "^1.69.5"
+        "@/build-config": "*",
+        "@types/chromecast-caf-receiver": "^6.0.21"
     }
 }

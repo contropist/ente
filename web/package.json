@@ -11,23 +11,23 @@
         "build:accounts": "yarn workspace accounts next build",
         "build:auth": "yarn workspace auth next build",
         "build:cast": "yarn workspace cast next build",
+        "build:payments": "yarn workspace payments build",
         "build:photos": "yarn workspace photos next build",
         "dev": "yarn dev:photos",
-        "dev:accounts": "yarn workspace accounts next dev",
+        "dev:accounts": "yarn workspace accounts next dev -p 3001",
         "dev:albums": "yarn workspace photos next dev -p 3002",
-        "dev:auth": "yarn workspace auth next dev",
-        "dev:cast": "yarn workspace cast next dev",
-        "dev:photos": "yarn workspace photos next dev",
-        "lint": "yarn prettier --check . && yarn workspaces run eslint .",
-        "lint-fix": "yarn prettier --write . && yarn workspaces run eslint --fix ."
-    },
-    "resolutions": {
-        "@sentry/cli": "1.75.0",
-        "libsodium": "0.7.9"
+        "dev:auth": "yarn workspace auth next dev -p 3000",
+        "dev:cast": "yarn workspace cast next dev -p 3001",
+        "dev:payments": "yarn workspace payments dev",
+        "dev:photos": "yarn workspace photos next dev -p 3000",
+        "lint": "concurrently --names 'prettier,eslint,tsc' \"yarn prettier --check --log-level warn .\" \"yarn workspaces run eslint\" \"yarn workspaces run tsc\"",
+        "lint-fix": "concurrently --names 'prettier,eslint,tsc' \"yarn prettier --write --log-level warn .\" \"yarn workspaces run eslint --fix\" \"yarn workspaces run tsc\""
     },
     "devDependencies": {
-        "eslint": "^8",
-        "prettier": "^3",
-        "typescript": "^5"
-    }
+        "concurrently": "^9.1.2",
+        "eslint": "^9.21.0",
+        "prettier": "^3.5.3",
+        "typescript": "^5.8.2"
+    },
+    "packageManager": "yarn@1.22.22"
 }

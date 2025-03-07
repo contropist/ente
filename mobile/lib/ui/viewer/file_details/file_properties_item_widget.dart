@@ -4,10 +4,10 @@ import 'package:photos/models/file/file.dart';
 import 'package:photos/models/file/file_type.dart';
 import "package:photos/theme/ente_theme.dart";
 import "package:photos/ui/components/info_item_widget.dart";
-import "package:photos/utils/data_util.dart";
-import "package:photos/utils/date_time_util.dart";
 import "package:photos/utils/file_util.dart";
 import "package:photos/utils/magic_util.dart";
+import "package:photos/utils/standalone/data.dart";
+import "package:photos/utils/standalone/date_time.dart";
 
 class FilePropertiesItemWidget extends StatefulWidget {
   final EnteFile file;
@@ -48,6 +48,7 @@ class _FilePropertiesItemWidgetState extends State<FilePropertiesItemWidget> {
   }
 
   Future<List<Widget>> _subTitleSection() async {
+    final textStyle = getEnteTextTheme(context).miniMuted;
     final StringBuffer dimString = StringBuffer();
     if (widget.exifData["resolution"] != null &&
         widget.exifData["megaPixels"] != null) {
@@ -66,7 +67,7 @@ class _FilePropertiesItemWidgetState extends State<FilePropertiesItemWidget> {
       subSectionWidgets.add(
         Text(
           dimString.toString(),
-          style: getEnteTextTheme(context).miniMuted,
+          style: textStyle,
         ),
       );
     }
@@ -80,7 +81,7 @@ class _FilePropertiesItemWidgetState extends State<FilePropertiesItemWidget> {
     subSectionWidgets.add(
       Text(
         formatBytes(fileSize),
-        style: getEnteTextTheme(context).miniMuted,
+        style: textStyle,
       ),
     );
 
@@ -90,7 +91,7 @@ class _FilePropertiesItemWidgetState extends State<FilePropertiesItemWidget> {
         subSectionWidgets.add(
           Text(
             secondsToHHMMSS(widget.file.duration!),
-            style: getEnteTextTheme(context).miniMuted,
+            style: textStyle,
           ),
         );
       } else {
@@ -98,7 +99,7 @@ class _FilePropertiesItemWidgetState extends State<FilePropertiesItemWidget> {
         subSectionWidgets.add(
           Text(
             asset?.videoDuration.toString().split(".")[0] ?? "",
-            style: getEnteTextTheme(context).miniMuted,
+            style: textStyle,
           ),
         );
       }

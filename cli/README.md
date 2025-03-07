@@ -1,47 +1,84 @@
-# Command Line Utility for exporting data from [Ente](https://ente.io)
+# Ente CLI
+
+The Ente CLI is a Command Line Utility for exporting data from
+[Ente](https://ente.io). It also does a few more things, for example, you can
+use it to decrypt the export from Ente Auth.
 
 ## Install
 
-You can either download the binary from the [release page](https://github.com/ente-io/cli/releases) or build it yourself.
+The easiest way is to download a pre-built binary from the [GitHub
+releases](https://github.com/ente-io/ente/releases?q=tag%3Acli-v0).
 
-### Build from source
+You can also build these binaries yourself
+
+```shell
+./release.sh
+```
+
+Or you can build from source
 
 ```shell
  go build -o "bin/ente" main.go
 ```
 
-### Getting Started
+The generated binaries are standalone, static binaries with no dependencies. You
+can run them directly, or put them somewhere in your PATH.
+
+There is also an option to use [Docker](#docker).
+
+## Usage
 
 Run the help command to see all available commands.
+
 ```shell
 ente --help
 ```
 
-#### Accounts
-If you wish, you can add multiple accounts (your own and that of your family members) and export all data using this tool.
+### Accounts
 
-##### Add an account
+If you wish, you can add multiple accounts (your own and that of your family
+members) and export all data using this tool.
+
+#### Add an account
+
 ```shell
 ente account add
 ```
 
-##### List accounts
+> [!NOTE]
+>
+> `ente account add` does not create new accounts, it just adds pre-existing
+> accounts to the list of accounts that the CLI knows about so that you can use
+> them for other actions.
+
+#### List accounts
+
 ```shell
 ente account list
 ```
-  
-##### Change export directory
+
+#### Change export directory
+
 ```shell
-ente account update --email email@domain.com --dir ~/photos 
+ente account update --email email@domain.com --dir ~/photos
 ```
 
 ### Export
-##### Start export
+
+#### Start export
+
 ```shell
 ente export
 ```
 
----
+### CLI Docs
+You can view more cli documents at [docs](docs/generated/ente.md).
+To update the docs, run the following command:
+
+```shell
+go run main.go docs
+```
+
 
 ## Docker
 
@@ -49,38 +86,20 @@ If you fancy Docker, you can also run the CLI within a container.
 
 ### Configure
 
-Modify the `docker-compose.yml` and add volume.
-``cli-data`` volume is mandatory, you can add more volumes for your export directory.
+Modify the `docker-compose.yml` and add volume. ``cli-data`` volume is
+mandatory, you can add more volumes for your export directory.
 
-Build the docker image
+Build and run the container in detached mode
 ```shell
-docker build -t ente:latest .
+docker-compose up -d --build
 ```
-
-Start the container in detached mode
-```bash 
-docker-compose up -d
-```
+Note that [BuildKit](https://docs.docker.com/go/buildkit/) is needed to build
+this image. If you face this issue, a quick fix is to add `DOCKER_BUILDKIT=1` in
+front of the build command.
 
 `exec` into the container
 ```shell
-docker-compose exec ente /bin/sh
-```
-  
-    
-#### Directly executing commands
-
-```shell
-docker run -it --rm ente:latest ls 
-```
-
----
-
-## Releases
-
-Run the release script to build the binary and run it.
-
-```shell
-./release.sh
+docker-compose exec ente-cli /bin/sh -c "./ente-cli version"
+docker-compose exec ente-cli /bin/sh -c "./ente-cli account add" 
 ```
 

@@ -2,8 +2,8 @@ import "package:flutter/material.dart";
 import "package:photos/generated/l10n.dart";
 import "package:photos/models/api/storage_bonus/storage_bonus.dart";
 import "package:photos/models/user_details.dart";
-import "package:photos/services/storage_bonus_service.dart";
-import "package:photos/services/user_service.dart";
+import "package:photos/service_locator.dart";
+import "package:photos/services/account/user_service.dart";
 import "package:photos/theme/ente_theme.dart";
 import "package:photos/ui/common/loading_widget.dart";
 import "package:photos/ui/common/web_page.dart";
@@ -16,9 +16,9 @@ import "package:photos/ui/components/title_bar_widget.dart";
 import "package:photos/ui/growth/apply_code_screen.dart";
 import "package:photos/ui/growth/referral_code_widget.dart";
 import "package:photos/ui/growth/storage_details_screen.dart";
-import "package:photos/utils/data_util.dart";
 import "package:photos/utils/navigation_util.dart";
 import "package:photos/utils/share_util.dart";
+import "package:photos/utils/standalone/data.dart";
 import "package:tuple/tuple.dart";
 
 class ReferralScreen extends StatefulWidget {
@@ -42,8 +42,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
         UserService.instance.getCachedUserDetails();
     cachedUserDetails ??=
         await UserService.instance.getUserDetailsV2(memoryCount: false);
-    final referralView =
-        await StorageBonusService.instance.getGateway().getReferralView();
+    final referralView = await storageBonusService.getReferralView();
     return Tuple2(referralView, cachedUserDetails);
   }
 
@@ -63,8 +62,12 @@ class _ReferralScreenState extends State<ReferralScreen> {
                 icon: Icons.close_outlined,
                 iconButtonType: IconButtonType.secondary,
                 onTap: () {
-                  Navigator.pop(context);
-                  Navigator.pop(context);
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
                 },
               ),
             ],
@@ -141,41 +144,58 @@ class ReferralWidget extends StatelessWidget {
                         ),
                   );
                 },
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: colorScheme.strokeFaint,
-                      width: 1,
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 12,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          S.of(context).referralStep1,
+                child: Stack(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: colorScheme.strokeFaint,
+                          width: 1,
                         ),
-                        const SizedBox(height: 12),
-                        ReferralCodeWidget(referralView.code),
-                        const SizedBox(height: 12),
-                        Text(
-                          S.of(context).referralStep2,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 12,
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          S
-                              .of(context)
-                              .referralStep3(referralView.planInfo.storageInGB),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              S.of(context).referralStep1,
+                            ),
+                            const SizedBox(height: 12),
+                            ReferralCodeWidget(
+                              referralView.code,
+                              shouldShowEdit: true,
+                              userDetails: userDetails,
+                              notifyParent: notifyParent,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              S.of(context).referralStep2,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              S.of(context).referralStep3(
+                                    referralView.planInfo.storageInGB,
+                                  ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Icon(
+                        Icons.adaptive.share,
+                        color: colorScheme.blurStrokePressed,
+                      ),
+                    ),
+                  ],
                 ),
               )
             : Padding(
@@ -255,7 +275,7 @@ class ReferralWidget extends StatelessWidget {
               context,
               WebPage(
                 S.of(context).faq,
-                "https://ente.io/faq/general/referral-program",
+                "https://help.ente.io/photos/features/referral-program/",
               ),
             );
           },

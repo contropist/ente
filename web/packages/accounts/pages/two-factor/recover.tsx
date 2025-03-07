@@ -1,85 +1,99 @@
-import { VerticallyCentered } from "@ente/shared/components/Container";
+import {
+    AccountsPageContents,
+    AccountsPageFooter,
+    AccountsPageTitle,
+} from "@/accounts/components/layouts/centered-paper";
+import { PAGES } from "@/accounts/constants/pages";
+import {
+    recoverTwoFactor,
+    removeTwoFactor,
+    type TwoFactorType,
+} from "@/accounts/services/user";
+import { LinkButton } from "@/base/components/LinkButton";
+import type { MiniDialogAttributes } from "@/base/components/MiniDialog";
+import { useBaseContext } from "@/base/context";
+import { sharedCryptoWorker } from "@/base/crypto";
+import type { B64EncryptionResult } from "@/base/crypto/libsodium";
+import log from "@/base/log";
 import SingleInputForm, {
-    SingleInputFormProps,
+    type SingleInputFormProps,
 } from "@ente/shared/components/SingleInputForm";
-import { logError } from "@ente/shared/sentry";
-import { LS_KEYS, getData, setData } from "@ente/shared/storage/localStorage";
-import { useEffect, useState } from "react";
-
-import { recoverTwoFactor, removeTwoFactor } from "@ente/accounts/api/user";
-import { PAGES } from "@ente/accounts/constants/pages";
-import { logoutUser } from "@ente/accounts/services/user";
-import { PageProps } from "@ente/shared/apps/types";
-import { DialogBoxAttributesV2 } from "@ente/shared/components/DialogBoxV2/types";
-import FormPaper from "@ente/shared/components/Form/FormPaper";
-import FormPaperFooter from "@ente/shared/components/Form/FormPaper/Footer";
-import FormPaperTitle from "@ente/shared/components/Form/FormPaper/Title";
-import LinkButton from "@ente/shared/components/LinkButton";
-import { SUPPORT_EMAIL } from "@ente/shared/constants/urls";
-import ComlinkCryptoWorker from "@ente/shared/crypto";
-import { B64EncryptionResult } from "@ente/shared/crypto/types";
 import { ApiError } from "@ente/shared/error";
+import {
+    LS_KEYS,
+    getData,
+    setData,
+    setLSUser,
+} from "@ente/shared/storage/localStorage";
 import { Link } from "@mui/material";
 import { HttpStatusCode } from "axios";
 import { t } from "i18next";
+import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
 import { Trans } from "react-i18next";
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const bip39 = require("bip39");
 // mobile client library only supports english.
 bip39.setDefaultWordlist("english");
 
-export default function Recover({ router, appContext }: PageProps) {
+export interface RecoverPageProps {
+    twoFactorType: TwoFactorType;
+}
+
+const Page: React.FC<RecoverPageProps> = ({ twoFactorType }) => {
+    const { logout, showMiniDialog } = useBaseContext();
+
     const [encryptedTwoFactorSecret, setEncryptedTwoFactorSecret] =
-        useState<B64EncryptionResult>(null);
-    const [sessionID, setSessionID] = useState(null);
+        useState<Omit<B64EncryptionResult, "key"> | null>(null);
+    const [sessionID, setSessionID] = useState<string | null>(null);
     const [doesHaveEncryptedRecoveryKey, setDoesHaveEncryptedRecoveryKey] =
         useState(false);
 
+    const router = useRouter();
+
     useEffect(() => {
         const user = getData(LS_KEYS.USER);
-        if (!user || !user.email || !user.twoFactorSessionID) {
-            router.push(PAGES.ROOT);
+        const sid = user.passkeySessionID || user.twoFactorSessionID;
+        if (!user?.email || !sid) {
+            void router.push("/");
         } else if (
-            !user.isTwoFactorEnabled &&
+            !(user.isTwoFactorEnabled || user.isTwoFactorEnabledPasskey) &&
             (user.encryptedToken || user.token)
         ) {
-            router.push(PAGES.GENERATE);
+            void router.push(PAGES.GENERATE);
         } else {
-            setSessionID(user.twoFactorSessionID);
+            setSessionID(sid);
         }
         const main = async () => {
             try {
-                const resp = await recoverTwoFactor(user.twoFactorSessionID);
+                const resp = await recoverTwoFactor(sid, twoFactorType);
                 setDoesHaveEncryptedRecoveryKey(!!resp.encryptedSecret);
                 if (!resp.encryptedSecret) {
-                    showContactSupportDialog({
-                        text: t("GO_BACK"),
-                        action: router.back,
-                    });
+                    showContactSupportDialog({ action: router.back });
                 } else {
                     setEncryptedTwoFactorSecret({
                         encryptedData: resp.encryptedSecret,
                         nonce: resp.secretDecryptionNonce,
-                        key: null,
                     });
                 }
             } catch (e) {
                 if (
                     e instanceof ApiError &&
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
                     e.httpStatusCode === HttpStatusCode.NotFound
                 ) {
-                    logoutUser();
+                    logout();
                 } else {
-                    logError(e, "two factor recovery page setup failed");
+                    log.error("two factor recovery page setup failed", e);
                     setDoesHaveEncryptedRecoveryKey(false);
-                    showContactSupportDialog({
-                        text: t("GO_BACK"),
-                        action: router.back,
-                    });
+                    showContactSupportDialog({ action: router.back });
                 }
             }
         };
-        main();
+        void main();
+        // TODO:
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const recover: SingleInputFormProps["callback"] = async (
@@ -100,15 +114,20 @@ export default function Recover({ router, appContext }: PageProps) {
                 }
                 recoveryKey = bip39.mnemonicToEntropy(recoveryKey);
             }
-            const cryptoWorker = await ComlinkCryptoWorker.getInstance();
+            const cryptoWorker = await sharedCryptoWorker();
+            const { encryptedData, nonce } = encryptedTwoFactorSecret!;
             const twoFactorSecret = await cryptoWorker.decryptB64(
-                encryptedTwoFactorSecret.encryptedData,
-                encryptedTwoFactorSecret.nonce,
+                encryptedData,
+                nonce,
                 await cryptoWorker.fromHex(recoveryKey),
             );
-            const resp = await removeTwoFactor(sessionID, twoFactorSecret);
+            const resp = await removeTwoFactor(
+                sessionID!,
+                twoFactorSecret,
+                twoFactorType,
+            );
             const { keyAttributes, encryptedToken, token, id } = resp;
-            setData(LS_KEYS.USER, {
+            await setLSUser({
                 ...getData(LS_KEYS.USER),
                 token,
                 encryptedToken,
@@ -116,28 +135,27 @@ export default function Recover({ router, appContext }: PageProps) {
                 isTwoFactorEnabled: false,
             });
             setData(LS_KEYS.KEY_ATTRIBUTES, keyAttributes);
-            router.push(PAGES.CREDENTIALS);
+            void router.push(PAGES.CREDENTIALS);
         } catch (e) {
-            logError(e, "two factor recovery failed");
-            setFieldError(t("INCORRECT_RECOVERY_KEY"));
+            log.error("two factor recovery failed", e);
+            setFieldError(t("incorrect_recovery_key"));
         }
     };
 
     const showContactSupportDialog = (
-        dialogClose?: DialogBoxAttributesV2["close"],
+        dialogContinue?: MiniDialogAttributes["continue"],
     ) => {
-        appContext.setDialogBoxAttributesV2({
-            title: t("CONTACT_SUPPORT"),
-            close: dialogClose ?? {},
-            content: (
+        showMiniDialog({
+            title: t("contact_support"),
+            message: (
                 <Trans
-                    i18nKey={"NO_TWO_FACTOR_RECOVERY_KEY_MESSAGE"}
-                    values={{ emailID: SUPPORT_EMAIL }}
-                    components={{
-                        a: <Link href={`mailto:${SUPPORT_EMAIL}`} />,
-                    }}
+                    i18nKey={"no_two_factor_recovery_key_message"}
+                    components={{ a: <Link href="mailto:support@ente.io" /> }}
+                    values={{ emailID: "support@ente.io" }}
                 />
             ),
+            continue: { color: "secondary", ...(dialogContinue ?? {}) },
+            cancel: false,
         });
     };
 
@@ -146,25 +164,23 @@ export default function Recover({ router, appContext }: PageProps) {
     }
 
     return (
-        <VerticallyCentered>
-            <FormPaper>
-                <FormPaperTitle>{t("RECOVER_TWO_FACTOR")}</FormPaperTitle>
-                <SingleInputForm
-                    callback={recover}
-                    fieldType="text"
-                    placeholder={t("RECOVERY_KEY_HINT")}
-                    buttonText={t("RECOVER")}
-                    disableAutoComplete
-                />
-                <FormPaperFooter style={{ justifyContent: "space-between" }}>
-                    <LinkButton onClick={() => showContactSupportDialog()}>
-                        {t("NO_RECOVERY_KEY")}
-                    </LinkButton>
-                    <LinkButton onClick={router.back}>
-                        {t("GO_BACK")}
-                    </LinkButton>
-                </FormPaperFooter>
-            </FormPaper>
-        </VerticallyCentered>
+        <AccountsPageContents>
+            <AccountsPageTitle>{t("recover_two_factor")}</AccountsPageTitle>
+            <SingleInputForm
+                callback={recover}
+                fieldType="text"
+                placeholder={t("recovery_key")}
+                buttonText={t("recover")}
+                disableAutoComplete
+            />
+            <AccountsPageFooter>
+                <LinkButton onClick={() => showContactSupportDialog()}>
+                    {t("no_recovery_key_title")}
+                </LinkButton>
+                <LinkButton onClick={router.back}>{t("go_back")}</LinkButton>
+            </AccountsPageFooter>
+        </AccountsPageContents>
     );
-}
+};
+
+export default Page;

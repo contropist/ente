@@ -13,7 +13,7 @@ import 'package:photos/models/file/file.dart';
 import 'package:photos/models/gallery_type.dart';
 import 'package:photos/models/selected_files.dart';
 import 'package:photos/services/ignored_files_service.dart';
-import 'package:photos/services/remote_sync_service.dart';
+import 'package:photos/services/sync/remote_sync_service.dart';
 import 'package:photos/theme/ente_theme.dart';
 import 'package:photos/ui/components/captioned_text_widget.dart';
 import 'package:photos/ui/components/menu_item_widget/menu_item_widget.dart';
@@ -22,12 +22,14 @@ import 'package:photos/ui/components/toggle_switch_widget.dart';
 import 'package:photos/ui/viewer/actions/file_selection_overlay_bar.dart';
 import 'package:photos/ui/viewer/gallery/gallery.dart';
 import 'package:photos/ui/viewer/gallery/gallery_app_bar_widget.dart';
+import "package:photos/ui/viewer/gallery/state/gallery_files_inherited_widget.dart";
+import "package:photos/ui/viewer/gallery/state/selection_state.dart";
 
 class DeviceFolderPage extends StatelessWidget {
   final DeviceCollection deviceCollection;
   final _selectedFiles = SelectedFiles();
 
-  DeviceFolderPage(this.deviceCollection, {Key? key}) : super(key: key);
+  DeviceFolderPage(this.deviceCollection, {super.key});
 
   @override
   Widget build(Object context) {
@@ -56,25 +58,30 @@ class DeviceFolderPage extends StatelessWidget {
           : const SizedBox.shrink(),
       initialFiles: [deviceCollection.thumbnail!],
     );
-    return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(50.0),
-        child: GalleryAppBarWidget(
-          GalleryType.localFolder,
-          deviceCollection.name,
-          _selectedFiles,
-          deviceCollection: deviceCollection,
-        ),
-      ),
-      body: Stack(
-        alignment: Alignment.bottomCenter,
-        children: [
-          gallery,
-          FileSelectionOverlayBar(
+    return GalleryFilesState(
+      child: Scaffold(
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(50.0),
+          child: GalleryAppBarWidget(
             GalleryType.localFolder,
+            deviceCollection.name,
             _selectedFiles,
+            deviceCollection: deviceCollection,
           ),
-        ],
+        ),
+        body: SelectionState(
+          selectedFiles: _selectedFiles,
+          child: Stack(
+            alignment: Alignment.bottomCenter,
+            children: [
+              gallery,
+              FileSelectionOverlayBar(
+                GalleryType.localFolder,
+                _selectedFiles,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

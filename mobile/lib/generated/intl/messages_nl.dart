@@ -20,28 +20,39 @@ typedef String MessageIfAbsent(String messageStr, List<dynamic> args);
 class MessageLookup extends MessageLookupByLibrary {
   String get localeName => 'nl';
 
-  static String m0(count) =>
+  static String m9(title) => "${title} (Ik)";
+
+  static String m10(count) =>
+      "${Intl.plural(count, zero: 'Voeg samenwerker toe', one: 'Voeg samenwerker toe', other: 'Voeg samenwerkers toe')}";
+
+  static String m11(count) =>
       "${Intl.plural(count, one: 'Bestand toevoegen', other: 'Bestanden toevoegen')}";
 
-  static String m1(storageAmount, endDate) =>
+  static String m12(storageAmount, endDate) =>
       "Jouw ${storageAmount} add-on is geldig tot ${endDate}";
 
-  static String m2(emailOrName) => "Toegevoegd door ${emailOrName}";
+  static String m13(count) =>
+      "${Intl.plural(count, one: 'Voeg kijker toe', other: 'Voeg kijkers toe')}";
 
-  static String m3(albumName) => "Succesvol toegevoegd aan  ${albumName}";
+  static String m14(emailOrName) => "Toegevoegd door ${emailOrName}";
 
-  static String m4(count) =>
+  static String m15(albumName) => "Succesvol toegevoegd aan  ${albumName}";
+
+  static String m16(count) =>
       "${Intl.plural(count, zero: 'Geen deelnemers', one: '1 deelnemer', other: '${count} deelnemers')}";
 
-  static String m5(versionValue) => "Versie: ${versionValue}";
+  static String m17(versionValue) => "Versie: ${versionValue}";
 
-  static String m6(paymentProvider) =>
+  static String m18(freeAmount, storageUnit) =>
+      "${freeAmount} ${storageUnit} vrij";
+
+  static String m19(paymentProvider) =>
       "Annuleer eerst uw bestaande abonnement bij ${paymentProvider}";
 
-  static String m7(user) =>
+  static String m3(user) =>
       "${user} zal geen foto\'s meer kunnen toevoegen aan dit album\n\nDe gebruiker zal nog steeds bestaande foto\'s kunnen verwijderen die door hen zijn toegevoegd";
 
-  static String m8(isFamilyMember, storageAmountInGb) =>
+  static String m20(isFamilyMember, storageAmountInGb) =>
       "${Intl.select(isFamilyMember, {
             'true':
                 'Jouw familie heeft ${storageAmountInGb} GB geclaimd tot nu toe',
@@ -49,211 +60,284 @@ class MessageLookup extends MessageLookupByLibrary {
             'other': 'Je hebt ${storageAmountInGb} GB geclaimd tot nu toe!',
           })}";
 
-  static String m9(albumName) =>
+  static String m21(albumName) =>
       "Gezamenlijke link aangemaakt voor ${albumName}";
 
-  static String m10(familyAdminEmail) =>
+  static String m22(count) =>
+      "${Intl.plural(count, zero: '0 samenwerkers toegevoegd', one: '1 samenwerker toegevoegd', other: '${count} samenwerkers toegevoegd')}";
+
+  static String m23(email, numOfDays) =>
+      "Je staat op het punt ${email} toe te voegen als vertrouwde contactpersoon. Ze kunnen je account herstellen als je ${numOfDays} dagen afwezig bent.";
+
+  static String m24(familyAdminEmail) =>
       "Neem contact op met <green>${familyAdminEmail}</green> om uw abonnement te beheren";
 
-  static String m11(provider) =>
+  static String m25(provider) =>
       "Neem contact met ons op via support@ente.io om uw ${provider} abonnement te beheren.";
 
-  static String m12(count) =>
+  static String m26(endpoint) => "Verbonden met ${endpoint}";
+
+  static String m27(count) =>
       "${Intl.plural(count, one: 'Verwijder ${count} bestand', other: 'Verwijder ${count} bestanden')}";
 
-  static String m13(currentlyDeleting, totalCount) =>
+  static String m28(currentlyDeleting, totalCount) =>
       "Verwijderen van ${currentlyDeleting} / ${totalCount}";
 
-  static String m14(albumName) =>
+  static String m29(albumName) =>
       "Dit verwijdert de openbare link voor toegang tot \"${albumName}\".";
 
-  static String m15(supportEmail) =>
+  static String m30(supportEmail) =>
       "Stuur een e-mail naar ${supportEmail} vanaf het door jou geregistreerde e-mailadres";
 
-  static String m16(count, storageSaved) =>
+  static String m31(count, storageSaved) =>
       "Je hebt ${Intl.plural(count, one: '${count} dubbel bestand', other: '${count} dubbele bestanden')} opgeruimd, totaal (${storageSaved}!)";
 
-  static String m17(count, formattedSize) =>
+  static String m32(count, formattedSize) =>
       "${count} bestanden, elk ${formattedSize}";
 
-  static String m18(newEmail) => "E-mailadres gewijzigd naar ${newEmail}";
+  static String m33(newEmail) => "E-mailadres gewijzigd naar ${newEmail}";
 
-  static String m19(email) =>
-      "${email} heeft geen ente account.\n\nStuur ze een uitnodiging om foto\'s te delen.";
+  static String m34(email) => "${email} heeft geen Ente account.";
 
-  static String m20(count, formattedNumber) =>
+  static String m35(email) =>
+      "${email} heeft geen Ente account.\n\nStuur ze een uitnodiging om foto\'s te delen.";
+
+  static String m36(text) => "Extra foto\'s gevonden voor ${text}";
+
+  static String m37(count, formattedNumber) =>
       "${Intl.plural(count, one: '1 bestand', other: '${formattedNumber} bestanden')} in dit album zijn veilig geback-upt";
 
-  static String m21(count, formattedNumber) =>
+  static String m38(count, formattedNumber) =>
       "${Intl.plural(count, one: '1 bestand', other: '${formattedNumber} bestanden')} in dit album is veilig geback-upt";
 
-  static String m22(storageAmountInGB) =>
+  static String m4(storageAmountInGB) =>
       "${storageAmountInGB} GB telkens als iemand zich aanmeldt voor een betaald abonnement en je code toepast";
 
-  static String m23(freeAmount, storageUnit) =>
-      "${freeAmount} ${storageUnit} vrij";
+  static String m39(endDate) => "Gratis proefversie geldig tot ${endDate}";
 
-  static String m24(endDate) => "Gratis proefversie geldig tot ${endDate}";
+  static String m40(count) =>
+      "Je hebt nog steeds toegang tot ${Intl.plural(count, one: 'het', other: 'ze')} op Ente zolang je een actief abonnement hebt";
 
-  static String m25(count) =>
-      "U heeft nog steeds toegang tot ${Intl.plural(count, one: 'het', other: 'ze')} op ente zolang u een actief abonnement heeft";
+  static String m41(sizeInMBorGB) => "Maak ${sizeInMBorGB} vrij";
 
-  static String m26(sizeInMBorGB) => "Maak ${sizeInMBorGB} vrij";
-
-  static String m27(count, formattedSize) =>
+  static String m42(count, formattedSize) =>
       "${Intl.plural(count, one: 'Het kan verwijderd worden van het apparaat om ${formattedSize} vrij te maken', other: 'Ze kunnen verwijderd worden van het apparaat om ${formattedSize} vrij te maken')}";
 
-  static String m28(currentlyProcessing, totalCount) =>
+  static String m43(currentlyProcessing, totalCount) =>
       "Verwerken van ${currentlyProcessing} / ${totalCount}";
 
-  static String m29(count) =>
+  static String m44(count) =>
       "${Intl.plural(count, one: '${count} item', other: '${count} items')}";
 
-  static String m30(expiryTime) => "Link vervalt op ${expiryTime}";
+  static String m45(email) =>
+      "${email} heeft je uitgenodigd om een vertrouwd contact te zijn";
 
-  static String m31(count, formattedCount) =>
+  static String m46(expiryTime) => "Link vervalt op ${expiryTime}";
+
+  static String m47(email) => "Link persoon aan ${email}";
+
+  static String m48(personName, email) =>
+      "Dit linkt ${personName} aan ${email}";
+
+  static String m5(count, formattedCount) =>
       "${Intl.plural(count, zero: 'geen herinneringen', one: '${formattedCount} herinnering', other: '${formattedCount} herinneringen')}";
 
-  static String m32(count) =>
+  static String m49(count) =>
       "${Intl.plural(count, one: 'Bestand verplaatsen', other: 'Bestanden verplaatsen')}";
 
-  static String m33(albumName) => "Succesvol verplaatst naar ${albumName}";
+  static String m50(albumName) => "Succesvol verplaatst naar ${albumName}";
 
-  static String m34(passwordStrengthValue) =>
+  static String m51(personName) => "Geen suggesties voor ${personName}";
+
+  static String m52(name) => "Niet ${name}?";
+
+  static String m53(familyAdminEmail) =>
+      "Neem contact op met ${familyAdminEmail} om uw code te wijzigen.";
+
+  static String m0(passwordStrengthValue) =>
       "Wachtwoord sterkte: ${passwordStrengthValue}";
 
-  static String m35(providerName) =>
+  static String m54(providerName) =>
       "Praat met ${providerName} klantenservice als u in rekening bent gebracht";
 
-  static String m36(reason) =>
-      "Helaas is uw betaling mislukt vanwege ${reason}";
+  static String m55(count) =>
+      "${Intl.plural(count, zero: '0 foto\'s', one: '1 foto', other: '${count} foto\'s')}";
 
-  static String m37(endDate) =>
+  static String m56(endDate) =>
       "Gratis proefperiode geldig tot ${endDate}.\nU kunt naderhand een betaald abonnement kiezen.";
 
-  static String m38(toEmail) => "Stuur ons een e-mail op ${toEmail}";
+  static String m57(toEmail) => "Stuur ons een e-mail op ${toEmail}";
 
-  static String m39(toEmail) =>
+  static String m58(toEmail) =>
       "Verstuur de logboeken alstublieft naar ${toEmail}";
 
-  static String m40(storeName) => "Beoordeel ons op ${storeName}";
+  static String m59(folderName) => "Verwerken van ${folderName}...";
 
-  static String m41(storageInGB) =>
+  static String m60(storeName) => "Beoordeel ons op ${storeName}";
+
+  static String m61(name) => "Toegewezen aan ${name}";
+
+  static String m62(days, email) =>
+      "U krijgt toegang tot het account na ${days} dagen. Een melding zal worden verzonden naar ${email}.";
+
+  static String m63(email) =>
+      "U kunt nu het account van ${email} herstellen door een nieuw wachtwoord in te stellen.";
+
+  static String m64(email) => "${email} probeert je account te herstellen.";
+
+  static String m65(storageInGB) =>
       "Jullie krijgen allebei ${storageInGB} GB* gratis";
 
-  static String m42(userEmail) =>
+  static String m66(userEmail) =>
       "${userEmail} zal worden verwijderd uit dit gedeelde album\n\nAlle door hen toegevoegde foto\'s worden ook uit het album verwijderd";
 
-  static String m43(endDate) => "Wordt verlengd op ${endDate}";
+  static String m67(endDate) => "Wordt verlengd op ${endDate}";
 
-  static String m44(count) =>
+  static String m68(count) =>
       "${Intl.plural(count, one: '${count} resultaat gevonden', other: '${count} resultaten gevonden')}";
 
-  static String m45(count) => "${count} geselecteerd";
+  static String m69(snapshotLength, searchLength) =>
+      "Lengte van secties komt niet overeen: ${snapshotLength} != ${searchLength}";
 
-  static String m46(count, yourCount) =>
+  static String m6(count) => "${count} geselecteerd";
+
+  static String m70(count, yourCount) =>
       "${count} geselecteerd (${yourCount} van jou)";
 
-  static String m47(verificationID) =>
+  static String m71(verificationID) =>
       "Hier is mijn verificatie-ID: ${verificationID} voor ente.io.";
 
-  static String m48(verificationID) =>
+  static String m7(verificationID) =>
       "Hey, kunt u bevestigen dat dit uw ente.io verificatie-ID is: ${verificationID}";
 
-  static String m49(referralCode, referralStorageInGB) =>
-      "ente verwijzingscode: ${referralCode} \n\nPas het toe bij Instellingen → Algemeen → Verwijzingen om ${referralStorageInGB} GB gratis te krijgen nadat je je hebt aangemeld voor een betaald abonnement\n\nhttps://ente.io";
+  static String m72(referralCode, referralStorageInGB) =>
+      "Ente verwijzingscode: ${referralCode} \n\nPas het toe bij Instellingen → Algemeen → Verwijzingen om ${referralStorageInGB} GB gratis te krijgen nadat je je hebt aangemeld voor een betaald abonnement\n\nhttps://ente.io";
 
-  static String m50(numberOfPeople) =>
+  static String m73(numberOfPeople) =>
       "${Intl.plural(numberOfPeople, zero: 'Deel met specifieke mensen', one: 'Gedeeld met 1 persoon', other: 'Gedeeld met ${numberOfPeople} mensen')}";
 
-  static String m51(emailIDs) => "Gedeeld met ${emailIDs}";
+  static String m74(emailIDs) => "Gedeeld met ${emailIDs}";
 
-  static String m52(fileType) =>
+  static String m75(fileType) =>
       "Deze ${fileType} zal worden verwijderd van jouw apparaat.";
 
-  static String m53(fileType) =>
-      "Deze ${fileType} staat zowel in ente als op jouw apparaat.";
+  static String m76(fileType) =>
+      "Deze ${fileType} staat zowel in Ente als op jouw apparaat.";
 
-  static String m54(fileType) =>
-      "Deze ${fileType} zal worden verwijderd uit ente.";
+  static String m77(fileType) =>
+      "Deze ${fileType} zal worden verwijderd uit Ente.";
 
-  static String m55(storageAmountInGB) => "${storageAmountInGB} GB";
+  static String m1(storageAmountInGB) => "${storageAmountInGB} GB";
 
-  static String m56(
+  static String m78(
           usedAmount, usedStorageUnit, totalAmount, totalStorageUnit) =>
       "${usedAmount} ${usedStorageUnit} van ${totalAmount} ${totalStorageUnit} gebruikt";
 
-  static String m57(id) =>
-      "Uw ${id} is al aan een ander ente account gekoppeld.\nAls u uw ${id} wilt gebruiken met dit account, neem dan contact op met onze klantenservice";
+  static String m79(id) =>
+      "Jouw ${id} is al aan een ander Ente account gekoppeld.\nAls je jouw ${id} wilt gebruiken met dit account, neem dan contact op met onze klantenservice";
 
-  static String m58(endDate) => "Uw abonnement loopt af op ${endDate}";
+  static String m80(endDate) => "Uw abonnement loopt af op ${endDate}";
 
-  static String m59(completed, total) =>
+  static String m81(completed, total) =>
       "${completed}/${total} herinneringen bewaard";
 
-  static String m60(storageAmountInGB) =>
+  static String m82(ignoreReason) =>
+      "Tik om te uploaden, upload wordt momenteel genegeerd vanwege ${ignoreReason}";
+
+  static String m8(storageAmountInGB) =>
       "Zij krijgen ook ${storageAmountInGB} GB";
 
-  static String m61(email) => "Dit is de verificatie-ID van ${email}";
+  static String m83(email) => "Dit is de verificatie-ID van ${email}";
 
-  static String m62(count) =>
-      "${Intl.plural(count, zero: '', one: '1 dag', other: '${count} dagen')}";
+  static String m84(count) =>
+      "${Intl.plural(count, zero: 'Binnenkort', one: '1 dag', other: '${count} dagen')}";
 
-  static String m63(endDate) => "Geldig tot ${endDate}";
+  static String m85(email) =>
+      "Je bent uitgenodigd om een legacy contact van ${email} te zijn.";
 
-  static String m64(email) => "Verifieer ${email}";
+  static String m86(galleryType) =>
+      "Galerijtype ${galleryType} wordt niet ondersteund voor hernoemen";
 
-  static String m65(email) =>
+  static String m87(ignoreReason) =>
+      "Upload wordt genegeerd omdat ${ignoreReason}";
+
+  static String m88(count) => "${count} herinneringen veiligstellen...";
+
+  static String m89(endDate) => "Geldig tot ${endDate}";
+
+  static String m90(email) => "Verifieer ${email}";
+
+  static String m91(count) =>
+      "${Intl.plural(count, zero: '0 kijkers toegevoegd', one: '1 kijker toegevoegd', other: '${count} kijkers toegevoegd')}";
+
+  static String m2(email) =>
       "We hebben een e-mail gestuurd naar <green>${email}</green>";
 
-  static String m66(count) =>
+  static String m92(count) =>
       "${Intl.plural(count, one: '${count} jaar geleden', other: '${count} jaar geleden')}";
 
-  static String m67(storageSaved) =>
+  static String m93(storageSaved) =>
       "Je hebt ${storageSaved} succesvol vrijgemaakt!";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
   static Map<String, Function> _notInlinedMessages(_) => <String, Function>{
         "aNewVersionOfEnteIsAvailable": MessageLookupByLibrary.simpleMessage(
-            "Er is een nieuwe versie van ente beschikbaar."),
+            "Er is een nieuwe versie van Ente beschikbaar."),
         "about": MessageLookupByLibrary.simpleMessage("Over"),
+        "acceptTrustInvite":
+            MessageLookupByLibrary.simpleMessage("Uitnodiging accepteren"),
         "account": MessageLookupByLibrary.simpleMessage("Account"),
+        "accountIsAlreadyConfigured": MessageLookupByLibrary.simpleMessage(
+            "Account is al geconfigureerd."),
+        "accountOwnerPersonAppbarTitle": m9,
         "accountWelcomeBack":
             MessageLookupByLibrary.simpleMessage("Welkom terug!"),
         "ackPasswordLostWarning": MessageLookupByLibrary.simpleMessage(
             "Ik begrijp dat als ik mijn wachtwoord verlies, ik mijn gegevens kan verliezen omdat mijn gegevens <underline>end-to-end versleuteld</underline> zijn."),
         "activeSessions":
             MessageLookupByLibrary.simpleMessage("Actieve sessies"),
+        "add": MessageLookupByLibrary.simpleMessage("Toevoegen"),
+        "addAName": MessageLookupByLibrary.simpleMessage("Een naam toevoegen"),
         "addANewEmail":
             MessageLookupByLibrary.simpleMessage("Nieuw e-mailadres toevoegen"),
         "addCollaborator":
             MessageLookupByLibrary.simpleMessage("Samenwerker toevoegen"),
+        "addCollaborators": m10,
+        "addFiles": MessageLookupByLibrary.simpleMessage("Bestanden toevoegen"),
         "addFromDevice":
             MessageLookupByLibrary.simpleMessage("Toevoegen vanaf apparaat"),
-        "addItem": m0,
+        "addItem": m11,
         "addLocation":
             MessageLookupByLibrary.simpleMessage("Locatie toevoegen"),
         "addLocationButton": MessageLookupByLibrary.simpleMessage("Toevoegen"),
         "addMore": MessageLookupByLibrary.simpleMessage("Meer toevoegen"),
+        "addName": MessageLookupByLibrary.simpleMessage("Naam toevoegen"),
+        "addNameOrMerge": MessageLookupByLibrary.simpleMessage(
+            "Naam toevoegen of samenvoegen"),
         "addNew": MessageLookupByLibrary.simpleMessage("Nieuwe toevoegen"),
+        "addNewPerson":
+            MessageLookupByLibrary.simpleMessage("Nieuw persoon toevoegen"),
         "addOnPageSubtitle":
             MessageLookupByLibrary.simpleMessage("Details van add-ons"),
-        "addOnValidTill": m1,
+        "addOnValidTill": m12,
         "addOns": MessageLookupByLibrary.simpleMessage("Add-ons"),
         "addPhotos": MessageLookupByLibrary.simpleMessage("Foto\'s toevoegen"),
         "addSelected":
             MessageLookupByLibrary.simpleMessage("Voeg geselecteerde toe"),
         "addToAlbum":
             MessageLookupByLibrary.simpleMessage("Toevoegen aan album"),
-        "addToEnte": MessageLookupByLibrary.simpleMessage("Toevoegen aan ente"),
+        "addToEnte": MessageLookupByLibrary.simpleMessage("Toevoegen aan Ente"),
         "addToHiddenAlbum": MessageLookupByLibrary.simpleMessage(
             "Toevoegen aan verborgen album"),
+        "addTrustedContact":
+            MessageLookupByLibrary.simpleMessage("Vertrouwd contact toevoegen"),
         "addViewer": MessageLookupByLibrary.simpleMessage("Voeg kijker toe"),
+        "addViewers": m13,
         "addYourPhotosNow":
             MessageLookupByLibrary.simpleMessage("Voeg nu je foto\'s toe"),
         "addedAs": MessageLookupByLibrary.simpleMessage("Toegevoegd als"),
-        "addedBy": m2,
-        "addedSuccessfullyTo": m3,
+        "addedBy": m14,
+        "addedSuccessfullyTo": m15,
         "addingToFavorites":
             MessageLookupByLibrary.simpleMessage("Toevoegen aan favorieten..."),
         "advanced": MessageLookupByLibrary.simpleMessage("Geavanceerd"),
@@ -264,7 +348,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "after1Week": MessageLookupByLibrary.simpleMessage("Na 1 week"),
         "after1Year": MessageLookupByLibrary.simpleMessage("Na 1 jaar"),
         "albumOwner": MessageLookupByLibrary.simpleMessage("Eigenaar"),
-        "albumParticipantsCount": m4,
+        "albumParticipantsCount": m16,
         "albumTitle": MessageLookupByLibrary.simpleMessage("Albumtitel"),
         "albumUpdated":
             MessageLookupByLibrary.simpleMessage("Album bijgewerkt"),
@@ -272,14 +356,23 @@ class MessageLookup extends MessageLookupByLibrary {
         "allClear": MessageLookupByLibrary.simpleMessage("✨ Alles in orde"),
         "allMemoriesPreserved":
             MessageLookupByLibrary.simpleMessage("Alle herinneringen bewaard"),
+        "allPersonGroupingWillReset": MessageLookupByLibrary.simpleMessage(
+            "Alle groepen voor deze persoon worden gereset, en je verliest alle suggesties die voor deze persoon zijn gedaan"),
+        "allow": MessageLookupByLibrary.simpleMessage("Toestaan"),
         "allowAddPhotosDescription": MessageLookupByLibrary.simpleMessage(
             "Sta toe dat mensen met de link ook foto\'s kunnen toevoegen aan het gedeelde album."),
         "allowAddingPhotos":
             MessageLookupByLibrary.simpleMessage("Foto\'s toevoegen toestaan"),
+        "allowAppToOpenSharedAlbumLinks": MessageLookupByLibrary.simpleMessage(
+            "App toestaan gedeelde album links te openen"),
         "allowDownloads":
             MessageLookupByLibrary.simpleMessage("Downloads toestaan"),
         "allowPeopleToAddPhotos": MessageLookupByLibrary.simpleMessage(
             "Mensen toestaan foto\'s toe te voegen"),
+        "allowPermBody": MessageLookupByLibrary.simpleMessage(
+            "Geef toegang tot je foto\'s vanuit Instellingen zodat Ente je bibliotheek kan weergeven en back-uppen."),
+        "allowPermTitle": MessageLookupByLibrary.simpleMessage(
+            "Toegang tot foto\'s toestaan"),
         "androidBiometricHint":
             MessageLookupByLibrary.simpleMessage("Identiteit verifiëren"),
         "androidBiometricNotRecognized": MessageLookupByLibrary.simpleMessage(
@@ -300,7 +393,10 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Android, iOS, Web, Desktop"),
         "androidSignInTitle":
             MessageLookupByLibrary.simpleMessage("Verificatie vereist"),
-        "appVersion": m5,
+        "appLock": MessageLookupByLibrary.simpleMessage("App-vergrendeling"),
+        "appLockDescriptions": MessageLookupByLibrary.simpleMessage(
+            "Kies tussen het standaard vergrendelscherm van uw apparaat en een aangepast vergrendelscherm met een pincode of wachtwoord."),
+        "appVersion": m17,
         "appleId": MessageLookupByLibrary.simpleMessage("Apple ID"),
         "apply": MessageLookupByLibrary.simpleMessage("Toepassen"),
         "applyCodeTitle":
@@ -325,6 +421,9 @@ class MessageLookup extends MessageLookupByLibrary {
             "Weet je zeker dat je wilt uitloggen?"),
         "areYouSureYouWantToRenew": MessageLookupByLibrary.simpleMessage(
             "Weet u zeker dat u wilt verlengen?"),
+        "areYouSureYouWantToResetThisPerson":
+            MessageLookupByLibrary.simpleMessage(
+                "Weet u zeker dat u deze persoon wilt resetten?"),
         "askCancelReason": MessageLookupByLibrary.simpleMessage(
             "Uw abonnement is opgezegd. Wilt u de reden delen?"),
         "askDeleteReason": MessageLookupByLibrary.simpleMessage(
@@ -347,6 +446,12 @@ class MessageLookup extends MessageLookupByLibrary {
                 "Graag verifiëren om tweestapsverificatie te configureren"),
         "authToInitiateAccountDeletion": MessageLookupByLibrary.simpleMessage(
             "Gelieve te verifiëren om het verwijderen van je account te starten"),
+        "authToManageLegacy": MessageLookupByLibrary.simpleMessage(
+            "Verifieer om je vertrouwde contacten te beheren"),
+        "authToViewPasskey": MessageLookupByLibrary.simpleMessage(
+            "Verifieer uzelf om uw toegangssleutel te bekijken"),
+        "authToViewTrashedFiles": MessageLookupByLibrary.simpleMessage(
+            "Graag verifiëren om je verwijderde bestanden te bekijken"),
         "authToViewYourActiveSessions": MessageLookupByLibrary.simpleMessage(
             "Graag verifiëren om uw actieve sessies te bekijken"),
         "authToViewYourHiddenFiles": MessageLookupByLibrary.simpleMessage(
@@ -361,22 +466,46 @@ class MessageLookup extends MessageLookupByLibrary {
                 "Verificatie mislukt, probeer het opnieuw"),
         "authenticationSuccessful":
             MessageLookupByLibrary.simpleMessage("Verificatie geslaagd!"),
+        "autoCastDialogBody": MessageLookupByLibrary.simpleMessage(
+            "Je zult de beschikbare Cast apparaten hier zien."),
+        "autoCastiOSPermission": MessageLookupByLibrary.simpleMessage(
+            "Zorg ervoor dat lokale netwerkrechten zijn ingeschakeld voor de Ente Photos app, in Instellingen."),
+        "autoLock":
+            MessageLookupByLibrary.simpleMessage("Automatische vergrendeling"),
+        "autoLockFeatureDescription": MessageLookupByLibrary.simpleMessage(
+            "Tijd waarna de app wordt vergrendeld wanneer deze in achtergrond-modus is gezet"),
+        "autoLogoutMessage": MessageLookupByLibrary.simpleMessage(
+            "Door een technische storing bent u uitgelogd. Onze excuses voor het ongemak."),
+        "autoPair":
+            MessageLookupByLibrary.simpleMessage("Automatisch koppelen"),
+        "autoPairDesc": MessageLookupByLibrary.simpleMessage(
+            "Automatisch koppelen werkt alleen met apparaten die Chromecast ondersteunen."),
         "available": MessageLookupByLibrary.simpleMessage("Beschikbaar"),
+        "availableStorageSpace": m18,
         "backedUpFolders":
             MessageLookupByLibrary.simpleMessage("Back-up mappen"),
         "backup": MessageLookupByLibrary.simpleMessage("Back-up"),
         "backupFailed": MessageLookupByLibrary.simpleMessage("Back-up mislukt"),
+        "backupFile": MessageLookupByLibrary.simpleMessage("Back-up bestand"),
         "backupOverMobileData": MessageLookupByLibrary.simpleMessage(
             "Back-up maken via mobiele data"),
         "backupSettings":
             MessageLookupByLibrary.simpleMessage("Back-up instellingen"),
+        "backupStatus": MessageLookupByLibrary.simpleMessage("Back-up status"),
+        "backupStatusDescription": MessageLookupByLibrary.simpleMessage(
+            "Items die zijn geback-upt, worden hier getoond"),
         "backupVideos":
             MessageLookupByLibrary.simpleMessage("Back-up video\'s"),
+        "birthday": MessageLookupByLibrary.simpleMessage("Verjaardag"),
         "blackFridaySale":
             MessageLookupByLibrary.simpleMessage("Black Friday-aanbieding"),
         "blog": MessageLookupByLibrary.simpleMessage("Blog"),
         "cachedData": MessageLookupByLibrary.simpleMessage("Cachegegevens"),
         "calculating": MessageLookupByLibrary.simpleMessage("Berekenen..."),
+        "canNotOpenBody": MessageLookupByLibrary.simpleMessage(
+            "Sorry, dit album kan niet worden geopend in de app."),
+        "canNotOpenTitle":
+            MessageLookupByLibrary.simpleMessage("Kan dit album niet openen"),
         "canNotUploadToAlbumsOwnedByOthers":
             MessageLookupByLibrary.simpleMessage(
                 "Kan niet uploaden naar albums die van anderen zijn"),
@@ -386,36 +515,67 @@ class MessageLookup extends MessageLookupByLibrary {
         "canOnlyRemoveFilesOwnedByYou": MessageLookupByLibrary.simpleMessage(
             "Kan alleen bestanden verwijderen die jouw eigendom zijn"),
         "cancel": MessageLookupByLibrary.simpleMessage("Annuleer"),
-        "cancelOtherSubscription": m6,
+        "cancelAccountRecovery":
+            MessageLookupByLibrary.simpleMessage("Herstel annuleren"),
+        "cancelAccountRecoveryBody": MessageLookupByLibrary.simpleMessage(
+            "Weet je zeker dat je het herstel wilt annuleren?"),
+        "cancelOtherSubscription": m19,
         "cancelSubscription":
             MessageLookupByLibrary.simpleMessage("Abonnement opzeggen"),
-        "cannotAddMorePhotosAfterBecomingViewer": m7,
+        "cannotAddMorePhotosAfterBecomingViewer": m3,
         "cannotDeleteSharedFiles": MessageLookupByLibrary.simpleMessage(
             "Kan gedeelde bestanden niet verwijderen"),
+        "castAlbum": MessageLookupByLibrary.simpleMessage("Album casten"),
+        "castIPMismatchBody": MessageLookupByLibrary.simpleMessage(
+            "Zorg ervoor dat je op hetzelfde netwerk zit als de tv."),
+        "castIPMismatchTitle":
+            MessageLookupByLibrary.simpleMessage("Album casten mislukt"),
         "castInstruction": MessageLookupByLibrary.simpleMessage(
             "Bezoek cast.ente.io op het apparaat dat u wilt koppelen.\n\nVoer de code hieronder in om het album op uw TV af te spelen."),
         "centerPoint": MessageLookupByLibrary.simpleMessage("Middelpunt"),
+        "change": MessageLookupByLibrary.simpleMessage("Wijzigen"),
         "changeEmail": MessageLookupByLibrary.simpleMessage("E-mail wijzigen"),
         "changeLocationOfSelectedItems": MessageLookupByLibrary.simpleMessage(
             "Locatie van geselecteerde items wijzigen?"),
+        "changeLogBackupStatusContent": MessageLookupByLibrary.simpleMessage(
+            "We hebben een logboek toegevoegd van alle bestanden die zijn geüpload naar Ente, inclusief fouten en wachtrij."),
+        "changeLogBackupStatusTitle":
+            MessageLookupByLibrary.simpleMessage("Back-up status"),
+        "changeLogDiscoverContent": MessageLookupByLibrary.simpleMessage(
+            "Op zoek naar foto\'s van je identiteitskaarten, notities of zelfs herinneringen? Ga naar het tabblad Zoeken en bekijk ontdekking. Op basis van onze semantische zoekopdracht is het een plek om foto\'s te vinden die belangrijk voor jou kunnen zijn.\\n\\nAlleen beschikbaar als je Machine Learning hebt ingeschakeld."),
+        "changeLogDiscoverTitle":
+            MessageLookupByLibrary.simpleMessage("Ontdek"),
+        "changeLogMagicSearchImprovementContent":
+            MessageLookupByLibrary.simpleMessage(
+                "We hebben magische zoekopdrachten veel sneller gemaakt zodat je niet hoeft te wachten om te vinden wat je zoekt."),
+        "changeLogMagicSearchImprovementTitle":
+            MessageLookupByLibrary.simpleMessage("Magisch zoeken verbetering"),
         "changePassword":
             MessageLookupByLibrary.simpleMessage("Wachtwoord wijzigen"),
         "changePasswordTitle":
             MessageLookupByLibrary.simpleMessage("Wachtwoord wijzigen"),
         "changePermissions":
             MessageLookupByLibrary.simpleMessage("Rechten aanpassen?"),
+        "changeYourReferralCode":
+            MessageLookupByLibrary.simpleMessage("Wijzig uw verwijzingscode"),
         "checkForUpdates":
             MessageLookupByLibrary.simpleMessage("Controleer op updates"),
         "checkInboxAndSpamFolder": MessageLookupByLibrary.simpleMessage(
             "Controleer je inbox (en spam) om verificatie te voltooien"),
+        "checkStatus":
+            MessageLookupByLibrary.simpleMessage("Status controleren"),
         "checking": MessageLookupByLibrary.simpleMessage("Controleren..."),
+        "checkingModels":
+            MessageLookupByLibrary.simpleMessage("Modellen controleren..."),
         "claimFreeStorage":
             MessageLookupByLibrary.simpleMessage("Claim gratis opslag"),
         "claimMore": MessageLookupByLibrary.simpleMessage("Claim meer!"),
         "claimed": MessageLookupByLibrary.simpleMessage("Geclaimd"),
-        "claimedStorageSoFar": m8,
+        "claimedStorageSoFar": m20,
         "cleanUncategorized":
             MessageLookupByLibrary.simpleMessage("Ongecategoriseerd opschonen"),
+        "cleanUncategorizedDescription": MessageLookupByLibrary.simpleMessage(
+            "Verwijder alle bestanden van Ongecategoriseerd die aanwezig zijn in andere albums"),
         "clearCaches": MessageLookupByLibrary.simpleMessage("Cache legen"),
         "clearIndexes": MessageLookupByLibrary.simpleMessage("Index wissen"),
         "click": MessageLookupByLibrary.simpleMessage("• Click"),
@@ -426,36 +586,46 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Samenvoegen op tijd"),
         "clubByFileName":
             MessageLookupByLibrary.simpleMessage("Samenvoegen op bestandsnaam"),
+        "clusteringProgress":
+            MessageLookupByLibrary.simpleMessage("Voortgang clusteren"),
         "codeAppliedPageTitle":
             MessageLookupByLibrary.simpleMessage("Code toegepast"),
+        "codeChangeLimitReached": MessageLookupByLibrary.simpleMessage(
+            "Sorry, u heeft de limiet van het aantal codewijzigingen bereikt."),
         "codeCopiedToClipboard": MessageLookupByLibrary.simpleMessage(
             "Code gekopieerd naar klembord"),
         "codeUsedByYou":
             MessageLookupByLibrary.simpleMessage("Code gebruikt door jou"),
         "collabLinkSectionDescription": MessageLookupByLibrary.simpleMessage(
-            "Maak een link waarmee mensen foto\'s in jouw gedeelde album kunnen toevoegen en bekijken zonder dat ze daarvoor een ente app of account nodig hebben. Handig voor het verzamelen van foto\'s van evenementen."),
+            "Maak een link waarmee mensen foto\'s in jouw gedeelde album kunnen toevoegen en bekijken zonder dat ze daarvoor een Ente app of account nodig hebben. Handig voor het verzamelen van foto\'s van evenementen."),
         "collaborativeLink":
             MessageLookupByLibrary.simpleMessage("Gezamenlijke link"),
-        "collaborativeLinkCreatedFor": m9,
+        "collaborativeLinkCreatedFor": m21,
         "collaborator": MessageLookupByLibrary.simpleMessage("Samenwerker"),
         "collaboratorsCanAddPhotosAndVideosToTheSharedAlbum":
             MessageLookupByLibrary.simpleMessage(
                 "Samenwerkers kunnen foto\'s en video\'s toevoegen aan het gedeelde album."),
+        "collaboratorsSuccessfullyAdded": m22,
         "collageLayout": MessageLookupByLibrary.simpleMessage("Layout"),
         "collageSaved": MessageLookupByLibrary.simpleMessage(
             "Collage opgeslagen in gallerij"),
+        "collect": MessageLookupByLibrary.simpleMessage("Verzamelen"),
         "collectEventPhotos": MessageLookupByLibrary.simpleMessage(
             "Foto\'s van gebeurtenissen verzamelen"),
         "collectPhotos":
             MessageLookupByLibrary.simpleMessage("Foto\'s verzamelen"),
+        "collectPhotosDescription": MessageLookupByLibrary.simpleMessage(
+            "Maak een link waarin je vrienden foto\'s kunnen uploaden in de originele kwaliteit."),
         "color": MessageLookupByLibrary.simpleMessage("Kleur"),
+        "configuration": MessageLookupByLibrary.simpleMessage("Configuratie"),
         "confirm": MessageLookupByLibrary.simpleMessage("Bevestig"),
         "confirm2FADisable": MessageLookupByLibrary.simpleMessage(
             "Weet u zeker dat u tweestapsverificatie wilt uitschakelen?"),
         "confirmAccountDeletion": MessageLookupByLibrary.simpleMessage(
             "Account verwijderen bevestigen"),
+        "confirmAddingTrustedContact": m23,
         "confirmDeletePrompt": MessageLookupByLibrary.simpleMessage(
-            "Ja, ik wil permanent mijn account inclusief alle gegevens verwijderen."),
+            "Ja, ik wil mijn account en de bijbehorende gegevens verspreid over alle apps permanent verwijderen."),
         "confirmPassword":
             MessageLookupByLibrary.simpleMessage("Wachtwoord bevestigen"),
         "confirmPlanChange": MessageLookupByLibrary.simpleMessage(
@@ -464,10 +634,12 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Bevestig herstelsleutel"),
         "confirmYourRecoveryKey":
             MessageLookupByLibrary.simpleMessage("Bevestig herstelsleutel"),
-        "contactFamilyAdmin": m10,
+        "connectToDevice": MessageLookupByLibrary.simpleMessage(
+            "Verbinding maken met apparaat"),
+        "contactFamilyAdmin": m24,
         "contactSupport":
             MessageLookupByLibrary.simpleMessage("Contacteer klantenservice"),
-        "contactToManageSubscription": m11,
+        "contactToManageSubscription": m25,
         "contacts": MessageLookupByLibrary.simpleMessage("Contacten"),
         "contents": MessageLookupByLibrary.simpleMessage("Inhoud"),
         "continueLabel": MessageLookupByLibrary.simpleMessage("Doorgaan"),
@@ -495,6 +667,8 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Account aanmaken"),
         "createAlbumActionHint": MessageLookupByLibrary.simpleMessage(
             "Lang indrukken om foto\'s te selecteren en klik + om een album te maken"),
+        "createCollaborativeLink":
+            MessageLookupByLibrary.simpleMessage("Maak een gezamenlijke link"),
         "createCollage": MessageLookupByLibrary.simpleMessage("Creëer collage"),
         "createNewAccount":
             MessageLookupByLibrary.simpleMessage("Nieuw account aanmaken"),
@@ -506,12 +680,18 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Link aanmaken..."),
         "criticalUpdateAvailable": MessageLookupByLibrary.simpleMessage(
             "Belangrijke update beschikbaar"),
+        "crop": MessageLookupByLibrary.simpleMessage("Bijsnijden"),
         "currentUsageIs":
             MessageLookupByLibrary.simpleMessage("Huidig gebruik is "),
+        "currentlyRunning":
+            MessageLookupByLibrary.simpleMessage("momenteel bezig"),
         "custom": MessageLookupByLibrary.simpleMessage("Aangepast"),
+        "customEndpoint": m26,
         "darkTheme": MessageLookupByLibrary.simpleMessage("Donker"),
         "dayToday": MessageLookupByLibrary.simpleMessage("Vandaag"),
         "dayYesterday": MessageLookupByLibrary.simpleMessage("Gisteren"),
+        "declineTrustInvite":
+            MessageLookupByLibrary.simpleMessage("Uitnodiging afwijzen"),
         "decrypting": MessageLookupByLibrary.simpleMessage("Ontsleutelen..."),
         "decryptingVideo":
             MessageLookupByLibrary.simpleMessage("Video ontsleutelen..."),
@@ -531,7 +711,7 @@ class MessageLookup extends MessageLookupByLibrary {
             "Hiermee worden alle lege albums verwijderd. Dit is handig wanneer je rommel in je albumlijst wilt verminderen."),
         "deleteAll": MessageLookupByLibrary.simpleMessage("Alles Verwijderen"),
         "deleteConfirmDialogBody": MessageLookupByLibrary.simpleMessage(
-            "Dit account is gekoppeld aan andere ente apps, als je er gebruik van maakt.\\n\\nJe geüploade gegevens worden in alle ente apps gepland voor verwijdering, en je account wordt permanent verwijderd voor alle ente diensten."),
+            "Dit account is gekoppeld aan andere Ente apps, als je er gebruik van maakt. Je geüploade gegevens worden in alle Ente apps gepland voor verwijdering, en je account wordt permanent verwijderd voor alle Ente diensten."),
         "deleteEmailRequest": MessageLookupByLibrary.simpleMessage(
             "Stuur een e-mail naar <warning>account-deletion@ente.io</warning> vanaf het door jou geregistreerde e-mailadres."),
         "deleteEmptyAlbums":
@@ -543,13 +723,13 @@ class MessageLookup extends MessageLookupByLibrary {
         "deleteFromDevice":
             MessageLookupByLibrary.simpleMessage("Verwijder van apparaat"),
         "deleteFromEnte":
-            MessageLookupByLibrary.simpleMessage("Verwijder van ente"),
-        "deleteItemCount": m12,
+            MessageLookupByLibrary.simpleMessage("Verwijder van Ente"),
+        "deleteItemCount": m27,
         "deleteLocation":
             MessageLookupByLibrary.simpleMessage("Verwijder locatie"),
         "deletePhotos":
             MessageLookupByLibrary.simpleMessage("Foto\'s verwijderen"),
-        "deleteProgress": m13,
+        "deleteProgress": m28,
         "deleteReason1": MessageLookupByLibrary.simpleMessage(
             "Ik mis een belangrijke functie"),
         "deleteReason2": MessageLookupByLibrary.simpleMessage(
@@ -569,14 +749,18 @@ class MessageLookup extends MessageLookupByLibrary {
         "designedToOutlive": MessageLookupByLibrary.simpleMessage(
             "Ontworpen om levenslang mee te gaan"),
         "details": MessageLookupByLibrary.simpleMessage("Details"),
-        "devAccountChanged": MessageLookupByLibrary.simpleMessage(
-            "Het ontwikkelaarsaccount dat we gebruiken om te publiceren in de App Store is veranderd. Daarom moet je opnieuw inloggen.\n\nOnze excuses voor het ongemak, helaas was dit onvermijdelijk."),
+        "developerSettings":
+            MessageLookupByLibrary.simpleMessage("Ontwikkelaarsinstellingen"),
+        "developerSettingsWarning": MessageLookupByLibrary.simpleMessage(
+            "Weet je zeker dat je de ontwikkelaarsinstellingen wilt wijzigen?"),
         "deviceCodeHint":
             MessageLookupByLibrary.simpleMessage("Voer de code in"),
         "deviceFilesAutoUploading": MessageLookupByLibrary.simpleMessage(
-            "Bestanden toegevoegd aan dit album van dit apparaat zullen automatisch geüpload worden naar ente."),
+            "Bestanden toegevoegd aan dit album van dit apparaat zullen automatisch geüpload worden naar Ente."),
+        "deviceLock":
+            MessageLookupByLibrary.simpleMessage("Apparaat vergrendeld"),
         "deviceLockExplanation": MessageLookupByLibrary.simpleMessage(
-            "Schakel de schermvergrendeling van het apparaat uit wanneer ente op de voorgrond is en er een back-up aan de gang is. Dit is normaal gesproken niet nodig, maar kan grote uploads en initiële imports van grote mappen sneller laten verlopen."),
+            "Schakel de schermvergrendeling van het apparaat uit wanneer Ente op de voorgrond is en er een back-up aan de gang is. Dit is normaal gesproken niet nodig, maar kan grote uploads en initiële imports van grote mappen sneller laten verlopen."),
         "deviceNotFound":
             MessageLookupByLibrary.simpleMessage("Apparaat niet gevonden"),
         "didYouKnow": MessageLookupByLibrary.simpleMessage("Wist u dat?"),
@@ -586,13 +770,34 @@ class MessageLookup extends MessageLookupByLibrary {
             "Kijkers kunnen nog steeds screenshots maken of een kopie van je foto\'s opslaan met behulp van externe tools"),
         "disableDownloadWarningTitle":
             MessageLookupByLibrary.simpleMessage("Let op"),
-        "disableLinkMessage": m14,
+        "disableLinkMessage": m29,
         "disableTwofactor": MessageLookupByLibrary.simpleMessage(
             "Tweestapsverificatie uitschakelen"),
         "disablingTwofactorAuthentication":
             MessageLookupByLibrary.simpleMessage(
                 "Tweestapsverificatie uitschakelen..."),
         "discord": MessageLookupByLibrary.simpleMessage("Discord"),
+        "discover": MessageLookupByLibrary.simpleMessage("Ontdek"),
+        "discover_babies": MessageLookupByLibrary.simpleMessage("Baby\'s"),
+        "discover_celebrations":
+            MessageLookupByLibrary.simpleMessage("Vieringen"),
+        "discover_food": MessageLookupByLibrary.simpleMessage("Voedsel"),
+        "discover_greenery": MessageLookupByLibrary.simpleMessage("Natuur"),
+        "discover_hills": MessageLookupByLibrary.simpleMessage("Heuvels"),
+        "discover_identity": MessageLookupByLibrary.simpleMessage("Identiteit"),
+        "discover_memes": MessageLookupByLibrary.simpleMessage("Memes"),
+        "discover_notes": MessageLookupByLibrary.simpleMessage("Notities"),
+        "discover_pets": MessageLookupByLibrary.simpleMessage("Huisdieren"),
+        "discover_receipts": MessageLookupByLibrary.simpleMessage("Bonnen"),
+        "discover_screenshots":
+            MessageLookupByLibrary.simpleMessage("Schermafbeeldingen"),
+        "discover_selfies": MessageLookupByLibrary.simpleMessage("Selfies"),
+        "discover_sunset":
+            MessageLookupByLibrary.simpleMessage("Zonsondergang"),
+        "discover_visiting_cards":
+            MessageLookupByLibrary.simpleMessage("Visite kaartjes"),
+        "discover_wallpapers":
+            MessageLookupByLibrary.simpleMessage("Achtergronden"),
         "dismiss": MessageLookupByLibrary.simpleMessage("Afwijzen"),
         "distanceInKMUnit": MessageLookupByLibrary.simpleMessage("km"),
         "doNotSignOut": MessageLookupByLibrary.simpleMessage("Niet uitloggen"),
@@ -601,20 +806,22 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage(
                 "Wilt u de bewerkingen die u hebt gemaakt annuleren?"),
         "done": MessageLookupByLibrary.simpleMessage("Voltooid"),
+        "dontSave": MessageLookupByLibrary.simpleMessage("Niet opslaan"),
         "doubleYourStorage":
             MessageLookupByLibrary.simpleMessage("Verdubbel uw opslagruimte"),
         "download": MessageLookupByLibrary.simpleMessage("Downloaden"),
         "downloadFailed":
             MessageLookupByLibrary.simpleMessage("Download mislukt"),
         "downloading": MessageLookupByLibrary.simpleMessage("Downloaden..."),
-        "dropSupportEmail": m15,
-        "duplicateFileCountWithStorageSaved": m16,
-        "duplicateItemsGroup": m17,
+        "dropSupportEmail": m30,
+        "duplicateFileCountWithStorageSaved": m31,
+        "duplicateItemsGroup": m32,
         "edit": MessageLookupByLibrary.simpleMessage("Bewerken"),
         "editLocation":
             MessageLookupByLibrary.simpleMessage("Locatie bewerken"),
         "editLocationTagTitle":
             MessageLookupByLibrary.simpleMessage("Locatie bewerken"),
+        "editPerson": MessageLookupByLibrary.simpleMessage("Persoon bewerken"),
         "editsSaved":
             MessageLookupByLibrary.simpleMessage("Bewerkingen opgeslagen"),
         "editsToLocationWillOnlyBeSeenWithinEnte":
@@ -622,33 +829,48 @@ class MessageLookup extends MessageLookupByLibrary {
                 "Bewerkte locatie wordt alleen gezien binnen Ente"),
         "eligible": MessageLookupByLibrary.simpleMessage("gerechtigd"),
         "email": MessageLookupByLibrary.simpleMessage("E-mail"),
-        "emailChangedTo": m18,
-        "emailNoEnteAccount": m19,
+        "emailAlreadyRegistered":
+            MessageLookupByLibrary.simpleMessage("E-mail is al geregistreerd."),
+        "emailChangedTo": m33,
+        "emailDoesNotHaveEnteAccount": m34,
+        "emailNoEnteAccount": m35,
+        "emailNotRegistered":
+            MessageLookupByLibrary.simpleMessage("E-mail niet geregistreerd."),
         "emailVerificationToggle":
             MessageLookupByLibrary.simpleMessage("E-mailverificatie"),
         "emailYourLogs":
             MessageLookupByLibrary.simpleMessage("E-mail uw logboeken"),
+        "emergencyContacts":
+            MessageLookupByLibrary.simpleMessage("Noodcontacten"),
         "empty": MessageLookupByLibrary.simpleMessage("Leeg"),
         "emptyTrash":
             MessageLookupByLibrary.simpleMessage("Prullenbak leegmaken?"),
+        "enable": MessageLookupByLibrary.simpleMessage("Inschakelen"),
+        "enableMLIndexingDesc": MessageLookupByLibrary.simpleMessage(
+            "Ente ondersteunt on-device machine learning voor gezichtsherkenning, magisch zoeken en andere geavanceerde zoekfuncties"),
+        "enableMachineLearningBanner": MessageLookupByLibrary.simpleMessage(
+            "Schakel machine learning in voor magische zoekopdrachten en gezichtsherkenning"),
         "enableMaps":
             MessageLookupByLibrary.simpleMessage("Kaarten inschakelen"),
         "enableMapsDesc": MessageLookupByLibrary.simpleMessage(
             "Dit toont jouw foto\'s op een wereldkaart.\n\nDeze kaart wordt gehost door Open Street Map, en de exacte locaties van jouw foto\'s worden nooit gedeeld.\n\nJe kunt deze functie op elk gewenst moment uitschakelen via de instellingen."),
+        "enabled": MessageLookupByLibrary.simpleMessage("Ingeschakeld"),
         "encryptingBackup":
             MessageLookupByLibrary.simpleMessage("Back-up versleutelen..."),
         "encryption": MessageLookupByLibrary.simpleMessage("Encryptie"),
         "encryptionKeys":
             MessageLookupByLibrary.simpleMessage("Encryptiesleutels"),
+        "endpointUpdatedMessage": MessageLookupByLibrary.simpleMessage(
+            "Eindpunt met succes bijgewerkt"),
         "endtoendEncryptedByDefault": MessageLookupByLibrary.simpleMessage(
             "Standaard end-to-end versleuteld"),
         "enteCanEncryptAndPreserveFilesOnlyIfYouGrant":
             MessageLookupByLibrary.simpleMessage(
-                "ente kan bestanden alleen versleutelen en bewaren als u toegang tot ze geeft"),
+                "Ente kan bestanden alleen versleutelen en bewaren als u toegang tot ze geeft"),
         "entePhotosPerm": MessageLookupByLibrary.simpleMessage(
-            "ente <i>heeft toestemming nodig om</i> je foto\'s te bewaren"),
+            "Ente <i>heeft toestemming nodig om</i> je foto\'s te bewaren"),
         "enteSubscriptionPitch": MessageLookupByLibrary.simpleMessage(
-            "ente bewaart uw herinneringen, zodat ze altijd beschikbaar voor u zijn, zelfs als u uw apparaat verliest."),
+            "Ente bewaart uw herinneringen, zodat ze altijd beschikbaar voor u zijn, zelfs als u uw apparaat verliest."),
         "enteSubscriptionShareWithFamily": MessageLookupByLibrary.simpleMessage(
             "Je familie kan ook aan je abonnement worden toegevoegd."),
         "enterAlbumName":
@@ -656,16 +878,22 @@ class MessageLookup extends MessageLookupByLibrary {
         "enterCode": MessageLookupByLibrary.simpleMessage("Voer code in"),
         "enterCodeDescription": MessageLookupByLibrary.simpleMessage(
             "Voer de code van de vriend in om gratis opslag voor jullie beiden te claimen"),
+        "enterDateOfBirth":
+            MessageLookupByLibrary.simpleMessage("Verjaardag (optioneel)"),
         "enterEmail":
             MessageLookupByLibrary.simpleMessage("Voer e-mailadres in"),
         "enterFileName":
             MessageLookupByLibrary.simpleMessage("Geef bestandsnaam op"),
+        "enterName": MessageLookupByLibrary.simpleMessage("Naam invoeren"),
         "enterNewPasswordToEncrypt": MessageLookupByLibrary.simpleMessage(
             "Voer een nieuw wachtwoord in dat we kunnen gebruiken om je gegevens te versleutelen"),
         "enterPassword":
             MessageLookupByLibrary.simpleMessage("Voer wachtwoord in"),
         "enterPasswordToEncrypt": MessageLookupByLibrary.simpleMessage(
             "Voer een wachtwoord in dat we kunnen gebruiken om je gegevens te versleutelen"),
+        "enterPersonName":
+            MessageLookupByLibrary.simpleMessage("Naam van persoon invoeren"),
+        "enterPin": MessageLookupByLibrary.simpleMessage("PIN invoeren"),
         "enterReferralCode":
             MessageLookupByLibrary.simpleMessage("Voer verwijzingscode in"),
         "enterThe6digitCodeFromnyourAuthenticatorApp":
@@ -674,7 +902,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "enterValidEmail": MessageLookupByLibrary.simpleMessage(
             "Voer een geldig e-mailadres in."),
         "enterYourEmailAddress":
-            MessageLookupByLibrary.simpleMessage("Voer uw e-mailadres in"),
+            MessageLookupByLibrary.simpleMessage("Voer je e-mailadres in"),
         "enterYourPassword":
             MessageLookupByLibrary.simpleMessage("Voer je wachtwoord in"),
         "enterYourRecoveryKey":
@@ -690,25 +918,40 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Logboek exporteren"),
         "exportYourData":
             MessageLookupByLibrary.simpleMessage("Exporteer je gegevens"),
+        "extraPhotosFound":
+            MessageLookupByLibrary.simpleMessage("Extra foto\'s gevonden"),
+        "extraPhotosFoundFor": m36,
+        "faceNotClusteredYet": MessageLookupByLibrary.simpleMessage(
+            "Gezicht nog niet geclusterd, kom later terug"),
+        "faceRecognition":
+            MessageLookupByLibrary.simpleMessage("Gezichtsherkenning"),
         "faces": MessageLookupByLibrary.simpleMessage("Gezichten"),
+        "failed": MessageLookupByLibrary.simpleMessage("Mislukt"),
         "failedToApplyCode":
             MessageLookupByLibrary.simpleMessage("Code toepassen mislukt"),
         "failedToCancel":
             MessageLookupByLibrary.simpleMessage("Opzeggen mislukt"),
         "failedToDownloadVideo": MessageLookupByLibrary.simpleMessage(
             "Downloaden van video mislukt"),
+        "failedToFetchActiveSessions": MessageLookupByLibrary.simpleMessage(
+            "Ophalen van actieve sessies mislukt"),
         "failedToFetchOriginalForEdit": MessageLookupByLibrary.simpleMessage(
             "Fout bij ophalen origineel voor bewerking"),
         "failedToFetchReferralDetails": MessageLookupByLibrary.simpleMessage(
             "Kan geen verwijzingsgegevens ophalen. Probeer het later nog eens."),
         "failedToLoadAlbums":
             MessageLookupByLibrary.simpleMessage("Laden van albums mislukt"),
+        "failedToPlayVideo":
+            MessageLookupByLibrary.simpleMessage("Afspelen van video mislukt"),
+        "failedToRefreshStripeSubscription":
+            MessageLookupByLibrary.simpleMessage(
+                "Abonnement vernieuwen mislukt"),
         "failedToRenew":
             MessageLookupByLibrary.simpleMessage("Verlengen mislukt"),
         "failedToVerifyPaymentStatus": MessageLookupByLibrary.simpleMessage(
             "Betalingsstatus verifiëren mislukt"),
         "familyPlanOverview": MessageLookupByLibrary.simpleMessage(
-            "Voeg 5 gezinsleden toe aan uw bestaande abonnement zonder extra te betalen.\n\nElk lid krijgt zijn eigen privé ruimte en kan elkaars bestanden niet zien, tenzij ze zijn gedeeld.\n\nFamilieplannen zijn beschikbaar voor klanten die een betaald ente abonnement hebben.\n\nAbonneer u nu om aan de slag te gaan!"),
+            "Voeg 5 gezinsleden toe aan je bestaande abonnement zonder extra te betalen.\n\nElk lid krijgt zijn eigen privé ruimte en kan elkaars bestanden niet zien tenzij ze zijn gedeeld.\n\nFamilieplannen zijn beschikbaar voor klanten die een betaald Ente abonnement hebben.\n\nAbonneer nu om aan de slag te gaan!"),
         "familyPlanPortalTitle":
             MessageLookupByLibrary.simpleMessage("Familie"),
         "familyPlans":
@@ -718,44 +961,56 @@ class MessageLookup extends MessageLookupByLibrary {
         "favorite":
             MessageLookupByLibrary.simpleMessage("Toevoegen aan favorieten"),
         "feedback": MessageLookupByLibrary.simpleMessage("Feedback"),
+        "file": MessageLookupByLibrary.simpleMessage("Bestand"),
         "fileFailedToSaveToGallery": MessageLookupByLibrary.simpleMessage(
             "Opslaan van bestand naar galerij mislukt"),
         "fileInfoAddDescHint": MessageLookupByLibrary.simpleMessage(
             "Voeg een beschrijving toe..."),
+        "fileNotUploadedYet":
+            MessageLookupByLibrary.simpleMessage("Bestand nog niet geüpload"),
         "fileSavedToGallery": MessageLookupByLibrary.simpleMessage(
             "Bestand opgeslagen in galerij"),
         "fileTypes": MessageLookupByLibrary.simpleMessage("Bestandstype"),
         "fileTypesAndNames":
             MessageLookupByLibrary.simpleMessage("Bestandstypen en namen"),
-        "filesBackedUpFromDevice": m20,
-        "filesBackedUpInAlbum": m21,
+        "filesBackedUpFromDevice": m37,
+        "filesBackedUpInAlbum": m38,
         "filesDeleted":
             MessageLookupByLibrary.simpleMessage("Bestanden verwijderd"),
+        "filesSavedToGallery": MessageLookupByLibrary.simpleMessage(
+            "Bestand opgeslagen in galerij"),
+        "findPeopleByName":
+            MessageLookupByLibrary.simpleMessage("Mensen snel op naam zoeken"),
+        "findThemQuickly": MessageLookupByLibrary.simpleMessage("Vind ze snel"),
         "flip": MessageLookupByLibrary.simpleMessage("Omdraaien"),
         "forYourMemories":
             MessageLookupByLibrary.simpleMessage("voor uw herinneringen"),
         "forgotPassword":
             MessageLookupByLibrary.simpleMessage("Wachtwoord vergeten"),
+        "foundFaces":
+            MessageLookupByLibrary.simpleMessage("Gezichten gevonden"),
         "freeStorageClaimed":
             MessageLookupByLibrary.simpleMessage("Gratis opslag geclaimd"),
-        "freeStorageOnReferralSuccess": m22,
-        "freeStorageSpace": m23,
+        "freeStorageOnReferralSuccess": m4,
         "freeStorageUsable":
             MessageLookupByLibrary.simpleMessage("Gratis opslag bruikbaar"),
         "freeTrial": MessageLookupByLibrary.simpleMessage("Gratis proefversie"),
-        "freeTrialValidTill": m24,
-        "freeUpAccessPostDelete": m25,
-        "freeUpAmount": m26,
+        "freeTrialValidTill": m39,
+        "freeUpAccessPostDelete": m40,
+        "freeUpAmount": m41,
         "freeUpDeviceSpace":
             MessageLookupByLibrary.simpleMessage("Apparaatruimte vrijmaken"),
+        "freeUpDeviceSpaceDesc": MessageLookupByLibrary.simpleMessage(
+            "Bespaar ruimte op je apparaat door bestanden die al geback-upt zijn te wissen."),
         "freeUpSpace": MessageLookupByLibrary.simpleMessage("Ruimte vrijmaken"),
-        "freeUpSpaceSaving": m27,
+        "freeUpSpaceSaving": m42,
+        "gallery": MessageLookupByLibrary.simpleMessage("Galerij"),
         "galleryMemoryLimitInfo": MessageLookupByLibrary.simpleMessage(
             "Tot 1000 herinneringen getoond in de galerij"),
         "general": MessageLookupByLibrary.simpleMessage("Algemeen"),
         "generatingEncryptionKeys": MessageLookupByLibrary.simpleMessage(
             "Encryptiesleutels genereren..."),
-        "genericProgress": m28,
+        "genericProgress": m43,
         "goToSettings":
             MessageLookupByLibrary.simpleMessage("Ga naar instellingen"),
         "googlePlayId": MessageLookupByLibrary.simpleMessage("Google Play ID"),
@@ -765,12 +1020,23 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Toestemming verlenen"),
         "groupNearbyPhotos":
             MessageLookupByLibrary.simpleMessage("Groep foto\'s in de buurt"),
+        "guestView": MessageLookupByLibrary.simpleMessage("Gasten weergave"),
+        "guestViewEnablePreSteps": MessageLookupByLibrary.simpleMessage(
+            "Om gasten weergave in te schakelen, moet u een toegangscode of schermvergrendeling instellen in uw systeeminstellingen."),
         "hearUsExplanation": MessageLookupByLibrary.simpleMessage(
             "Wij gebruiken geen tracking. Het zou helpen als je ons vertelt waar je ons gevonden hebt!"),
         "hearUsWhereTitle": MessageLookupByLibrary.simpleMessage(
             "Hoe hoorde je over Ente? (optioneel)"),
+        "help": MessageLookupByLibrary.simpleMessage("Hulp"),
         "hidden": MessageLookupByLibrary.simpleMessage("Verborgen"),
         "hide": MessageLookupByLibrary.simpleMessage("Verbergen"),
+        "hideContent": MessageLookupByLibrary.simpleMessage("Inhoud verbergen"),
+        "hideContentDescriptionAndroid": MessageLookupByLibrary.simpleMessage(
+            "Verbergt app-inhoud in de app-schakelaar en schakelt schermopnamen uit"),
+        "hideContentDescriptionIos": MessageLookupByLibrary.simpleMessage(
+            "Verbergt de inhoud van de app in de app-schakelaar"),
+        "hideSharedItemsFromHomeGallery": MessageLookupByLibrary.simpleMessage(
+            "Verberg gedeelde bestanden uit de galerij"),
         "hiding": MessageLookupByLibrary.simpleMessage("Verbergen..."),
         "hostedAtOsmFrance":
             MessageLookupByLibrary.simpleMessage("Gehost bij OSM France"),
@@ -783,8 +1049,12 @@ class MessageLookup extends MessageLookupByLibrary {
             "Biometrische verificatie is uitgeschakeld. Vergrendel en ontgrendel uw scherm om het in te schakelen."),
         "iOSOkButton": MessageLookupByLibrary.simpleMessage("Oké"),
         "ignoreUpdate": MessageLookupByLibrary.simpleMessage("Negeren"),
+        "ignored": MessageLookupByLibrary.simpleMessage("genegeerd"),
         "ignoredFolderUploadReason": MessageLookupByLibrary.simpleMessage(
-            "Sommige bestanden in dit album worden genegeerd voor de upload omdat ze eerder van ente zijn verwijderd."),
+            "Sommige bestanden in dit album worden genegeerd voor uploaden omdat ze eerder van Ente zijn verwijderd."),
+        "imageNotAnalyzed": MessageLookupByLibrary.simpleMessage(
+            "Afbeelding niet geanalyseerd"),
+        "immediately": MessageLookupByLibrary.simpleMessage("Onmiddellijk"),
         "importing": MessageLookupByLibrary.simpleMessage("Importeren...."),
         "incorrectCode": MessageLookupByLibrary.simpleMessage("Onjuiste code"),
         "incorrectPasswordTitle":
@@ -797,32 +1067,49 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Onjuiste herstelsleutel"),
         "indexedItems":
             MessageLookupByLibrary.simpleMessage("Geïndexeerde bestanden"),
+        "indexingIsPaused": MessageLookupByLibrary.simpleMessage(
+            "Indexeren is gepauzeerd. Het zal automatisch hervatten wanneer het apparaat klaar is."),
+        "ineligible": MessageLookupByLibrary.simpleMessage("Ongerechtigd"),
+        "info": MessageLookupByLibrary.simpleMessage("Info"),
         "insecureDevice":
             MessageLookupByLibrary.simpleMessage("Onveilig apparaat"),
         "installManually":
             MessageLookupByLibrary.simpleMessage("Installeer handmatig"),
         "invalidEmailAddress":
             MessageLookupByLibrary.simpleMessage("Ongeldig e-mailadres"),
+        "invalidEndpoint":
+            MessageLookupByLibrary.simpleMessage("Ongeldig eindpunt"),
+        "invalidEndpointMessage": MessageLookupByLibrary.simpleMessage(
+            "Sorry, het eindpunt dat je hebt ingevoerd is ongeldig. Voer een geldig eindpunt in en probeer het opnieuw."),
         "invalidKey": MessageLookupByLibrary.simpleMessage("Ongeldige sleutel"),
         "invalidRecoveryKey": MessageLookupByLibrary.simpleMessage(
             "De herstelsleutel die je hebt ingevoerd is niet geldig. Zorg ervoor dat deze 24 woorden bevat en controleer de spelling van elk van deze woorden.\n\nAls je een oudere herstelcode hebt ingevoerd, zorg ervoor dat deze 64 tekens lang is, en controleer ze allemaal."),
         "invite": MessageLookupByLibrary.simpleMessage("Uitnodigen"),
         "inviteToEnte":
-            MessageLookupByLibrary.simpleMessage("Uitnodigen voor ente"),
+            MessageLookupByLibrary.simpleMessage("Uitnodigen voor Ente"),
         "inviteYourFriends":
             MessageLookupByLibrary.simpleMessage("Vrienden uitnodigen"),
         "inviteYourFriendsToEnte": MessageLookupByLibrary.simpleMessage(
-            "Vrienden uitnodigen voor ente"),
+            "Vrienden uitnodigen voor Ente"),
         "itLooksLikeSomethingWentWrongPleaseRetryAfterSome":
             MessageLookupByLibrary.simpleMessage(
                 "Het lijkt erop dat er iets fout is gegaan. Probeer het later opnieuw. Als de fout zich blijft voordoen, neem dan contact op met ons supportteam."),
-        "itemCount": m29,
+        "itemCount": m44,
         "itemsShowTheNumberOfDaysRemainingBeforePermanentDeletion":
             MessageLookupByLibrary.simpleMessage(
                 "Bestanden tonen het aantal resterende dagen voordat ze permanent worden verwijderd"),
         "itemsWillBeRemovedFromAlbum": MessageLookupByLibrary.simpleMessage(
             "Geselecteerde items zullen worden verwijderd uit dit album"),
-        "joinDiscord": MessageLookupByLibrary.simpleMessage("Join Discord"),
+        "join": MessageLookupByLibrary.simpleMessage("Deelnemen"),
+        "joinAlbum":
+            MessageLookupByLibrary.simpleMessage("Deelnemen aan album"),
+        "joinAlbumConfirmationDialogBody": MessageLookupByLibrary.simpleMessage(
+            "Deelnemen aan een album maakt je e-mail zichtbaar voor de deelnemers."),
+        "joinAlbumSubtext": MessageLookupByLibrary.simpleMessage(
+            "om je foto\'s te bekijken en toe te voegen"),
+        "joinAlbumSubtextViewer": MessageLookupByLibrary.simpleMessage(
+            "om dit aan gedeelde albums toe te voegen"),
+        "joinDiscord": MessageLookupByLibrary.simpleMessage("Join de Discord"),
         "keepPhotos": MessageLookupByLibrary.simpleMessage("Foto\'s behouden"),
         "kiloMeterUnit": MessageLookupByLibrary.simpleMessage("km"),
         "kindlyHelpUsWithThisInformation": MessageLookupByLibrary.simpleMessage(
@@ -835,19 +1122,37 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Familie abonnement verlaten"),
         "leaveSharedAlbum":
             MessageLookupByLibrary.simpleMessage("Gedeeld album verlaten?"),
+        "left": MessageLookupByLibrary.simpleMessage("Links"),
+        "legacy": MessageLookupByLibrary.simpleMessage("Legacy"),
+        "legacyAccounts":
+            MessageLookupByLibrary.simpleMessage("Legacy accounts"),
+        "legacyInvite": m45,
+        "legacyPageDesc": MessageLookupByLibrary.simpleMessage(
+            "Legacy geeft vertrouwde contacten toegang tot je account bij afwezigheid."),
+        "legacyPageDesc2": MessageLookupByLibrary.simpleMessage(
+            "Vertrouwde contacten kunnen accountherstel starten, en indien deze niet binnen 30 dagen wordt geblokkeerd, je wachtwoord resetten en toegang krijgen tot je account."),
         "light": MessageLookupByLibrary.simpleMessage("Licht"),
         "lightTheme": MessageLookupByLibrary.simpleMessage("Licht"),
+        "link": MessageLookupByLibrary.simpleMessage("Link"),
         "linkCopiedToClipboard": MessageLookupByLibrary.simpleMessage(
             "Link gekopieerd naar klembord"),
         "linkDeviceLimit":
             MessageLookupByLibrary.simpleMessage("Apparaat limiet"),
+        "linkEmail": MessageLookupByLibrary.simpleMessage("Link email"),
+        "linkEmailToContactBannerCaption":
+            MessageLookupByLibrary.simpleMessage("voor sneller delen"),
         "linkEnabled": MessageLookupByLibrary.simpleMessage("Ingeschakeld"),
         "linkExpired": MessageLookupByLibrary.simpleMessage("Verlopen"),
-        "linkExpiresOn": m30,
+        "linkExpiresOn": m46,
         "linkExpiry": MessageLookupByLibrary.simpleMessage("Vervaldatum"),
         "linkHasExpired":
             MessageLookupByLibrary.simpleMessage("Link is vervallen"),
         "linkNeverExpires": MessageLookupByLibrary.simpleMessage("Nooit"),
+        "linkPerson": MessageLookupByLibrary.simpleMessage("Link persoon"),
+        "linkPersonCaption": MessageLookupByLibrary.simpleMessage(
+            "voor een betere ervaring met delen"),
+        "linkPersonToEmail": m47,
+        "linkPersonToEmailConfirmation": m48,
         "livePhotos": MessageLookupByLibrary.simpleMessage("Live foto"),
         "loadMessage1": MessageLookupByLibrary.simpleMessage(
             "U kunt uw abonnement met uw familie delen"),
@@ -875,47 +1180,86 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Uw foto\'s laden..."),
         "loadingModel":
             MessageLookupByLibrary.simpleMessage("Modellen downloaden..."),
+        "loadingYourPhotos": MessageLookupByLibrary.simpleMessage(
+            "Je foto\'s worden geladen..."),
         "localGallery": MessageLookupByLibrary.simpleMessage("Lokale galerij"),
+        "localIndexing":
+            MessageLookupByLibrary.simpleMessage("Lokaal indexeren"),
+        "localSyncErrorMessage": MessageLookupByLibrary.simpleMessage(
+            "Het lijkt erop dat er iets mis is gegaan omdat het synchroniseren van lokale foto\'s meer tijd kost dan verwacht. Neem contact op met ons supportteam"),
         "location": MessageLookupByLibrary.simpleMessage("Locatie"),
         "locationName": MessageLookupByLibrary.simpleMessage("Locatie naam"),
         "locationTagFeatureDescription": MessageLookupByLibrary.simpleMessage(
             "Een locatie tag groept alle foto\'s die binnen een bepaalde straal van een foto zijn genomen"),
+        "locations": MessageLookupByLibrary.simpleMessage("Locaties"),
         "lockButtonLabel": MessageLookupByLibrary.simpleMessage("Vergrendel"),
-        "lockScreenEnablePreSteps": MessageLookupByLibrary.simpleMessage(
-            "Om vergrendelscherm in te schakelen, moet u een toegangscode of schermvergrendeling instellen in uw systeeminstellingen."),
         "lockscreen": MessageLookupByLibrary.simpleMessage("Vergrendelscherm"),
         "logInLabel": MessageLookupByLibrary.simpleMessage("Inloggen"),
         "loggingOut": MessageLookupByLibrary.simpleMessage("Uitloggen..."),
+        "loginSessionExpired":
+            MessageLookupByLibrary.simpleMessage("Sessie verlopen"),
+        "loginSessionExpiredDetails": MessageLookupByLibrary.simpleMessage(
+            "Jouw sessie is verlopen. Log opnieuw in."),
         "loginTerms": MessageLookupByLibrary.simpleMessage(
             "Door op inloggen te klikken, ga ik akkoord met de <u-terms>gebruiksvoorwaarden</u-terms> en <u-policy>privacybeleid</u-policy>"),
+        "loginWithTOTP":
+            MessageLookupByLibrary.simpleMessage("Inloggen met TOTP"),
         "logout": MessageLookupByLibrary.simpleMessage("Uitloggen"),
         "logsDialogBody": MessageLookupByLibrary.simpleMessage(
             "Dit zal logboeken verzenden om ons te helpen uw probleem op te lossen. Houd er rekening mee dat bestandsnamen zullen worden meegenomen om problemen met specifieke bestanden bij te houden."),
+        "longPressAnEmailToVerifyEndToEndEncryption":
+            MessageLookupByLibrary.simpleMessage(
+                "Druk lang op een e-mail om de versleuteling te verifiëren."),
         "longpressOnAnItemToViewInFullscreen": MessageLookupByLibrary.simpleMessage(
             "Houd een bestand lang ingedrukt om te bekijken op volledig scherm"),
+        "loopVideoOff":
+            MessageLookupByLibrary.simpleMessage("Video in lus afspelen uit"),
+        "loopVideoOn":
+            MessageLookupByLibrary.simpleMessage("Video in lus afspelen aan"),
         "lostDevice":
             MessageLookupByLibrary.simpleMessage("Apparaat verloren?"),
         "machineLearning":
             MessageLookupByLibrary.simpleMessage("Machine Learning"),
         "magicSearch":
             MessageLookupByLibrary.simpleMessage("Magische zoekfunctie"),
-        "magicSearchDescription": MessageLookupByLibrary.simpleMessage(
-            "Houd er rekening mee dat dit zal resulteren in een hoger internet- en batterijverbruik totdat alle items zijn geïndexeerd."),
+        "magicSearchHint": MessageLookupByLibrary.simpleMessage(
+            "Magisch zoeken maakt het mogelijk om foto\'s op hun inhoud worden gezocht, bijvoorbeeld \"bloem\", \"rode auto\", \"identiteitsdocumenten\""),
         "manage": MessageLookupByLibrary.simpleMessage("Beheren"),
         "manageDeviceStorage":
-            MessageLookupByLibrary.simpleMessage("Apparaatopslag beheren"),
+            MessageLookupByLibrary.simpleMessage("Apparaatcache beheren"),
+        "manageDeviceStorageDesc": MessageLookupByLibrary.simpleMessage(
+            "Bekijk en wis lokale cache opslag."),
         "manageFamily":
             MessageLookupByLibrary.simpleMessage("Familie abonnement beheren"),
         "manageLink": MessageLookupByLibrary.simpleMessage("Beheer link"),
         "manageParticipants": MessageLookupByLibrary.simpleMessage("Beheren"),
         "manageSubscription":
             MessageLookupByLibrary.simpleMessage("Abonnement beheren"),
+        "manualPairDesc": MessageLookupByLibrary.simpleMessage(
+            "Koppelen met de PIN werkt met elk scherm waarop je jouw album wilt zien."),
         "map": MessageLookupByLibrary.simpleMessage("Kaart"),
         "maps": MessageLookupByLibrary.simpleMessage("Kaarten"),
         "mastodon": MessageLookupByLibrary.simpleMessage("Mastodon"),
         "matrix": MessageLookupByLibrary.simpleMessage("Matrix"),
-        "memoryCount": m31,
+        "me": MessageLookupByLibrary.simpleMessage("Ik"),
+        "memoryCount": m5,
         "merchandise": MessageLookupByLibrary.simpleMessage("Merchandise"),
+        "mergeWithExisting":
+            MessageLookupByLibrary.simpleMessage("Samenvoegen met bestaand"),
+        "mergedPhotos":
+            MessageLookupByLibrary.simpleMessage("Samengevoegde foto\'s"),
+        "mlConsent":
+            MessageLookupByLibrary.simpleMessage("Schakel machine learning in"),
+        "mlConsentConfirmation": MessageLookupByLibrary.simpleMessage(
+            "Ik begrijp het, en wil machine learning inschakelen"),
+        "mlConsentDescription": MessageLookupByLibrary.simpleMessage(
+            "Als u machine learning inschakelt, zal Ente informatie zoals gezichtsgeometrie uit bestanden extraheren, inclusief degenen die met u gedeeld worden.\n\nDit gebeurt op uw apparaat, en alle gegenereerde biometrische informatie zal end-to-end versleuteld worden."),
+        "mlConsentPrivacy": MessageLookupByLibrary.simpleMessage(
+            "Klik hier voor meer details over deze functie in ons privacybeleid."),
+        "mlConsentTitle": MessageLookupByLibrary.simpleMessage(
+            "Machine learning inschakelen?"),
+        "mlIndexingDescription": MessageLookupByLibrary.simpleMessage(
+            "Houd er rekening mee dat machine learning zal leiden tot hoger bandbreedte- en batterijgebruik totdat alle items geïndexeerd zijn. Overweeg het gebruik van de desktop app voor snellere indexering. Alle resultaten worden automatisch gesynchroniseerd."),
         "mobileWebDesktop":
             MessageLookupByLibrary.simpleMessage("Mobiel, Web, Desktop"),
         "moderateStrength": MessageLookupByLibrary.simpleMessage("Matig"),
@@ -923,36 +1267,50 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage(
                 "Pas je zoekopdracht aan of zoek naar"),
         "moments": MessageLookupByLibrary.simpleMessage("Momenten"),
+        "month": MessageLookupByLibrary.simpleMessage("maand"),
         "monthly": MessageLookupByLibrary.simpleMessage("Maandelijks"),
-        "moveItem": m32,
+        "moreDetails": MessageLookupByLibrary.simpleMessage("Meer details"),
+        "mostRecent": MessageLookupByLibrary.simpleMessage("Meest recent"),
+        "mostRelevant": MessageLookupByLibrary.simpleMessage("Meest relevant"),
+        "moveItem": m49,
         "moveToAlbum":
             MessageLookupByLibrary.simpleMessage("Verplaats naar album"),
         "moveToHiddenAlbum": MessageLookupByLibrary.simpleMessage(
             "Verplaatsen naar verborgen album"),
-        "movedSuccessfullyTo": m33,
+        "movedSuccessfullyTo": m50,
         "movedToTrash":
             MessageLookupByLibrary.simpleMessage("Naar prullenbak verplaatst"),
         "movingFilesToAlbum": MessageLookupByLibrary.simpleMessage(
             "Bestanden verplaatsen naar album..."),
         "name": MessageLookupByLibrary.simpleMessage("Naam"),
+        "nameTheAlbum": MessageLookupByLibrary.simpleMessage("Album benoemen"),
         "networkConnectionRefusedErr": MessageLookupByLibrary.simpleMessage(
             "Kan geen verbinding maken met Ente, probeer het later opnieuw. Als de fout zich blijft voordoen, neem dan contact op met support."),
         "networkHostLookUpErr": MessageLookupByLibrary.simpleMessage(
             "Kan geen verbinding maken met Ente, controleer uw netwerkinstellingen en neem contact op met ondersteuning als de fout zich blijft voordoen."),
         "never": MessageLookupByLibrary.simpleMessage("Nooit"),
         "newAlbum": MessageLookupByLibrary.simpleMessage("Nieuw album"),
-        "newToEnte": MessageLookupByLibrary.simpleMessage("Nieuw bij ente"),
+        "newLocation": MessageLookupByLibrary.simpleMessage("Nieuwe locatie"),
+        "newPerson": MessageLookupByLibrary.simpleMessage("Nieuw persoon"),
+        "newToEnte": MessageLookupByLibrary.simpleMessage("Nieuw bij Ente"),
         "newest": MessageLookupByLibrary.simpleMessage("Nieuwste"),
+        "next": MessageLookupByLibrary.simpleMessage("Volgende"),
         "no": MessageLookupByLibrary.simpleMessage("Nee"),
         "noAlbumsSharedByYouYet": MessageLookupByLibrary.simpleMessage(
             "Nog geen albums gedeeld door jou"),
+        "noDeviceFound":
+            MessageLookupByLibrary.simpleMessage("Geen apparaat gevonden"),
         "noDeviceLimit": MessageLookupByLibrary.simpleMessage("Geen"),
         "noDeviceThatCanBeDeleted": MessageLookupByLibrary.simpleMessage(
             "Je hebt geen bestanden op dit apparaat die verwijderd kunnen worden"),
         "noDuplicates":
             MessageLookupByLibrary.simpleMessage("✨ Geen duplicaten"),
+        "noEnteAccountExclamation":
+            MessageLookupByLibrary.simpleMessage("Geen Ente account!"),
         "noExifData":
             MessageLookupByLibrary.simpleMessage("Geen EXIF gegevens"),
+        "noFacesFound":
+            MessageLookupByLibrary.simpleMessage("Geen gezichten gevonden"),
         "noHiddenPhotosOrVideos": MessageLookupByLibrary.simpleMessage(
             "Geen verborgen foto\'s of video\'s"),
         "noImagesWithLocation": MessageLookupByLibrary.simpleMessage(
@@ -964,6 +1322,8 @@ class MessageLookup extends MessageLookupByLibrary {
                 "Er worden momenteel geen foto\'s geback-upt"),
         "noPhotosFoundHere":
             MessageLookupByLibrary.simpleMessage("Geen foto\'s gevonden hier"),
+        "noQuickLinksSelected": MessageLookupByLibrary.simpleMessage(
+            "Geen snelle links geselecteerd"),
         "noRecoveryKey":
             MessageLookupByLibrary.simpleMessage("Geen herstelcode?"),
         "noRecoveryKeyNoDecryption": MessageLookupByLibrary.simpleMessage(
@@ -971,6 +1331,10 @@ class MessageLookup extends MessageLookupByLibrary {
         "noResults": MessageLookupByLibrary.simpleMessage("Geen resultaten"),
         "noResultsFound":
             MessageLookupByLibrary.simpleMessage("Geen resultaten gevonden"),
+        "noSuggestionsForPerson": m51,
+        "noSystemLockFound": MessageLookupByLibrary.simpleMessage(
+            "Geen systeemvergrendeling gevonden"),
+        "notPersonLabel": m52,
         "nothingSharedWithYouYet":
             MessageLookupByLibrary.simpleMessage("Nog niets met je gedeeld"),
         "nothingToSeeHere":
@@ -980,11 +1344,18 @@ class MessageLookup extends MessageLookupByLibrary {
         "onDevice": MessageLookupByLibrary.simpleMessage("Op het apparaat"),
         "onEnte": MessageLookupByLibrary.simpleMessage(
             "Op <branding>ente</branding>"),
+        "onlyFamilyAdminCanChangeCode": m53,
+        "onlyThem": MessageLookupByLibrary.simpleMessage("Alleen hen"),
         "oops": MessageLookupByLibrary.simpleMessage("Oeps"),
         "oopsCouldNotSaveEdits": MessageLookupByLibrary.simpleMessage(
             "Oeps, kon bewerkingen niet opslaan"),
         "oopsSomethingWentWrong":
             MessageLookupByLibrary.simpleMessage("Oeps, er is iets misgegaan"),
+        "openAlbumInBrowser":
+            MessageLookupByLibrary.simpleMessage("Open album in browser"),
+        "openAlbumInBrowserTitle": MessageLookupByLibrary.simpleMessage(
+            "Gebruik de webapp om foto\'s aan dit album toe te voegen"),
+        "openFile": MessageLookupByLibrary.simpleMessage("Bestand openen"),
         "openSettings":
             MessageLookupByLibrary.simpleMessage("Instellingen openen"),
         "openTheItem": MessageLookupByLibrary.simpleMessage("• Open het item"),
@@ -992,26 +1363,43 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("OpenStreetMap bijdragers"),
         "optionalAsShortAsYouLike": MessageLookupByLibrary.simpleMessage(
             "Optioneel, zo kort als je wilt..."),
+        "orMergeWithExistingPerson": MessageLookupByLibrary.simpleMessage(
+            "Of samenvoegen met bestaande"),
         "orPickAnExistingOne":
             MessageLookupByLibrary.simpleMessage("Of kies een bestaande"),
+        "orPickFromYourContacts":
+            MessageLookupByLibrary.simpleMessage("of kies uit je contacten"),
         "pair": MessageLookupByLibrary.simpleMessage("Koppelen"),
+        "pairWithPin": MessageLookupByLibrary.simpleMessage("Koppelen met PIN"),
+        "pairingComplete":
+            MessageLookupByLibrary.simpleMessage("Koppeling voltooid"),
+        "panorama": MessageLookupByLibrary.simpleMessage("Panorama"),
+        "passKeyPendingVerification": MessageLookupByLibrary.simpleMessage(
+            "Verificatie is nog in behandeling"),
+        "passkey": MessageLookupByLibrary.simpleMessage("Passkey"),
+        "passkeyAuthTitle":
+            MessageLookupByLibrary.simpleMessage("Passkey verificatie"),
         "password": MessageLookupByLibrary.simpleMessage("Wachtwoord"),
         "passwordChangedSuccessfully": MessageLookupByLibrary.simpleMessage(
             "Wachtwoord succesvol aangepast"),
         "passwordLock": MessageLookupByLibrary.simpleMessage("Wachtwoord slot"),
-        "passwordStrength": m34,
+        "passwordStrength": m0,
+        "passwordStrengthInfo": MessageLookupByLibrary.simpleMessage(
+            "De wachtwoordsterkte wordt berekend aan de hand van de lengte van het wachtwoord, de gebruikte tekens en of het wachtwoord al dan niet in de top 10.000 van meest gebruikte wachtwoorden staat"),
         "passwordWarning": MessageLookupByLibrary.simpleMessage(
             "Wij slaan dit wachtwoord niet op, dus als je het vergeet, kunnen <underline>we je gegevens niet ontsleutelen</underline>"),
         "paymentDetails":
             MessageLookupByLibrary.simpleMessage("Betaalgegevens"),
         "paymentFailed":
             MessageLookupByLibrary.simpleMessage("Betaling mislukt"),
-        "paymentFailedTalkToProvider": m35,
-        "paymentFailedWithReason": m36,
+        "paymentFailedMessage": MessageLookupByLibrary.simpleMessage(
+            "Helaas is je betaling mislukt. Neem contact op met support zodat we je kunnen helpen!"),
+        "paymentFailedTalkToProvider": m54,
         "pendingItems":
             MessageLookupByLibrary.simpleMessage("Bestanden in behandeling"),
         "pendingSync": MessageLookupByLibrary.simpleMessage(
             "Synchronisatie in behandeling"),
+        "people": MessageLookupByLibrary.simpleMessage("Personen"),
         "peopleUsingYourCode": MessageLookupByLibrary.simpleMessage(
             "Mensen die jouw code gebruiken"),
         "permDeleteWarning": MessageLookupByLibrary.simpleMessage(
@@ -1020,6 +1408,7 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Permanent verwijderen"),
         "permanentlyDeleteFromDevice": MessageLookupByLibrary.simpleMessage(
             "Permanent verwijderen van apparaat?"),
+        "personName": MessageLookupByLibrary.simpleMessage("Naam van persoon"),
         "photoDescriptions":
             MessageLookupByLibrary.simpleMessage("Foto beschrijvingen"),
         "photoGridSize":
@@ -1029,13 +1418,18 @@ class MessageLookup extends MessageLookupByLibrary {
         "photosAddedByYouWillBeRemovedFromTheAlbum":
             MessageLookupByLibrary.simpleMessage(
                 "Foto\'s toegevoegd door u zullen worden verwijderd uit het album"),
+        "photosCount": m55,
         "pickCenterPoint":
             MessageLookupByLibrary.simpleMessage("Kies middelpunt"),
         "pinAlbum":
             MessageLookupByLibrary.simpleMessage("Album bovenaan vastzetten"),
+        "pinLock": MessageLookupByLibrary.simpleMessage("PIN vergrendeling"),
         "playOnTv":
             MessageLookupByLibrary.simpleMessage("Album afspelen op TV"),
-        "playStoreFreeTrialValidTill": m37,
+        "playOriginal":
+            MessageLookupByLibrary.simpleMessage("Origineel afspelen"),
+        "playStoreFreeTrialValidTill": m56,
+        "playStream": MessageLookupByLibrary.simpleMessage("Stream afspelen"),
         "playstoreSubscription":
             MessageLookupByLibrary.simpleMessage("PlayStore abonnement"),
         "pleaseCheckYourInternetConnectionAndTryAgain":
@@ -1047,12 +1441,14 @@ class MessageLookup extends MessageLookupByLibrary {
         "pleaseContactSupportIfTheProblemPersists":
             MessageLookupByLibrary.simpleMessage(
                 "Neem contact op met klantenservice als het probleem aanhoudt"),
-        "pleaseEmailUsAt": m38,
+        "pleaseEmailUsAt": m57,
         "pleaseGrantPermissions": MessageLookupByLibrary.simpleMessage(
             "Geef alstublieft toestemming"),
         "pleaseLoginAgain":
             MessageLookupByLibrary.simpleMessage("Log opnieuw in"),
-        "pleaseSendTheLogsTo": m39,
+        "pleaseSelectQuickLinksToRemove": MessageLookupByLibrary.simpleMessage(
+            "Selecteer snelle links om te verwijderen"),
+        "pleaseSendTheLogsTo": m58,
         "pleaseTryAgain":
             MessageLookupByLibrary.simpleMessage("Probeer het nog eens"),
         "pleaseVerifyTheCodeYouHaveEntered":
@@ -1078,20 +1474,37 @@ class MessageLookup extends MessageLookupByLibrary {
         "privateBackups":
             MessageLookupByLibrary.simpleMessage("Privé back-ups"),
         "privateSharing": MessageLookupByLibrary.simpleMessage("Privé delen"),
+        "proceed": MessageLookupByLibrary.simpleMessage("Verder"),
+        "processed": MessageLookupByLibrary.simpleMessage("Verwerkt"),
+        "processing": MessageLookupByLibrary.simpleMessage("Verwerken"),
+        "processingImport": m59,
+        "processingVideos":
+            MessageLookupByLibrary.simpleMessage("Video\'s verwerken"),
         "publicLinkCreated":
             MessageLookupByLibrary.simpleMessage("Publieke link aangemaakt"),
         "publicLinkEnabled":
             MessageLookupByLibrary.simpleMessage("Publieke link ingeschakeld"),
+        "queued": MessageLookupByLibrary.simpleMessage("In wachtrij"),
         "quickLinks": MessageLookupByLibrary.simpleMessage("Snelle links"),
         "radius": MessageLookupByLibrary.simpleMessage("Straal"),
         "raiseTicket": MessageLookupByLibrary.simpleMessage("Meld probleem"),
         "rateTheApp": MessageLookupByLibrary.simpleMessage("Beoordeel de app"),
         "rateUs": MessageLookupByLibrary.simpleMessage("Beoordeel ons"),
-        "rateUsOnStore": m40,
+        "rateUsOnStore": m60,
+        "reassignMe":
+            MessageLookupByLibrary.simpleMessage("\"Ik\" opnieuw toewijzen"),
+        "reassignedToName": m61,
+        "reassigningLoading":
+            MessageLookupByLibrary.simpleMessage("Opnieuw toewijzen..."),
         "recover": MessageLookupByLibrary.simpleMessage("Herstellen"),
         "recoverAccount":
             MessageLookupByLibrary.simpleMessage("Account herstellen"),
         "recoverButton": MessageLookupByLibrary.simpleMessage("Herstellen"),
+        "recoveryAccount":
+            MessageLookupByLibrary.simpleMessage("Account herstellen"),
+        "recoveryInitiated":
+            MessageLookupByLibrary.simpleMessage("Herstel gestart"),
+        "recoveryInitiatedDesc": m62,
         "recoveryKey": MessageLookupByLibrary.simpleMessage("Herstelsleutel"),
         "recoveryKeyCopiedToClipboard": MessageLookupByLibrary.simpleMessage(
             "Herstelsleutel gekopieerd naar klembord"),
@@ -1105,23 +1518,33 @@ class MessageLookup extends MessageLookupByLibrary {
             "Herstel sleutel geverifieerd"),
         "recoveryKeyVerifyReason": MessageLookupByLibrary.simpleMessage(
             "Je herstelsleutel is de enige manier om je foto\'s te herstellen als je je wachtwoord bent vergeten. Je vindt je herstelsleutel in Instellingen > Account.\n\nVoer hier je herstelsleutel in om te controleren of je hem correct hebt opgeslagen."),
+        "recoveryReady": m63,
         "recoverySuccessful":
             MessageLookupByLibrary.simpleMessage("Herstel succesvol!"),
+        "recoveryWarning": MessageLookupByLibrary.simpleMessage(
+            "Een vertrouwd contact probeert toegang te krijgen tot je account"),
+        "recoveryWarningBody": m64,
         "recreatePasswordBody": MessageLookupByLibrary.simpleMessage(
             "Het huidige apparaat is niet krachtig genoeg om je wachtwoord te verifiëren, dus moeten we de code een keer opnieuw genereren op een manier die met alle apparaten werkt.\n\nLog in met behulp van uw herstelcode en genereer opnieuw uw wachtwoord (je kunt dezelfde indien gewenst opnieuw gebruiken)."),
         "recreatePasswordTitle": MessageLookupByLibrary.simpleMessage(
             "Wachtwoord opnieuw instellen"),
         "reddit": MessageLookupByLibrary.simpleMessage("Reddit"),
+        "reenterPassword":
+            MessageLookupByLibrary.simpleMessage("Wachtwoord opnieuw invoeren"),
+        "reenterPin":
+            MessageLookupByLibrary.simpleMessage("PIN opnieuw invoeren"),
         "referFriendsAnd2xYourPlan": MessageLookupByLibrary.simpleMessage(
             "Verwijs vrienden en 2x uw abonnement"),
         "referralStep1": MessageLookupByLibrary.simpleMessage(
             "1. Geef deze code aan je vrienden"),
         "referralStep2": MessageLookupByLibrary.simpleMessage(
             "2. Ze registreren voor een betaald plan"),
-        "referralStep3": m41,
+        "referralStep3": m65,
         "referrals": MessageLookupByLibrary.simpleMessage("Referenties"),
         "referralsAreCurrentlyPaused": MessageLookupByLibrary.simpleMessage(
             "Verwijzingen zijn momenteel gepauzeerd"),
+        "rejectRecovery":
+            MessageLookupByLibrary.simpleMessage("Herstel weigeren"),
         "remindToEmptyDeviceTrash": MessageLookupByLibrary.simpleMessage(
             "Leeg ook \"Onlangs verwijderd\" uit \"Instellingen\" -> \"Opslag\" om de vrij gekomen ruimte te benutten"),
         "remindToEmptyEnteTrash": MessageLookupByLibrary.simpleMessage(
@@ -1135,22 +1558,32 @@ class MessageLookup extends MessageLookupByLibrary {
         "remove": MessageLookupByLibrary.simpleMessage("Verwijder"),
         "removeDuplicates":
             MessageLookupByLibrary.simpleMessage("Duplicaten verwijderen"),
+        "removeDuplicatesDesc": MessageLookupByLibrary.simpleMessage(
+            "Controleer en verwijder bestanden die exacte kopieën zijn."),
         "removeFromAlbum":
             MessageLookupByLibrary.simpleMessage("Verwijder uit album"),
         "removeFromAlbumTitle":
             MessageLookupByLibrary.simpleMessage("Uit album verwijderen?"),
         "removeFromFavorite":
-            MessageLookupByLibrary.simpleMessage("Verwijderen uit favorieten"),
+            MessageLookupByLibrary.simpleMessage("Verwijder van favorieten"),
+        "removeInvite":
+            MessageLookupByLibrary.simpleMessage("Verwijder uitnodiging"),
         "removeLink": MessageLookupByLibrary.simpleMessage("Verwijder link"),
         "removeParticipant":
             MessageLookupByLibrary.simpleMessage("Deelnemer verwijderen"),
-        "removeParticipantBody": m42,
+        "removeParticipantBody": m66,
+        "removePersonLabel":
+            MessageLookupByLibrary.simpleMessage("Verwijder persoonslabel"),
         "removePublicLink":
+            MessageLookupByLibrary.simpleMessage("Verwijder publieke link"),
+        "removePublicLinks":
             MessageLookupByLibrary.simpleMessage("Verwijder publieke link"),
         "removeShareItemsWarning": MessageLookupByLibrary.simpleMessage(
             "Sommige van de items die je verwijdert zijn door andere mensen toegevoegd, en je verliest de toegang daartoe"),
         "removeWithQuestionMark":
             MessageLookupByLibrary.simpleMessage("Verwijder?"),
+        "removeYourselfAsTrustedContact": MessageLookupByLibrary.simpleMessage(
+            "Verwijder jezelf als vertrouwd contact"),
         "removingFromFavorites": MessageLookupByLibrary.simpleMessage(
             "Verwijderen uit favorieten..."),
         "rename": MessageLookupByLibrary.simpleMessage("Naam wijzigen"),
@@ -1160,7 +1593,7 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Bestandsnaam wijzigen"),
         "renewSubscription":
             MessageLookupByLibrary.simpleMessage("Abonnement verlengen"),
-        "renewsOn": m43,
+        "renewsOn": m67,
         "reportABug": MessageLookupByLibrary.simpleMessage("Een fout melden"),
         "reportBug": MessageLookupByLibrary.simpleMessage("Fout melden"),
         "resendEmail":
@@ -1169,6 +1602,7 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Reset genegeerde bestanden"),
         "resetPasswordTitle":
             MessageLookupByLibrary.simpleMessage("Wachtwoord resetten"),
+        "resetPerson": MessageLookupByLibrary.simpleMessage("Verwijderen"),
         "resetToDefault": MessageLookupByLibrary.simpleMessage(
             "Standaardinstellingen herstellen"),
         "restore": MessageLookupByLibrary.simpleMessage("Herstellen"),
@@ -1176,25 +1610,39 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Terugzetten naar album"),
         "restoringFiles":
             MessageLookupByLibrary.simpleMessage("Bestanden herstellen..."),
+        "resumableUploads":
+            MessageLookupByLibrary.simpleMessage("Hervatbare uploads"),
         "retry": MessageLookupByLibrary.simpleMessage("Opnieuw"),
+        "review": MessageLookupByLibrary.simpleMessage("Beoordelen"),
         "reviewDeduplicateItems": MessageLookupByLibrary.simpleMessage(
             "Controleer en verwijder de bestanden die u denkt dat dubbel zijn."),
+        "reviewSuggestions":
+            MessageLookupByLibrary.simpleMessage("Suggesties beoordelen"),
+        "right": MessageLookupByLibrary.simpleMessage("Rechts"),
+        "rotate": MessageLookupByLibrary.simpleMessage("Roteren"),
         "rotateLeft": MessageLookupByLibrary.simpleMessage("Roteer links"),
         "rotateRight": MessageLookupByLibrary.simpleMessage("Rechtsom draaien"),
         "safelyStored":
             MessageLookupByLibrary.simpleMessage("Veilig opgeslagen"),
         "save": MessageLookupByLibrary.simpleMessage("Opslaan"),
+        "saveChangesBeforeLeavingQuestion":
+            MessageLookupByLibrary.simpleMessage(
+                "Wijzigingen opslaan voor verlaten?"),
         "saveCollage": MessageLookupByLibrary.simpleMessage("Sla collage op"),
         "saveCopy": MessageLookupByLibrary.simpleMessage("Kopie opslaan"),
         "saveKey": MessageLookupByLibrary.simpleMessage("Bewaar sleutel"),
+        "savePerson": MessageLookupByLibrary.simpleMessage("Persoon opslaan"),
         "saveYourRecoveryKeyIfYouHaventAlready":
             MessageLookupByLibrary.simpleMessage(
                 "Sla je herstelsleutel op als je dat nog niet gedaan hebt"),
         "saving": MessageLookupByLibrary.simpleMessage("Opslaan..."),
+        "savingEdits":
+            MessageLookupByLibrary.simpleMessage("Bewerken opslaan..."),
         "scanCode": MessageLookupByLibrary.simpleMessage("Scan code"),
         "scanThisBarcodeWithnyourAuthenticatorApp":
             MessageLookupByLibrary.simpleMessage(
                 "Scan deze barcode met\nje authenticator app"),
+        "search": MessageLookupByLibrary.simpleMessage("Zoeken"),
         "searchAlbumsEmptySection":
             MessageLookupByLibrary.simpleMessage("Albums"),
         "searchByAlbumNameHint":
@@ -1205,8 +1653,10 @@ class MessageLookup extends MessageLookupByLibrary {
             "Voeg beschrijvingen zoals \"#weekendje weg\" toe in foto-info om ze snel hier te vinden"),
         "searchDatesEmptySection": MessageLookupByLibrary.simpleMessage(
             "Zoeken op een datum, maand of jaar"),
+        "searchDiscoverEmptySection": MessageLookupByLibrary.simpleMessage(
+            "Afbeeldingen worden hier getoond zodra verwerking en synchroniseren voltooid is"),
         "searchFaceEmptySection": MessageLookupByLibrary.simpleMessage(
-            "Vind alle foto\'s van een persoon"),
+            "Mensen worden hier getoond als het indexeren klaar is"),
         "searchFileTypesAndNamesEmptySection":
             MessageLookupByLibrary.simpleMessage("Bestandstypen en namen"),
         "searchHint1":
@@ -1218,53 +1668,73 @@ class MessageLookup extends MessageLookupByLibrary {
         "searchHint4": MessageLookupByLibrary.simpleMessage("Locatie"),
         "searchHint5": MessageLookupByLibrary.simpleMessage(
             "Binnenkort beschikbaar: Gezichten & magische zoekopdrachten ✨"),
-        "searchHintText": MessageLookupByLibrary.simpleMessage(
-            "Albums, maanden, dagen, jaren, ..."),
         "searchLocationEmptySection": MessageLookupByLibrary.simpleMessage(
             "Foto\'s groeperen die in een bepaalde straal van een foto worden genomen"),
         "searchPeopleEmptySection": MessageLookupByLibrary.simpleMessage(
             "Nodig mensen uit, en je ziet alle foto\'s die door hen worden gedeeld hier"),
-        "searchResultCount": m44,
+        "searchPersonsEmptySection": MessageLookupByLibrary.simpleMessage(
+            "Personen worden hier getoond zodra verwerking en synchroniseren voltooid is"),
+        "searchResultCount": m68,
+        "searchSectionsLengthMismatch": m69,
         "security": MessageLookupByLibrary.simpleMessage("Beveiliging"),
+        "seePublicAlbumLinksInApp": MessageLookupByLibrary.simpleMessage(
+            "Bekijk publieke album links in de app"),
         "selectALocation":
             MessageLookupByLibrary.simpleMessage("Selecteer een locatie"),
         "selectALocationFirst":
             MessageLookupByLibrary.simpleMessage("Selecteer eerst een locatie"),
         "selectAlbum": MessageLookupByLibrary.simpleMessage("Album selecteren"),
         "selectAll": MessageLookupByLibrary.simpleMessage("Selecteer alles"),
+        "selectAllShort": MessageLookupByLibrary.simpleMessage("Alle"),
+        "selectCoverPhoto":
+            MessageLookupByLibrary.simpleMessage("Selecteer omslagfoto"),
         "selectFoldersForBackup": MessageLookupByLibrary.simpleMessage(
             "Selecteer mappen voor back-up"),
         "selectItemsToAdd": MessageLookupByLibrary.simpleMessage(
             "Selecteer items om toe te voegen"),
         "selectLanguage":
             MessageLookupByLibrary.simpleMessage("Taal selecteren"),
+        "selectMailApp":
+            MessageLookupByLibrary.simpleMessage("Selecteer mail app"),
         "selectMorePhotos":
             MessageLookupByLibrary.simpleMessage("Selecteer meer foto\'s"),
+        "selectPersonToLink":
+            MessageLookupByLibrary.simpleMessage("Kies persoon om te linken"),
         "selectReason": MessageLookupByLibrary.simpleMessage("Selecteer reden"),
+        "selectYourFace":
+            MessageLookupByLibrary.simpleMessage("Selecteer je gezicht"),
         "selectYourPlan":
             MessageLookupByLibrary.simpleMessage("Kies uw abonnement"),
         "selectedFilesAreNotOnEnte": MessageLookupByLibrary.simpleMessage(
-            "Geselecteerde bestanden staan niet op ente"),
+            "Geselecteerde bestanden staan niet op Ente"),
         "selectedFoldersWillBeEncryptedAndBackedUp":
             MessageLookupByLibrary.simpleMessage(
                 "Geselecteerde mappen worden versleuteld en geback-upt"),
         "selectedItemsWillBeDeletedFromAllAlbumsAndMoved":
             MessageLookupByLibrary.simpleMessage(
                 "Geselecteerde bestanden worden verwijderd uit alle albums en verplaatst naar de prullenbak."),
-        "selectedPhotos": m45,
-        "selectedPhotosWithYours": m46,
+        "selectedPhotos": m6,
+        "selectedPhotosWithYours": m70,
         "send": MessageLookupByLibrary.simpleMessage("Verzenden"),
         "sendEmail": MessageLookupByLibrary.simpleMessage("E-mail versturen"),
         "sendInvite":
             MessageLookupByLibrary.simpleMessage("Stuur een uitnodiging"),
         "sendLink": MessageLookupByLibrary.simpleMessage("Stuur link"),
+        "serverEndpoint":
+            MessageLookupByLibrary.simpleMessage("Server eindpunt"),
         "sessionExpired":
             MessageLookupByLibrary.simpleMessage("Sessie verlopen"),
+        "sessionIdMismatch":
+            MessageLookupByLibrary.simpleMessage("Sessie ID komt niet overeen"),
         "setAPassword":
             MessageLookupByLibrary.simpleMessage("Stel een wachtwoord in"),
         "setAs": MessageLookupByLibrary.simpleMessage("Instellen als"),
         "setCover": MessageLookupByLibrary.simpleMessage("Omslag instellen"),
         "setLabel": MessageLookupByLibrary.simpleMessage("Instellen"),
+        "setNewPassword":
+            MessageLookupByLibrary.simpleMessage("Nieuw wachtwoord instellen"),
+        "setNewPin":
+            MessageLookupByLibrary.simpleMessage("Nieuwe PIN instellen"),
         "setPasswordTitle":
             MessageLookupByLibrary.simpleMessage("Wachtwoord instellen"),
         "setRadius": MessageLookupByLibrary.simpleMessage("Radius instellen"),
@@ -1276,33 +1746,34 @@ class MessageLookup extends MessageLookupByLibrary {
         "shareAnAlbumNow":
             MessageLookupByLibrary.simpleMessage("Deel nu een album"),
         "shareLink": MessageLookupByLibrary.simpleMessage("Link delen"),
-        "shareMyVerificationID": m47,
+        "shareMyVerificationID": m71,
         "shareOnlyWithThePeopleYouWant": MessageLookupByLibrary.simpleMessage(
             "Deel alleen met de mensen die u wilt"),
-        "shareTextConfirmOthersVerificationID": m48,
+        "shareTextConfirmOthersVerificationID": m7,
         "shareTextRecommendUsingEnte": MessageLookupByLibrary.simpleMessage(
-            "Download ente zodat we gemakkelijk foto\'s en video\'s van originele kwaliteit kunnen delen\n\nhttps://ente.io"),
-        "shareTextReferralCode": m49,
+            "Download Ente zodat we gemakkelijk foto\'s en video\'s in originele kwaliteit kunnen delen\n\nhttps://ente.io"),
+        "shareTextReferralCode": m72,
         "shareWithNonenteUsers": MessageLookupByLibrary.simpleMessage(
-            "Delen met niet-ente gebruikers"),
-        "shareWithPeopleSectionTitle": m50,
+            "Delen met niet-Ente gebruikers"),
+        "shareWithPeopleSectionTitle": m73,
         "shareYourFirstAlbum":
             MessageLookupByLibrary.simpleMessage("Deel jouw eerste album"),
         "sharedAlbumSectionDescription": MessageLookupByLibrary.simpleMessage(
-            "Maak gedeelde en collaboratieve albums met andere ente gebruikers, inclusief gebruikers met gratis abonnementen."),
+            "Maak gedeelde en collaboratieve albums met andere Ente gebruikers, inclusief gebruikers met gratis abonnementen."),
         "sharedByMe": MessageLookupByLibrary.simpleMessage("Gedeeld door mij"),
         "sharedByYou": MessageLookupByLibrary.simpleMessage("Gedeeld door jou"),
         "sharedPhotoNotifications":
             MessageLookupByLibrary.simpleMessage("Nieuwe gedeelde foto\'s"),
         "sharedPhotoNotificationsExplanation": MessageLookupByLibrary.simpleMessage(
             "Ontvang meldingen wanneer iemand een foto toevoegt aan een gedeeld album waar je deel van uitmaakt"),
-        "sharedWith": m51,
+        "sharedWith": m74,
         "sharedWithMe": MessageLookupByLibrary.simpleMessage("Gedeeld met mij"),
         "sharedWithYou":
             MessageLookupByLibrary.simpleMessage("Gedeeld met jou"),
         "sharing": MessageLookupByLibrary.simpleMessage("Delen..."),
         "showMemories":
             MessageLookupByLibrary.simpleMessage("Toon herinneringen"),
+        "showPerson": MessageLookupByLibrary.simpleMessage("Toon persoon"),
         "signOutFromOtherDevices":
             MessageLookupByLibrary.simpleMessage("Log uit op andere apparaten"),
         "signOutOtherBody": MessageLookupByLibrary.simpleMessage(
@@ -1311,15 +1782,15 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Log uit op andere apparaten"),
         "signUpTerms": MessageLookupByLibrary.simpleMessage(
             "Ik ga akkoord met de <u-terms>gebruiksvoorwaarden</u-terms> en <u-policy>privacybeleid</u-policy>"),
-        "singleFileDeleteFromDevice": m52,
+        "singleFileDeleteFromDevice": m75,
         "singleFileDeleteHighlight": MessageLookupByLibrary.simpleMessage(
             "Het wordt uit alle albums verwijderd."),
-        "singleFileInBothLocalAndRemote": m53,
-        "singleFileInRemoteOnly": m54,
+        "singleFileInBothLocalAndRemote": m76,
+        "singleFileInRemoteOnly": m77,
         "skip": MessageLookupByLibrary.simpleMessage("Overslaan"),
         "social": MessageLookupByLibrary.simpleMessage("Sociale media"),
         "someItemsAreInBothEnteAndYourDevice": MessageLookupByLibrary.simpleMessage(
-            "Sommige bestanden bevinden zich in zowel ente als op uw apparaat."),
+            "Sommige bestanden bevinden zich zowel in Ente als op jouw apparaat."),
         "someOfTheFilesYouAreTryingToDeleteAre":
             MessageLookupByLibrary.simpleMessage(
                 "Sommige bestanden die u probeert te verwijderen zijn alleen beschikbaar op uw apparaat en kunnen niet hersteld worden als deze verwijderd worden"),
@@ -1343,26 +1814,34 @@ class MessageLookup extends MessageLookupByLibrary {
         "sorryWeCouldNotGenerateSecureKeysOnThisDevicennplease":
             MessageLookupByLibrary.simpleMessage(
                 "Sorry, we konden geen beveiligde sleutels genereren op dit apparaat.\n\nGelieve je aan te melden vanaf een ander apparaat."),
+        "sort": MessageLookupByLibrary.simpleMessage("Sorteren"),
         "sortAlbumsBy": MessageLookupByLibrary.simpleMessage("Sorteren op"),
         "sortNewestFirst":
             MessageLookupByLibrary.simpleMessage("Nieuwste eerst"),
         "sortOldestFirst": MessageLookupByLibrary.simpleMessage("Oudste eerst"),
         "sparkleSuccess": MessageLookupByLibrary.simpleMessage("✨ Succes"),
+        "startAccountRecoveryTitle":
+            MessageLookupByLibrary.simpleMessage("Herstel starten"),
         "startBackup": MessageLookupByLibrary.simpleMessage("Back-up starten"),
         "status": MessageLookupByLibrary.simpleMessage("Status"),
+        "stopCastingBody":
+            MessageLookupByLibrary.simpleMessage("Wil je stoppen met casten?"),
+        "stopCastingTitle":
+            MessageLookupByLibrary.simpleMessage("Casten stoppen"),
         "storage": MessageLookupByLibrary.simpleMessage("Opslagruimte"),
         "storageBreakupFamily": MessageLookupByLibrary.simpleMessage("Familie"),
         "storageBreakupYou": MessageLookupByLibrary.simpleMessage("Jij"),
-        "storageInGB": m55,
+        "storageInGB": m1,
         "storageLimitExceeded":
             MessageLookupByLibrary.simpleMessage("Opslaglimiet overschreden"),
-        "storageUsageInfo": m56,
+        "storageUsageInfo": m78,
+        "streamDetails": MessageLookupByLibrary.simpleMessage("Stream details"),
         "strongStrength": MessageLookupByLibrary.simpleMessage("Sterk"),
-        "subAlreadyLinkedErrMessage": m57,
-        "subWillBeCancelledOn": m58,
+        "subAlreadyLinkedErrMessage": m79,
+        "subWillBeCancelledOn": m80,
         "subscribe": MessageLookupByLibrary.simpleMessage("Abonneer"),
         "subscribeToEnableSharing": MessageLookupByLibrary.simpleMessage(
-            "Het lijkt erop dat je abonnement is verlopen. Abonneer om delen mogelijk te maken."),
+            "Je hebt een actief betaald abonnement nodig om delen mogelijk te maken."),
         "subscription": MessageLookupByLibrary.simpleMessage("Abonnement"),
         "success": MessageLookupByLibrary.simpleMessage("Succes"),
         "successfullyArchived":
@@ -1376,7 +1855,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "suggestFeatures":
             MessageLookupByLibrary.simpleMessage("Features voorstellen"),
         "support": MessageLookupByLibrary.simpleMessage("Ondersteuning"),
-        "syncProgress": m59,
+        "syncProgress": m81,
         "syncStopped":
             MessageLookupByLibrary.simpleMessage("Synchronisatie gestopt"),
         "syncing": MessageLookupByLibrary.simpleMessage("Synchroniseren..."),
@@ -1384,6 +1863,11 @@ class MessageLookup extends MessageLookupByLibrary {
         "tapToCopy": MessageLookupByLibrary.simpleMessage("tik om te kopiëren"),
         "tapToEnterCode":
             MessageLookupByLibrary.simpleMessage("Tik om code in te voeren"),
+        "tapToUnlock":
+            MessageLookupByLibrary.simpleMessage("Tik om te ontgrendelen"),
+        "tapToUpload":
+            MessageLookupByLibrary.simpleMessage("Tik om te uploaden"),
+        "tapToUploadIsIgnoredDue": m82,
         "tempErrorContactSupportIfPersists": MessageLookupByLibrary.simpleMessage(
             "Het lijkt erop dat er iets fout is gegaan. Probeer het later opnieuw. Als de fout zich blijft voordoen, neem dan contact op met ons supportteam."),
         "terminate": MessageLookupByLibrary.simpleMessage("Beëindigen"),
@@ -1397,6 +1881,9 @@ class MessageLookup extends MessageLookupByLibrary {
             "Dank je wel voor het abonneren!"),
         "theDownloadCouldNotBeCompleted": MessageLookupByLibrary.simpleMessage(
             "De download kon niet worden voltooid"),
+        "theLinkYouAreTryingToAccessHasExpired":
+            MessageLookupByLibrary.simpleMessage(
+                "De link die je probeert te openen is verlopen."),
         "theRecoveryKeyYouEnteredIsIncorrect":
             MessageLookupByLibrary.simpleMessage(
                 "De ingevoerde herstelsleutel is onjuist"),
@@ -1404,7 +1891,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "theseItemsWillBeDeletedFromYourDevice":
             MessageLookupByLibrary.simpleMessage(
                 "Deze bestanden zullen worden verwijderd van uw apparaat."),
-        "theyAlsoGetXGb": m60,
+        "theyAlsoGetXGb": m8,
         "theyWillBeDeletedFromAllAlbums": MessageLookupByLibrary.simpleMessage(
             "Ze zullen uit alle albums worden verwijderd."),
         "thisActionCannotBeUndone": MessageLookupByLibrary.simpleMessage(
@@ -1420,7 +1907,9 @@ class MessageLookup extends MessageLookupByLibrary {
             "Dit e-mailadres is al in gebruik"),
         "thisImageHasNoExifData": MessageLookupByLibrary.simpleMessage(
             "Deze foto heeft geen exif gegevens"),
-        "thisIsPersonVerificationId": m61,
+        "thisIsMeExclamation":
+            MessageLookupByLibrary.simpleMessage("Dit ben ik!"),
+        "thisIsPersonVerificationId": m83,
         "thisIsYourVerificationId":
             MessageLookupByLibrary.simpleMessage("Dit is uw verificatie-ID"),
         "thisWillLogYouOutOfTheFollowingDevice":
@@ -1428,22 +1917,34 @@ class MessageLookup extends MessageLookupByLibrary {
                 "Dit zal je uitloggen van het volgende apparaat:"),
         "thisWillLogYouOutOfThisDevice": MessageLookupByLibrary.simpleMessage(
             "Dit zal je uitloggen van dit apparaat!"),
+        "thisWillRemovePublicLinksOfAllSelectedQuickLinks":
+            MessageLookupByLibrary.simpleMessage(
+                "Hiermee worden openbare links van alle geselecteerde snelle links verwijderd."),
+        "toEnableAppLockPleaseSetupDevicePasscodeOrScreen":
+            MessageLookupByLibrary.simpleMessage(
+                "Om appvergrendeling in te schakelen, moet u een toegangscode of schermvergrendeling instellen in uw systeeminstellingen."),
         "toHideAPhotoOrVideo": MessageLookupByLibrary.simpleMessage(
             "Om een foto of video te verbergen"),
         "toResetVerifyEmail": MessageLookupByLibrary.simpleMessage(
             "Verifieer eerst je e-mailadres om je wachtwoord opnieuw in te stellen."),
         "todaysLogs":
             MessageLookupByLibrary.simpleMessage("Logboeken van vandaag"),
+        "tooManyIncorrectAttempts":
+            MessageLookupByLibrary.simpleMessage("Te veel onjuiste pogingen"),
         "total": MessageLookupByLibrary.simpleMessage("totaal"),
         "totalSize": MessageLookupByLibrary.simpleMessage("Totale grootte"),
         "trash": MessageLookupByLibrary.simpleMessage("Prullenbak"),
-        "trashDaysLeft": m62,
+        "trashDaysLeft": m84,
+        "trim": MessageLookupByLibrary.simpleMessage("Knippen"),
+        "trustedContacts":
+            MessageLookupByLibrary.simpleMessage("Vertrouwde contacten"),
+        "trustedInviteBody": m85,
         "tryAgain": MessageLookupByLibrary.simpleMessage("Probeer opnieuw"),
         "turnOnBackupForAutoUpload": MessageLookupByLibrary.simpleMessage(
             "Schakel back-up in om bestanden die toegevoegd zijn aan deze map op dit apparaat automatisch te uploaden."),
         "twitter": MessageLookupByLibrary.simpleMessage("Twitter"),
         "twoMonthsFreeOnYearlyPlans": MessageLookupByLibrary.simpleMessage(
-            "Krijg 2 maanden gratis op jaarlijkse abonnementen"),
+            "Krijg 2 maanden gratis bij jaarlijkse abonnementen"),
         "twofactor":
             MessageLookupByLibrary.simpleMessage("Tweestapsverificatie"),
         "twofactorAuthenticationHasBeenDisabled":
@@ -1456,11 +1957,14 @@ class MessageLookup extends MessageLookupByLibrary {
                 "Tweestapsverificatie succesvol gereset"),
         "twofactorSetup":
             MessageLookupByLibrary.simpleMessage("Tweestapsverificatie"),
+        "typeOfGallerGallerytypeIsNotSupportedForRename": m86,
         "unarchive": MessageLookupByLibrary.simpleMessage("Uit archief halen"),
         "unarchiveAlbum":
             MessageLookupByLibrary.simpleMessage("Album uit archief halen"),
         "unarchiving":
             MessageLookupByLibrary.simpleMessage("Uit het archief halen..."),
+        "unavailableReferralCode": MessageLookupByLibrary.simpleMessage(
+            "Deze code is helaas niet beschikbaar."),
         "uncategorized":
             MessageLookupByLibrary.simpleMessage("Ongecategoriseerd"),
         "unhide": MessageLookupByLibrary.simpleMessage("Zichtbaar maken"),
@@ -1479,21 +1983,28 @@ class MessageLookup extends MessageLookupByLibrary {
         "updatingFolderSelection":
             MessageLookupByLibrary.simpleMessage("Map selectie bijwerken..."),
         "upgrade": MessageLookupByLibrary.simpleMessage("Upgraden"),
+        "uploadIsIgnoredDueToIgnorereason": m87,
         "uploadingFilesToAlbum": MessageLookupByLibrary.simpleMessage(
             "Bestanden worden geüpload naar album..."),
+        "uploadingMultipleMemories": m88,
+        "uploadingSingleMemory": MessageLookupByLibrary.simpleMessage(
+            "1 herinnering veiligstellen..."),
         "upto50OffUntil4thDec": MessageLookupByLibrary.simpleMessage(
             "Tot 50% korting, tot 4 december."),
         "usableReferralStorageInfo": MessageLookupByLibrary.simpleMessage(
             "Bruikbare opslag is beperkt door je huidige abonnement. Buitensporige geclaimde opslag zal automatisch bruikbaar worden wanneer je je abonnement upgrade."),
-        "usePublicLinksForPeopleNotOnEnte":
-            MessageLookupByLibrary.simpleMessage(
-                "Gebruik publieke links voor mensen die niet op ente zitten"),
+        "useAsCover":
+            MessageLookupByLibrary.simpleMessage("Als cover gebruiken"),
+        "useDifferentPlayerInfo": MessageLookupByLibrary.simpleMessage(
+            "Problemen met het afspelen van deze video? Hier ingedrukt houden om een andere speler te proberen."),
+        "usePublicLinksForPeopleNotOnEnte": MessageLookupByLibrary.simpleMessage(
+            "Gebruik publieke links voor mensen die geen Ente account hebben"),
         "useRecoveryKey":
             MessageLookupByLibrary.simpleMessage("Herstelcode gebruiken"),
         "useSelectedPhoto":
             MessageLookupByLibrary.simpleMessage("Gebruik geselecteerde foto"),
         "usedSpace": MessageLookupByLibrary.simpleMessage("Gebruikte ruimte"),
-        "validTill": m63,
+        "validTill": m89,
         "verificationFailedPleaseTryAgain":
             MessageLookupByLibrary.simpleMessage(
                 "Verificatie mislukt, probeer het opnieuw"),
@@ -1501,14 +2012,19 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Verificatie ID"),
         "verify": MessageLookupByLibrary.simpleMessage("Verifiëren"),
         "verifyEmail": MessageLookupByLibrary.simpleMessage("Bevestig e-mail"),
-        "verifyEmailID": m64,
+        "verifyEmailID": m90,
         "verifyIDLabel": MessageLookupByLibrary.simpleMessage("Verifiëren"),
+        "verifyPasskey":
+            MessageLookupByLibrary.simpleMessage("Bevestig passkey"),
         "verifyPassword":
             MessageLookupByLibrary.simpleMessage("Bevestig wachtwoord"),
         "verifying": MessageLookupByLibrary.simpleMessage("Verifiëren..."),
         "verifyingRecoveryKey": MessageLookupByLibrary.simpleMessage(
             "Herstelsleutel verifiëren..."),
+        "videoInfo": MessageLookupByLibrary.simpleMessage("Video-info"),
         "videoSmallCase": MessageLookupByLibrary.simpleMessage("video"),
+        "videoStreaming":
+            MessageLookupByLibrary.simpleMessage("Video streamen"),
         "videos": MessageLookupByLibrary.simpleMessage("Video\'s"),
         "viewActiveSessions":
             MessageLookupByLibrary.simpleMessage("Actieve sessies bekijken"),
@@ -1517,24 +2033,36 @@ class MessageLookup extends MessageLookupByLibrary {
         "viewAll": MessageLookupByLibrary.simpleMessage("Alles weergeven"),
         "viewAllExifData":
             MessageLookupByLibrary.simpleMessage("Bekijk alle EXIF gegevens"),
+        "viewLargeFiles":
+            MessageLookupByLibrary.simpleMessage("Grote bestanden"),
+        "viewLargeFilesDesc": MessageLookupByLibrary.simpleMessage(
+            "Bekijk bestanden die de meeste opslagruimte verbruiken."),
         "viewLogs": MessageLookupByLibrary.simpleMessage("Logboeken bekijken"),
         "viewRecoveryKey":
             MessageLookupByLibrary.simpleMessage("Toon herstelsleutel"),
         "viewer": MessageLookupByLibrary.simpleMessage("Kijker"),
+        "viewersSuccessfullyAdded": m91,
         "visitWebToManage": MessageLookupByLibrary.simpleMessage(
             "Bezoek alstublieft web.ente.io om uw abonnement te beheren"),
+        "waitingForVerification":
+            MessageLookupByLibrary.simpleMessage("Wachten op verificatie..."),
         "waitingForWifi":
             MessageLookupByLibrary.simpleMessage("Wachten op WiFi..."),
+        "warning": MessageLookupByLibrary.simpleMessage("Waarschuwing"),
         "weAreOpenSource":
             MessageLookupByLibrary.simpleMessage("We zijn open source!"),
         "weDontSupportEditingPhotosAndAlbumsThatYouDont":
             MessageLookupByLibrary.simpleMessage(
                 "We ondersteunen het bewerken van foto\'s en albums waar je niet de eigenaar van bent nog niet"),
-        "weHaveSendEmailTo": m65,
+        "weHaveSendEmailTo": m2,
         "weakStrength": MessageLookupByLibrary.simpleMessage("Zwak"),
         "welcomeBack": MessageLookupByLibrary.simpleMessage("Welkom terug!"),
+        "whatsNew": MessageLookupByLibrary.simpleMessage("Nieuw"),
+        "whyAddTrustContact": MessageLookupByLibrary.simpleMessage(
+            "Vertrouwde contacten kunnen helpen bij het herstellen van je data."),
+        "yearShort": MessageLookupByLibrary.simpleMessage("jr"),
         "yearly": MessageLookupByLibrary.simpleMessage("Jaarlijks"),
-        "yearsAgo": m66,
+        "yearsAgo": m92,
         "yes": MessageLookupByLibrary.simpleMessage("Ja"),
         "yesCancel": MessageLookupByLibrary.simpleMessage("Ja, opzeggen"),
         "yesConvertToViewer":
@@ -1545,6 +2073,8 @@ class MessageLookup extends MessageLookupByLibrary {
         "yesLogout": MessageLookupByLibrary.simpleMessage("Ja, log uit"),
         "yesRemove": MessageLookupByLibrary.simpleMessage("Ja, verwijderen"),
         "yesRenew": MessageLookupByLibrary.simpleMessage("Ja, verlengen"),
+        "yesResetPerson":
+            MessageLookupByLibrary.simpleMessage("Ja, reset persoon"),
         "you": MessageLookupByLibrary.simpleMessage("Jij"),
         "youAreOnAFamilyPlan": MessageLookupByLibrary.simpleMessage(
             "U bent onderdeel van een familie abonnement!"),
@@ -1564,7 +2094,7 @@ class MessageLookup extends MessageLookupByLibrary {
             "Je kunt niet met jezelf delen"),
         "youDontHaveAnyArchivedItems": MessageLookupByLibrary.simpleMessage(
             "U heeft geen gearchiveerde bestanden."),
-        "youHaveSuccessfullyFreedUp": m67,
+        "youHaveSuccessfullyFreedUp": m93,
         "yourAccountHasBeenDeleted":
             MessageLookupByLibrary.simpleMessage("Je account is verwijderd"),
         "yourMap": MessageLookupByLibrary.simpleMessage("Jouw kaart"),
@@ -1585,9 +2115,6 @@ class MessageLookup extends MessageLookupByLibrary {
                 "Uw abonnement is succesvol bijgewerkt"),
         "yourVerificationCodeHasExpired": MessageLookupByLibrary.simpleMessage(
             "Uw verificatiecode is verlopen"),
-        "youveNoDuplicateFilesThatCanBeCleared":
-            MessageLookupByLibrary.simpleMessage(
-                "Je hebt geen dubbele bestanden die kunnen worden gewist"),
         "youveNoFilesInThisAlbumThatCanBeDeleted":
             MessageLookupByLibrary.simpleMessage(
                 "Je hebt geen bestanden in dit album die verwijderd kunnen worden"),

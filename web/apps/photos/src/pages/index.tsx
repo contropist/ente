@@ -1,111 +1,43 @@
-import Login from "@ente/accounts/components/Login";
-import SignUp from "@ente/accounts/components/SignUp";
-import EnteSpinner from "@ente/shared/components/EnteSpinner";
-import { getData, LS_KEYS } from "@ente/shared/storage/localStorage";
-import { Button, styled, Typography, TypographyProps } from "@mui/material";
-import { t } from "i18next";
-import { useRouter } from "next/router";
-import { useContext, useEffect, useState } from "react";
-import Carousel from "react-bootstrap/Carousel";
-import { AppContext } from "./_app";
-
-import { APPS } from "@ente/shared/apps/constants";
-import { EnteLogo } from "@ente/shared/components/EnteLogo";
+import { LoginContents } from "@/accounts/components/LoginContents";
+import { SignUpContents } from "@/accounts/components/SignUpContents";
+import { CenteredFill, CenteredRow } from "@/base/components/containers";
+import { EnteLogo } from "@/base/components/EnteLogo";
+import { ActivityIndicator } from "@/base/components/mui/ActivityIndicator";
+import { FocusVisibleButton } from "@/base/components/mui/FocusVisibleButton";
+import { useBaseContext } from "@/base/context";
+import log from "@/base/log";
+import { albumsAppOrigin, customAPIHost } from "@/base/origins";
+import { DevSettings } from "@/new/photos/components/DevSettings";
 import { PHOTOS_PAGES as PAGES } from "@ente/shared/constants/pages";
 import { saveKeyInSessionStore } from "@ente/shared/crypto/helpers";
-import ElectronAPIs from "@ente/shared/electron";
-import { getAlbumsURL } from "@ente/shared/network/api";
-import { logError } from "@ente/shared/sentry";
 import localForage from "@ente/shared/storage/localForage";
-import { getKey, SESSION_KEYS } from "@ente/shared/storage/sessionStorage";
-import isElectron from "is-electron";
+import { LS_KEYS, getData } from "@ente/shared/storage/localStorage";
+import { getToken } from "@ente/shared/storage/localStorage/helpers";
+import { SESSION_KEYS, getKey } from "@ente/shared/storage/sessionStorage";
+import { Box, Stack, Typography, styled } from "@mui/material";
+import { t } from "i18next";
+import { useRouter } from "next/router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Trans } from "react-i18next";
 
-const Container = styled("div")`
-    display: flex;
-    flex: 1;
-    align-items: center;
-    justify-content: center;
-    background-color: #000;
+const Page: React.FC = () => {
+    const { showMiniDialog } = useBaseContext();
 
-    @media (max-width: 1024px) {
-        flex-direction: column;
-    }
-`;
-
-const SlideContainer = styled("div")`
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-
-    @media (max-width: 1024px) {
-        flex-grow: 0;
-    }
-`;
-
-const DesktopBox = styled("div")`
-    flex: 1;
-    height: 100%;
-    padding: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: #242424;
-
-    @media (max-width: 1024px) {
-        display: none;
-    }
-`;
-
-const MobileBox = styled("div")`
-    display: none;
-
-    @media (max-width: 1024px) {
-        max-width: 375px;
-        width: 100%;
-        padding: 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-`;
-
-const SideBox = styled("div")`
-    display: flex;
-    flex-direction: column;
-    min-width: 320px;
-`;
-
-const TextContainer = (props: TypographyProps) => (
-    <Typography color={"text.muted"} mt={2} mb={3} {...props} />
-);
-
-const FeatureText = (props: TypographyProps) => (
-    <Typography variant="h3" mt={4} {...props} />
-);
-
-const Img = styled("img")`
-    height: 250px;
-    object-fit: contain;
-
-    @media (max-width: 400px) {
-        height: 180px;
-    }
-`;
-
-export default function LandingPage() {
-    const router = useRouter();
-    const appContext = useContext(AppContext);
     const [loading, setLoading] = useState(true);
     const [showLogin, setShowLogin] = useState(true);
+    const [host, setHost] = useState<string | undefined>(undefined);
+
+    const router = useRouter();
+
+    const refreshHost = useCallback(
+        () => void customAPIHost().then(setHost),
+        [],
+    );
 
     useEffect(() => {
-        appContext.showNavBar(false);
+        refreshHost();
         const currentURL = new URL(window.location.href);
-        const albumsURL = new URL(getAlbumsURL());
+        const albumsURL = new URL(albumsAppOrigin());
         currentURL.pathname = router.pathname;
         if (
             currentURL.host === albumsURL.host &&
@@ -115,7 +47,7 @@ export default function LandingPage() {
         } else {
             handleNormalRedirect();
         }
-    }, []);
+    }, [refreshHost]);
 
     const handleAlbumsRedirect = async (currentURL: URL) => {
         const end = currentURL.hash.lastIndexOf("&");
@@ -131,11 +63,12 @@ export default function LandingPage() {
     const handleNormalRedirect = async () => {
         const user = getData(LS_KEYS.USER);
         let key = getKey(SESSION_KEYS.ENCRYPTION_KEY);
-        if (!key && isElectron()) {
+        const electron = globalThis.electron;
+        if (!key && electron) {
             try {
-                key = await ElectronAPIs.getEncryptionKey();
+                key = await electron.masterKeyB64();
             } catch (e) {
-                logError(e, "getEncryptionKey failed");
+                log.error("Failed to read master key from safe storage", e);
             }
             if (key) {
                 await saveKeyInSessionStore(
@@ -145,18 +78,11 @@ export default function LandingPage() {
                 );
             }
         }
-        if (key) {
-            // if (appName === APPS.AUTH) {
-            //     await router.push(PAGES.AUTH);
-            // } else {
+        const token = getToken();
+        if (key && token) {
             await router.push(PAGES.GALLERY);
-            // }
         } else if (user?.email) {
             await router.push(PAGES.VERIFY);
-        } else {
-            // if (appName === APPS.AUTH) {
-            //     await router.push(PAGES.LOGIN);
-            // }
         }
         await initLocalForage();
         setLoading(false);
@@ -166,12 +92,12 @@ export default function LandingPage() {
         try {
             await localForage.ready();
         } catch (e) {
-            logError(e, "usage in incognito mode tried");
-            appContext.setDialogMessage({
-                title: t("LOCAL_STORAGE_NOT_ACCESSIBLE"),
-
+            log.error("Local storage is not accessible", e);
+            showMiniDialog({
+                title: t("error"),
+                message: t("LOCAL_STORAGE_NOT_ACCESSIBLE_MESSAGE"),
                 nonClosable: true,
-                content: t("LOCAL_STORAGE_NOT_ACCESSIBLE_MESSAGE"),
+                cancel: false,
             });
         } finally {
             setLoading(false);
@@ -185,82 +111,299 @@ export default function LandingPage() {
     const redirectToLoginPage = () => router.push(PAGES.LOGIN);
 
     return (
-        <Container>
+        <TappableContainer onMaybeChangeHost={refreshHost}>
             {loading ? (
-                <EnteSpinner />
+                <ActivityIndicator />
             ) : (
                 <>
-                    <SlideContainer>
-                        <EnteLogo height={24} sx={{ mb: 8 }} />
-                        <Carousel controls={false}>
-                            <Carousel.Item>
-                                <Img
-                                    src="/images/onboarding-lock/1x.png"
-                                    srcSet="/images/onboarding-lock/2x.png 2x,
-                                        /images/onboarding-lock/3x.png 3x"
-                                />
-                                <FeatureText>
-                                    <Trans i18nKey={"HERO_SLIDE_1_TITLE"} />
-                                </FeatureText>
-                                <TextContainer>
-                                    {t("HERO_SLIDE_1")}
-                                </TextContainer>
-                            </Carousel.Item>
-                            <Carousel.Item>
-                                <Img
-                                    src="/images/onboarding-safe/1x.png"
-                                    srcSet="/images/onboarding-safe/2x.png 2x,
-                                        /images/onboarding-safe/3x.png 3x"
-                                />
-                                <FeatureText>
-                                    <Trans i18nKey={"HERO_SLIDE_2_TITLE"} />
-                                </FeatureText>
-                                <TextContainer>
-                                    {t("HERO_SLIDE_2")}
-                                </TextContainer>
-                            </Carousel.Item>
-                            <Carousel.Item>
-                                <Img
-                                    src="/images/onboarding-sync/1x.png"
-                                    srcSet="/images/onboarding-sync/2x.png 2x,
-                                        /images/onboarding-sync/3x.png 3x"
-                                />
-                                <FeatureText>
-                                    <Trans i18nKey={"HERO_SLIDE_3_TITLE"} />
-                                </FeatureText>
-                                <TextContainer>
-                                    {t("HERO_SLIDE_3")}
-                                </TextContainer>
-                            </Carousel.Item>
-                        </Carousel>
-                    </SlideContainer>
+                    <SlideshowPanel>
+                        <Logo_>
+                            <EnteLogo height={24} />
+                        </Logo_>
+                        <Slideshow />
+                    </SlideshowPanel>
                     <MobileBox>
-                        <Button
+                        <FocusVisibleButton
                             color="accent"
-                            size="large"
                             onClick={redirectToSignupPage}
                         >
-                            {t("NEW_USER")}
-                        </Button>
-                        <Button size="large" onClick={redirectToLoginPage}>
-                            {t("EXISTING_USER")}
-                        </Button>
+                            {t("new_to_ente")}
+                        </FocusVisibleButton>
+                        <FocusVisibleButton onClick={redirectToLoginPage}>
+                            {t("existing_user")}
+                        </FocusVisibleButton>
+                        <MobileBoxFooter {...{ host }} />
                     </MobileBox>
-                    <DesktopBox>
-                        <SideBox>
+                    <DesktopBox
+                        sx={[
+                            { bgcolor: "background.default" },
+                            (theme) =>
+                                theme.applyStyles("dark", {
+                                    bgcolor: "background.paper2",
+                                }),
+                        ]}
+                    >
+                        <Stack sx={{ width: "320px", py: 4, gap: 4 }}>
                             {showLogin ? (
-                                <Login signUp={signUp} appName={APPS.PHOTOS} />
+                                <LoginContents
+                                    {...{ onSignUp: signUp, host }}
+                                />
                             ) : (
-                                <SignUp
-                                    router={router}
-                                    appName={APPS.PHOTOS}
-                                    login={login}
+                                <SignUpContents
+                                    {...{ router, onLogin: login, host }}
                                 />
                             )}
-                        </SideBox>
+                        </Stack>
                     </DesktopBox>
                 </>
             )}
-        </Container>
+        </TappableContainer>
     );
+};
+
+export default Page;
+
+interface TappableContainerProps {
+    /**
+     * Called when the user closes the dialog to set a custom server.
+     *
+     * This is our chance to re-read the value of the custom API origin from
+     * local storage since the user might've changed it.
+     */
+    onMaybeChangeHost: () => void;
 }
+
+const TappableContainer: React.FC<
+    React.PropsWithChildren<TappableContainerProps>
+> = ({ onMaybeChangeHost, children }) => {
+    // [Note: Configuring custom server]
+    //
+    // Allow the user to tap 7 times anywhere on the onboarding screen to bring
+    // up a page where they can configure the endpoint that the app should
+    // connect to.
+    //
+    // See: https://help.ente.io/self-hosting/guides/custom-server/
+    const [tapCount, setTapCount] = useState(0);
+    const [showDevSettings, setShowDevSettings] = useState(false);
+
+    const handleClick: React.MouseEventHandler = (event) => {
+        // Don't allow this when running on (e.g.) web.ente.io.
+        if (!shouldAllowChangingAPIOrigin()) return;
+
+        // Ignore clicks on buttons when counting up towards 7.
+        if (event.target instanceof HTMLButtonElement) return;
+
+        // Ignore clicks when the dialog is already open.
+        if (showDevSettings) return;
+
+        // Otherwise increase the tap count,
+        setTapCount(tapCount + 1);
+        // And show the dev settings dialog when it reaches 7.
+        if (tapCount + 1 == 7) {
+            setTapCount(0);
+            setShowDevSettings(true);
+        }
+    };
+
+    const handleClose = () => {
+        setShowDevSettings(false);
+        onMaybeChangeHost();
+    };
+
+    return (
+        <CenteredFill
+            sx={[
+                {
+                    bgcolor: "background.paper2",
+                    "@media (width <= 1024px)": { flexDirection: "column" },
+                },
+                (theme) =>
+                    theme.applyStyles("dark", {
+                        bgcolor: "background.default",
+                    }),
+            ]}
+            onClick={handleClick}
+        >
+            <DevSettings open={showDevSettings} onClose={handleClose} />
+            {children}
+        </CenteredFill>
+    );
+};
+
+/**
+ * Disable the ability to set the custom server when we're running on our own
+ * production deployment.
+ */
+const shouldAllowChangingAPIOrigin = () => {
+    const hostname = new URL(window.location.origin).hostname;
+    return !(hostname.endsWith(".ente.io") || hostname.endsWith(".ente.sh"));
+};
+
+const SlideshowPanel = styled("div")`
+    align-self: stretch;
+
+    flex-shrink: 1;
+    flex-grow: 1;
+    flex-basis: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    @media (width <= 1024px) {
+        flex-grow: 0;
+    }
+    @media (width > 1024px) {
+        width: 700px;
+    }
+`;
+
+const Logo_ = styled("div")`
+    /* Bias towards the left for better visual alignment with the slides. */
+    padding-inline-end: 1rem;
+
+    margin-block-start: 32px;
+    margin-block-end: 40px;
+    @media (width >= 1024px) {
+        margin-block-end: 48px;
+    }
+`;
+
+const MobileBox = styled("div")`
+    display: none;
+
+    @media (width <= 1024px) {
+        max-width: 375px;
+        width: 100%;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+`;
+
+interface MobileBoxFooterProps {
+    host: string | undefined;
+}
+
+const MobileBoxFooter: React.FC<MobileBoxFooterProps> = ({ host }) => {
+    return (
+        <Box sx={{ pt: 4, textAlign: "center" }}>
+            {host && (
+                <Typography variant="mini" sx={{ color: "text.faint" }}>
+                    {host}
+                </Typography>
+            )}
+        </Box>
+    );
+};
+
+const DesktopBox = styled(CenteredRow)`
+    flex-shrink: 0;
+    flex-grow: 2;
+    flex-basis: auto;
+
+    height: 100%;
+    padding-inline: 20px;
+
+    @media (width <= 1024px) {
+        display: none;
+    }
+`;
+
+const Slideshow: React.FC = () => {
+    const [selectedIndex, setSelectedIndex] = useState(0);
+    const containerRef = useRef<HTMLDivElement | undefined>(undefined);
+
+    useEffect(() => {
+        const intervalID = setInterval(() => {
+            setSelectedIndex((selectedIndex + 1) % 3);
+        }, 5000);
+        return () => clearInterval(intervalID);
+    });
+
+    useEffect(() => {
+        const container = containerRef.current!;
+        const left = containerRef.current!.offsetWidth * selectedIndex;
+        // Smooth scroll doesn't work with Chrome intermittently. A common
+        // workaround is to wrap the scrollTo in a setTimeout etc, but even that
+        // doesn't help for our particular scenario.
+        //
+        // Ref: https://github.com/facebook/react/issues/23396
+        //
+        // As an alternative, scroll twice (once smoothly, once without) to the
+        // same position so that at least the fallback works on Chrome.
+        container.scrollTo({ left, behavior: "smooth" });
+        setTimeout(() => container.scrollTo({ left }), 500);
+    }, [selectedIndex]);
+
+    return (
+        <SlidesContainer ref={containerRef}>
+            <Slide>
+                <Img
+                    src="/images/onboarding-lock/1x.png"
+                    srcSet="/images/onboarding-lock/2x.png 2x, /images/onboarding-lock/3x.png 3x"
+                />
+                <SlideTitle>
+                    <Trans i18nKey={"intro_slide_1_title"} />
+                </SlideTitle>
+                <SlideDescription>{t("intro_slide_1")}</SlideDescription>
+            </Slide>
+            <Slide>
+                <Img
+                    src="/images/onboarding-safe/1x.png"
+                    srcSet="/images/onboarding-safe/2x.png 2x, /images/onboarding-safe/3x.png 3x"
+                />
+                <SlideTitle>
+                    <Trans i18nKey={"intro_slide_2_title"} />
+                </SlideTitle>
+                <SlideDescription>{t("intro_slide_2")}</SlideDescription>
+            </Slide>
+            <Slide>
+                <Img
+                    src="/images/onboarding-sync/1x.png"
+                    srcSet="/images/onboarding-sync/2x.png 2x, /images/onboarding-sync/3x.png 3x"
+                />
+                <SlideTitle>
+                    <Trans i18nKey={"intro_slide_3_title"} />
+                </SlideTitle>
+                <SlideDescription>{t("intro_slide_3")}</SlideDescription>
+            </Slide>
+        </SlidesContainer>
+    );
+};
+
+const SlidesContainer = styled("div")`
+    /* Override the center align for ourselves so that we don't revert back to
+       our intrinsic width. */
+    align-self: stretch;
+    display: flex;
+    overflow-x: hidden;
+`;
+
+const Slide = styled(Stack)`
+    min-width: 100%;
+    align-items: center;
+    text-align: center;
+`;
+
+const SlideTitle: React.FC<React.PropsWithChildren> = ({ children }) => (
+    <Typography variant="h3" sx={{ mt: 4 }}>
+        {children}
+    </Typography>
+);
+
+const SlideDescription: React.FC<React.PropsWithChildren> = ({ children }) => (
+    <Typography sx={{ color: "text.muted", mt: 2, mb: 3 }}>
+        {children}
+    </Typography>
+);
+
+const Img = styled("img")`
+    height: 250px;
+    object-fit: contain;
+
+    @media (width <= 400px) {
+        height: 180px;
+    }
+`;

@@ -1,15 +1,14 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:photos/core/configuration.dart';
 import "package:photos/generated/l10n.dart";
+import "package:photos/theme/ente_theme.dart";
 import 'package:photos/ui/account/password_entry_page.dart';
 import 'package:photos/ui/common/dynamic_fab.dart';
+import 'package:photos/ui/notification/toast.dart';
 import 'package:photos/utils/dialog_util.dart';
-import 'package:photos/utils/toast_util.dart';
 
 class RecoveryPage extends StatefulWidget {
-  const RecoveryPage({Key? key}) : super(key: key);
+  const RecoveryPage({super.key});
 
   @override
   State<RecoveryPage> createState() => _RecoveryPageState();
@@ -58,9 +57,9 @@ class _RecoveryPageState extends State<RecoveryPage> {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
                 builder: (BuildContext context) {
-                  return WillPopScope(
-                    onWillPop: () async => false,
-                    child: const PasswordEntryPage(
+                  return const PopScope(
+                    canPop: false,
+                    child: PasswordEntryPage(
                       mode: PasswordEntryMode.reset,
                     ),
                   );
@@ -102,6 +101,7 @@ class _RecoveryPageState extends State<RecoveryPage> {
                   child: TextFormField(
                     decoration: InputDecoration(
                       filled: true,
+                      fillColor: getEnteColorScheme(context).fillFaint,
                       hintText: S.of(context).enterYourRecoveryKey,
                       contentPadding: const EdgeInsets.all(20),
                       border: UnderlineInputBorder(
@@ -123,10 +123,11 @@ class _RecoveryPageState extends State<RecoveryPage> {
                     },
                   ),
                 ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 18),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 18),
                   child: Divider(
                     thickness: 1,
+                    color: getEnteColorScheme(context).strokeFaint,
                   ),
                 ),
                 Row(

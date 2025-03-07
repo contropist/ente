@@ -1,83 +1,161 @@
-import { enableTwoFactor, setupTwoFactor } from "@ente/accounts/api/user";
-import { t } from "i18next";
-import { useEffect, useState } from "react";
-
-import VerifyTwoFactor, {
-    VerifyTwoFactorCallback,
-} from "@ente/accounts/components/two-factor/VerifyForm";
-import { TwoFactorSetup } from "@ente/accounts/components/two-factor/setup";
-import { TwoFactorSecret } from "@ente/accounts/types/user";
-import { APP_HOMES } from "@ente/shared/apps/constants";
-import { PageProps } from "@ente/shared/apps/types";
-import { VerticallyCentered } from "@ente/shared/components/Container";
-import LinkButton from "@ente/shared/components/LinkButton";
+import { CodeBlock } from "@/accounts/components/CodeBlock";
+import { Verify2FACodeForm } from "@/accounts/components/Verify2FACodeForm";
+import { appHomeRoute } from "@/accounts/services/redirect";
+import type { TwoFactorSecret } from "@/accounts/services/user";
+import { enableTwoFactor, setupTwoFactor } from "@/accounts/services/user";
+import { CenteredFill } from "@/base/components/containers";
+import { LinkButton } from "@/base/components/LinkButton";
+import { ActivityIndicator } from "@/base/components/mui/ActivityIndicator";
+import { FocusVisibleButton } from "@/base/components/mui/FocusVisibleButton";
 import { encryptWithRecoveryKey } from "@ente/shared/crypto/helpers";
-import { logError } from "@ente/shared/sentry";
-import { LS_KEYS, getData, setData } from "@ente/shared/storage/localStorage";
-import { Box, CardContent, Typography } from "@mui/material";
-import Card from "@mui/material/Card";
+import { getData, LS_KEYS, setLSUser } from "@ente/shared/storage/localStorage";
+import { Paper, Stack, styled, Typography } from "@mui/material";
+import { t } from "i18next";
+import { useRouter } from "next/router";
+import React, { useEffect, useState } from "react";
 
-export enum SetupMode {
-    QR_CODE,
-    MANUAL_CODE,
-}
+const Page: React.FC = () => {
+    const [twoFactorSecret, setTwoFactorSecret] = useState<
+        TwoFactorSecret | undefined
+    >();
 
-export default function SetupTwoFactor({ router, appName }: PageProps) {
-    const [twoFactorSecret, setTwoFactorSecret] =
-        useState<TwoFactorSecret>(null);
+    const router = useRouter();
 
     useEffect(() => {
-        if (twoFactorSecret) {
-            return;
-        }
-        const main = async () => {
-            try {
-                const twoFactorSecret = await setupTwoFactor();
-                setTwoFactorSecret(twoFactorSecret);
-            } catch (e) {
-                logError(e, "failed to get two factor setup code");
-            }
-        };
-        main();
+        void setupTwoFactor().then(setTwoFactorSecret);
     }, []);
 
-    const onSubmit: VerifyTwoFactorCallback = async (
-        otp: string,
-        markSuccessful,
-    ) => {
-        const recoveryEncryptedTwoFactorSecret = await encryptWithRecoveryKey(
-            twoFactorSecret.secretCode,
-        );
-        await enableTwoFactor(otp, recoveryEncryptedTwoFactorSecret);
-        await markSuccessful();
-        setData(LS_KEYS.USER, {
-            ...getData(LS_KEYS.USER),
-            isTwoFactorEnabled: true,
+    const handleSubmit = async (otp: string) => {
+        const {
+            encryptedData: encryptedTwoFactorSecret,
+            nonce: twoFactorSecretDecryptionNonce,
+        } = await encryptWithRecoveryKey(twoFactorSecret!.secretCode);
+        await enableTwoFactor({
+            code: otp,
+            encryptedTwoFactorSecret,
+            twoFactorSecretDecryptionNonce,
         });
-        router.push(APP_HOMES.get(appName));
+        await setLSUser({ ...getData(LS_KEYS.USER), isTwoFactorEnabled: true });
+        await router.push(appHomeRoute);
     };
 
     return (
-        <VerticallyCentered>
-            <Card>
-                <CardContent>
-                    <VerticallyCentered sx={{ p: 3 }}>
-                        <Box mb={4}>
-                            <Typography variant="h2">
-                                {t("TWO_FACTOR")}
-                            </Typography>
-                        </Box>
-                        <TwoFactorSetup twoFactorSecret={twoFactorSecret} />
-                        <VerifyTwoFactor
-                            onSubmit={onSubmit}
-                            buttonText={t("ENABLE")}
-                        />
-                        <LinkButton sx={{ mt: 2 }} onClick={router.back}>
-                            {t("GO_BACK")}
-                        </LinkButton>
-                    </VerticallyCentered>
-                </CardContent>
-            </Card>
-        </VerticallyCentered>
+        <Stack sx={{ minHeight: "100svh" }}>
+            <CenteredFill>
+                <ContentsPaper>
+                    <Typography variant="h5" sx={{ textAlign: "center" }}>
+                        {t("two_factor")}
+                    </Typography>
+                    <Instructions twoFactorSecret={twoFactorSecret} />
+                    <Verify2FACodeForm
+                        onSubmit={handleSubmit}
+                        submitButtonText={t("enable")}
+                    />
+                    <Stack sx={{ alignItems: "center" }}>
+                        <FocusVisibleButton
+                            variant="text"
+                            onClick={router.back}
+                        >
+                            {t("go_back")}
+                        </FocusVisibleButton>
+                    </Stack>
+                </ContentsPaper>
+            </CenteredFill>
+        </Stack>
     );
+};
+
+export default Page;
+
+const ContentsPaper = styled(Paper)(({ theme }) => ({
+    marginBlock: theme.spacing(2),
+    padding: theme.spacing(4, 2),
+    // Wide enough to fit the QR code secret in one line under default settings.
+    width: "min(440px, 95vw)",
+    display: "flex",
+    flexDirection: "column",
+    gap: theme.spacing(4),
+}));
+
+interface InstructionsProps {
+    twoFactorSecret: TwoFactorSecret | undefined;
 }
+
+const Instructions: React.FC<InstructionsProps> = ({ twoFactorSecret }) => {
+    const [setupMode, setSetupMode] = useState<"qr" | "manual">("qr");
+
+    return (
+        <Stack sx={{ gap: 3, alignItems: "center" }}>
+            {setupMode == "qr" ? (
+                <SetupQRMode
+                    twoFactorSecret={twoFactorSecret}
+                    onChangeMode={() => setSetupMode("manual")}
+                />
+            ) : (
+                <SetupManualMode
+                    twoFactorSecret={twoFactorSecret}
+                    onChangeMode={() => setSetupMode("qr")}
+                />
+            )}
+        </Stack>
+    );
+};
+
+interface SetupManualModeProps {
+    twoFactorSecret: TwoFactorSecret | undefined;
+    onChangeMode: () => void;
+}
+
+const SetupManualMode: React.FC<SetupManualModeProps> = ({
+    twoFactorSecret,
+    onChangeMode,
+}) => (
+    <>
+        <Typography sx={{ color: "text.muted", textAlign: "center", px: 2 }}>
+            {t("two_factor_manual_entry_message")}
+        </Typography>
+        <CodeBlock code={twoFactorSecret?.secretCode} />
+        <LinkButton onClick={onChangeMode}>{t("scan_qr_title")}</LinkButton>
+    </>
+);
+
+interface SetupQRModeProps {
+    twoFactorSecret?: TwoFactorSecret;
+    onChangeMode: () => void;
+}
+
+const SetupQRMode: React.FC<SetupQRModeProps> = ({
+    twoFactorSecret,
+    onChangeMode,
+}) => (
+    <>
+        <Typography sx={{ color: "text.muted", textAlign: "center" }}>
+            {t("two_factor_qr_help")}
+        </Typography>
+        {!twoFactorSecret ? (
+            <LoadingQRCode>
+                <ActivityIndicator />
+            </LoadingQRCode>
+        ) : (
+            <QRCode src={`data:image/png;base64,${twoFactorSecret?.qrCode}`} />
+        )}
+        <LinkButton onClick={onChangeMode}>
+            {t("two_factor_manual_entry_title")}
+        </LinkButton>
+    </>
+);
+
+const QRCode = styled("img")(`
+    width: 200px;
+    height: 200px;
+`);
+
+const LoadingQRCode = styled(Stack)(
+    ({ theme }) => `
+    width: 200px;
+    height: 200px;
+    border: 1px solid ${theme.vars.palette.stroke.muted};
+    align-items: center;
+    justify-content: center;
+   `,
+);

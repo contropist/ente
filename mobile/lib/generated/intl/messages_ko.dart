@@ -22,28 +22,26 @@ class MessageLookup extends MessageLookupByLibrary {
 
   final messages = _notInlinedMessages(_notInlinedMessages);
   static Map<String, Function> _notInlinedMessages(_) => <String, Function>{
-        "addToHiddenAlbum":
-            MessageLookupByLibrary.simpleMessage("Add to hidden album"),
-        "changeLocationOfSelectedItems": MessageLookupByLibrary.simpleMessage(
-            "Change location of selected items?"),
-        "contacts": MessageLookupByLibrary.simpleMessage("Contacts"),
-        "deleteConfirmDialogBody": MessageLookupByLibrary.simpleMessage(
-            "This account is linked to other ente apps, if you use any.\\n\\nYour uploaded data, across all ente apps, will be scheduled for deletion, and your account will be permanently deleted."),
-        "editLocation": MessageLookupByLibrary.simpleMessage("Edit location"),
-        "editsToLocationWillOnlyBeSeenWithinEnte":
-            MessageLookupByLibrary.simpleMessage(
-                "Edits to location will only be seen within Ente"),
-        "fileTypes": MessageLookupByLibrary.simpleMessage("File types"),
-        "joinDiscord": MessageLookupByLibrary.simpleMessage("Join Discord"),
-        "modifyYourQueryOrTrySearchingFor":
-            MessageLookupByLibrary.simpleMessage(
-                "Modify your query, or try searching for"),
-        "moveToHiddenAlbum":
-            MessageLookupByLibrary.simpleMessage("Move to hidden album"),
-        "selectALocation":
-            MessageLookupByLibrary.simpleMessage("Select a location"),
-        "selectALocationFirst":
-            MessageLookupByLibrary.simpleMessage("Select a location first"),
-        "yourMap": MessageLookupByLibrary.simpleMessage("Your map")
+        "accountWelcomeBack":
+            MessageLookupByLibrary.simpleMessage("다시 오신 것을 환영합니다!"),
+        "askDeleteReason":
+            MessageLookupByLibrary.simpleMessage("계정을 삭제하는 가장 큰 이유가 무엇인가요?"),
+        "cancel": MessageLookupByLibrary.simpleMessage("닫기"),
+        "confirmAccountDeletion":
+            MessageLookupByLibrary.simpleMessage("계정 삭제 확인"),
+        "deleteAccount": MessageLookupByLibrary.simpleMessage("계정 삭제"),
+        "deleteAccountPermanentlyButton":
+            MessageLookupByLibrary.simpleMessage("계정을 영구적으로 삭제"),
+        "email": MessageLookupByLibrary.simpleMessage("이메일"),
+        "enterValidEmail":
+            MessageLookupByLibrary.simpleMessage("올바른 이메일 주소를 입력하세요."),
+        "enterYourEmailAddress":
+            MessageLookupByLibrary.simpleMessage("이메일을 입력하세요"),
+        "feedback": MessageLookupByLibrary.simpleMessage("피드백"),
+        "invalidEmailAddress":
+            MessageLookupByLibrary.simpleMessage("잘못된 이메일 주소"),
+        "verify": MessageLookupByLibrary.simpleMessage("인증"),
+        "yourAccountHasBeenDeleted":
+            MessageLookupByLibrary.simpleMessage("계정이 삭제되었습니다.")
       };
 }

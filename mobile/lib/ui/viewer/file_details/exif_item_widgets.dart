@@ -5,8 +5,8 @@ import 'package:photos/models/file/file.dart';
 import "package:photos/theme/colors.dart";
 import "package:photos/theme/ente_theme.dart";
 import "package:photos/ui/components/info_item_widget.dart";
+import "package:photos/ui/notification/toast.dart";
 import "package:photos/ui/viewer/file/exif_info_dialog.dart";
-import "package:photos/utils/toast_util.dart";
 
 class BasicExifItemWidget extends StatelessWidget {
   final Map<String, dynamic> exifData;
@@ -89,6 +89,7 @@ class _AllExifItemWidgetState extends State<AllExifItemWidget> {
     } else if (exif.isNotEmpty) {
       label = S.of(context).viewAllExifData;
       onTap = () => showDialog(
+            useRootNavigator: false,
             context: context,
             builder: (BuildContext context) {
               return ExifInfoDialog(file);

@@ -1,6 +1,14 @@
 # Passkeys on Ente
 
-Passkeys is a colloquial term for a relatively new authentication standard called [WebAuthn](https://en.wikipedia.org/wiki/WebAuthn). Now rolled out to all major browsers and operating systems, it uses asymmetric cryptography to authenticate the user with a server using replay-attack resistant signatures. These processes are usually abstracted from the user through biometric prompts, such as Touch ID/Face ID/Optic ID, Fingerprint Unlock and Windows Hello. These passkeys can also be securely synced by major password managers, such as Bitwarden and 1Password, although the syncing experience can greatly vary due to some operating system restrictions.
+Passkeys is a colloquial term for a relatively new authentication standard
+called [WebAuthn](https://en.wikipedia.org/wiki/WebAuthn). Now rolled out to all
+major browsers and operating systems, it uses asymmetric cryptography to
+authenticate the user with a server using replay-attack resistant signatures.
+These processes are usually abstracted from the user through biometric prompts,
+such as Touch ID/Face ID/Optic ID, Fingerprint Unlock and Windows Hello. These
+passkeys can also be securely synced by major password managers, such as
+Bitwarden and 1Password, although the syncing experience can greatly vary due to
+some operating system restrictions.
 
 ## Terms
 
@@ -13,13 +21,22 @@ Passkeys is a colloquial term for a relatively new authentication standard calle
 
 ## Getting to the passkeys manager
 
-As of Feb 2024, Ente clients have a button to navigate to a WebView of Ente Accounts. Ente Accounts allows users to add and manage their registered passkeys.
+As of Jun 2024, Ente clients have a button to navigate to a WebView of Ente
+Accounts. Ente Accounts allows users to add and manage their registered
+passkeys, and later authenticate with them as a second factor.
 
-❗ Your WebView MUST invoke the operating-system's default browser, or an equivalent browser with matching API parity. Otherwise, the user will not be able to register or use registered WebAuthn credentials.
+> [!NOTE]
+>
+> Your WebView MUST invoke the operating-system's default browser, or an
+> equivalent browser with matching API parity. Otherwise, the user will not be
+> able to register or use registered WebAuthn credentials.
 
-### Accounts-Specific Session Token
+### Ente Accounts specific session token
 
-When a user clicks this button, the client sends a request for an Accounts-specific JWT session token as shown below. **The Ente Accounts API is restricted to this type of session token, so the user session token cannot be used.** This restriction is a byproduct of the enablement for automatic login.
+When a user clicks this button, the client sends a request for an
+Accounts-specific JWT session token as shown below. **The Ente Accounts API is
+restricted to this type of session token, so the user session token cannot be
+used.** This restriction is a byproduct of the enablement for automatic login.
 
 #### GET /users/accounts-token
 
@@ -29,25 +46,35 @@ When a user clicks this button, the client sends a request for an Accounts-speci
 | ------------ | ------ | ------------------------------------------------ |
 | X-Auth-Token | string | The user session token. It is encoded in base64. |
 
-##### Response Body (JSON)
+##### Response body (JSON)
 
 | Key           | Type   | Value                                                             |
 | ------------- | ------ | ----------------------------------------------------------------- |
 | accountsToken | string | The Accounts-specific JWT session token. It is encoded in base64. |
 
-### Automatically logging into Accounts
+### Automatically logging into Ente Accounts
 
-Clients open a WebView with the URL `https://accounts.ente.io/accounts-handoff?token=<accountsToken>&package=<app package name>`. This page will appear like a normal loading screen to the user, but in the background, the app parses the token and package for usage in subsequent Accounts-related API calls.
+Clients open a WebView with the URL
+`https://accounts.ente.io/passkeys?token=<accountsToken>`.
 
-If valid, the user will be automatically redirected to the passkeys management page. Otherwise, they will be required to login with their Ente credentials.
+If the token is valid, the user will be show a list of their passkeys, and they
+can edit / delete them, or add new ones.
 
 ## Registering a WebAuthn credential
 
 ### Requesting publicKey options (begin)
 
-The registration ceremony starts in the browser. When the user clicks the "Add new passkey" button, a request is sent to the server for "public key" creation options. Although named "public key" options, they actually define customizable parameters for the entire credential creation process. They're like an instructional sheet that defines exactly what we want. As of the creation of this document, the plan is to restrict user authenticators to cross-platform ones, like hardware keys. Platform authenticators, such as TPM, are not portable and are prone to loss.
+The registration ceremony starts in the browser. When the user clicks the "Add
+new passkey" button, a request is sent to the server for "public key" creation
+options. Although named "public key" options, they actually define customizable
+parameters for the entire credential creation process. They're like an
+instructional sheet that defines exactly what we want.
 
-On the server side, the WebAuthn library generates this information based on data provided from a `webauthn.User` interface. As a result, we satisfy this interface by creating a type with methods returning information from the database. Information stored in the database about credentials are all pre-processed using base64 where necessary.
+On the server side, the WebAuthn library generates this information based on
+data provided from a `webauthn.User` interface. As a result, we satisfy this
+interface by creating a type with methods returning information from the
+database. Information stored in the database about credentials are all
+pre-processed using base64 where necessary.
 
 ```go
 type PasskeyUser struct {
@@ -78,7 +105,7 @@ func (u *PasskeyUser) WebAuthnCredentials() []webauthn.Credential {
 }
 ```
 
-#### GET /passkeys/registration/begin
+#### POST /passkeys/registration/begin
 
 ##### Headers
 
@@ -86,21 +113,18 @@ func (u *PasskeyUser) WebAuthnCredentials() []webauthn.Credential {
 | ------------ | ------ | ------------------------------------------------ |
 | X-Auth-Token | string | The user session token. It is encoded in base64. |
 
-##### Response Body (JSON)
+##### Response body (JSON)
 
-| Key       | Type            | Value                                                                                                                                         |
-| --------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| options   | object          | The credential creation options that will be provided to the browser.                                                                         |
-| sessionID | string (uuidv4) | The identifier the server uses to persist metadata about the registration ceremony, like the user ID and challenge to prevent replay attacks. |
+| Key       | Type          | Value                                                                                                                                         |
+| --------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| options   | object        | The credential creation options that will be provided to the browser.                                                                         |
+| sessionID | string (uuid) | The identifier the server uses to persist metadata about the registration ceremony, like the user ID and challenge to prevent replay attacks. |
 
 ```json
 {
     "options": {
         "publicKey": {
-            "rp": {
-                "name": "Ente",
-                "id": "accounts.ente.io"
-            },
+            "rp": { "name": "Ente", "id": "ente.io" },
             "user": {
                 "name": "james@example.org",
                 "displayName": "",
@@ -108,46 +132,16 @@ func (u *PasskeyUser) WebAuthnCredentials() []webauthn.Credential {
             },
             "challenge": "xYVv1V08dgrsU_4k5niEkFcfIGbwPauWKPBARS6C6Dg",
             "pubKeyCredParams": [
-                {
-                    "type": "public-key",
-                    "alg": -7
-                },
-                {
-                    "type": "public-key",
-                    "alg": -35
-                },
-                {
-                    "type": "public-key",
-                    "alg": -36
-                },
-                {
-                    "type": "public-key",
-                    "alg": -257
-                },
-                {
-                    "type": "public-key",
-                    "alg": -258
-                },
-                {
-                    "type": "public-key",
-                    "alg": -259
-                },
-                {
-                    "type": "public-key",
-                    "alg": -37
-                },
-                {
-                    "type": "public-key",
-                    "alg": -38
-                },
-                {
-                    "type": "public-key",
-                    "alg": -39
-                },
-                {
-                    "type": "public-key",
-                    "alg": -8
-                }
+                { "type": "public-key", "alg": -7 },
+                { "type": "public-key", "alg": -35 },
+                { "type": "public-key", "alg": -36 },
+                { "type": "public-key", "alg": -257 },
+                { "type": "public-key", "alg": -258 },
+                { "type": "public-key", "alg": -259 },
+                { "type": "public-key", "alg": -37 },
+                { "type": "public-key", "alg": -38 },
+                { "type": "public-key", "alg": -39 },
+                { "type": "public-key", "alg": -8 }
             ],
             "timeout": 300000,
             "authenticatorSelection": {
@@ -162,28 +156,26 @@ func (u *PasskeyUser) WebAuthnCredentials() []webauthn.Credential {
 
 ### Pre-processing the options before registration
 
-Even though the server generates these options, the browser still doesn't understand them. For interoperability, the server's WebAuthn library returns binary data in base64, like IDs and the challenge. However, the browser requires this data back in binary.
+Even though the server generates these options, the browser still doesn't
+understand them. For interoperability, the server's WebAuthn library returns
+binary data in base64, like IDs and the challenge. However, the browser requires
+this data back in binary.
 
 We just have to decode the base64 fields back into `Uint8Array`.
 
 ```ts
 const options = response.options;
 
-options.publicKey.challenge = _sodium.from_base64(
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    options.publicKey.challenge,
-);
-options.publicKey.user.id = _sodium.from_base64(
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    options.publicKey.user.id,
-);
+options.publicKey.challenge = sodium.from_base64(options.publicKey.challenge);
+options.publicKey.user.id = sodium.from_base64(options.publicKey.user.id);
 ```
 
 ### Creating the credential
 
-We use `navigator.credentials.create` with these options to generate the credential. At this point, the user will see a prompt to decide where to save this credential, and probably a biometric authentication gate depending on the platform.
+We use `navigator.credentials.create` with these options to generate the
+credential. At this point, the user will see a prompt to decide where to save
+this credential, and probably a biometric authentication gate depending on the
+platform.
 
 ```ts
 const newCredential = await navigator.credentials.create(options);
@@ -191,29 +183,31 @@ const newCredential = await navigator.credentials.create(options);
 
 ### Sending the public key to the server (finish)
 
-The browser returns the newly created credential with a bunch of binary fields, so we have to encode them into base64 for transport to the server.
+The browser returns the newly created credential with a bunch of binary fields,
+so we have to encode them into base64 for transport to the server.
 
 ```ts
-const attestationObjectB64 = _sodium.to_base64(
-	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-	// @ts-ignore
+const attestationObjectB64 = sodium.to_base64(
 	new Uint8Array(credential.response.attestationObject),
-	_sodium.base64_variants.URLSAFE_NO_PADDING
+	sodium.base64_variants.URLSAFE_NO_PADDING
 );
-const clientDataJSONB64 = _sodium.to_base64(
-	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-	// @ts-ignore
+const clientDataJSONB64 = sodium.to_base64(
 	new Uint8Array(credential.response.clientDataJSON),
-	_sodium.base64_variants.URLSAFE_NO_PADDING
+	sodium.base64_variants.URLSAFE_NO_PADDING
 ```
 
-Attestation object contains information about the nature of the credential, like what device it was generated on. Client data JSON contains metadata about the credential, like where it is registered to.
+Attestation object contains information about the nature of the credential, like
+what device it was generated on. Client data JSON contains metadata about the
+credential, like where it is registered to.
 
-After pre-processing, the client sends the public key to the server so it can verify future signatures during authentication.
+After pre-processing, the client sends the public key to the server so it can
+verify future signatures during authentication.
 
 #### POST /passkeys/registration/finish
 
-When the server receives the new public key credential, it pre-processes the JSON objects so they can fit within the database. This includes base64 encoding `[]byte` slices and their encompassing arrays or objects.
+When the server receives the new public key credential, it pre-processes the
+JSON objects so they can fit within the database. This includes base64 encoding
+`[]byte` slices and their encompassing arrays or objects.
 
 ```go
 // Convert the PublicKey to base64
@@ -250,7 +244,7 @@ credID := base64.StdEncoding.EncodeToString(cred.ID)
 
 On retrieval, this process is effectively the opposite.
 
-#### Query Parameters
+#### Query parameters
 
 | Key          | Value                                                                                                   |
 | ------------ | ------------------------------------------------------------------------------------------------------- |
@@ -263,7 +257,7 @@ On retrieval, this process is effectively the opposite.
 | ------------ | ------ | ------------------------------------------------ |
 | X-Auth-Token | string | The user session token. It is encoded in base64. |
 
-##### Request Body (JSON)
+##### Request body (JSON)
 
 | Key      | Type   | Value                                                                                                                                             |
 | -------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -274,7 +268,7 @@ On retrieval, this process is effectively the opposite.
 
 **Example**
 
-```json
+```js
 {
 	id: credential.id,
 	rawId: credential.id,
@@ -288,7 +282,11 @@ On retrieval, this process is effectively the opposite.
 
 ## Authenticating with a credential
 
-Passkeys have been integrated into the existing two-factor ceremony. When logging in via SRP or verifying an email OTT, the server checks if the user has any number of credentials setup or has 2FA TOTP enabled. If the user has setup at least one credential, they will be served a `passkeySessionID` which will initiate the authentication ceremony.
+Passkeys have been integrated into the existing two-factor ceremony. When
+logging in via SRP or verifying an email OTT, the server checks if the user has
+any number of credentials setup or has 2FA TOTP enabled. If the user has setup
+at least one credential, they will be served a `passkeySessionID` which will
+initiate the authentication ceremony.
 
 ```tsx
 const {
@@ -302,25 +300,29 @@ if (passkeySessionID) {
 }
 ```
 
-The client should redirect the user to Accounts with this session ID to prompt credential authentication. We use Accounts as the central WebAuthn hub because credentials are locked to an FQDN.
+The client should redirect the user to the Ente Accounts web app with this
+session ID to prompt credential authentication.
 
-```tsx
-window.location.href = `${getAccountsURL()}/passkeys/flow?passkeySessionID=${passkeySessionID}&redirect=${
-    window.location.origin
-}/passkeys/finish`;
 ```
+https://accounts.ente.io/passkeys?
+    passkeySessionID=<sid>&clientPackage=<pkg>&
+    redirect=<redirect>&recover=<recover-redirect>
+```
+
+We use Ente Accounts as the central WebAuthn hub since it allows us to handle
+mobile and desktop clients too.
 
 ### Requesting publicKey options (begin)
 
-#### GET /users/two-factor/passkeys/begin
+#### POST /users/two-factor/passkeys/begin
 
-##### Query Parameters
+##### Query parameters
 
 | Key       | Value                                                                     |
 | --------- | ------------------------------------------------------------------------- |
 | sessionID | The `passkeySessionID` returned from SRP login or email OTT verification. |
 
-##### Response Body (JSON)
+##### Response body (JSON)
 
 **Example**
 
@@ -331,7 +333,7 @@ window.location.href = `${getAccountsURL()}/passkeys/flow?passkeySessionID=${pas
         "publicKey": {
             "challenge": "dF-mmdZSBxP6Z7OhZrmQ4h-k-BkuuX6ERnW_ckYdkvc",
             "timeout": 300000,
-            "rpId": "accounts.ente.io",
+            "rpId": "ente.io",
             "allowCredentials": [
                 {
                     "type": "public-key",
@@ -352,17 +354,18 @@ window.location.href = `${getAccountsURL()}/passkeys/flow?passkeySessionID=${pas
 
 ### Pre-processing the options before retrieval
 
-The browser requires `Uint8Array` versions of the `options` challenge and credential IDs.
+The browser requires `Uint8Array` versions of the `options` challenge and
+credential IDs.
 
 ```ts
-publicKey.challenge = _sodium.from_base64(
+publicKey.challenge = sodium.from_base64(
     publicKey.challenge,
-    _sodium.base64_variants.URLSAFE_NO_PADDING,
+    sodium.base64_variants.URLSAFE_NO_PADDING,
 );
 publicKey.allowCredentials?.forEach(function (listItem: any) {
-    listItem.id = _sodium.from_base64(
+    listItem.id = sodium.from_base64(
         listItem.id,
-        _sodium.base64_variants.URLSAFE_NO_PADDING,
+        sodium.base64_variants.URLSAFE_NO_PADDING,
     );
 });
 ```
@@ -370,39 +373,30 @@ publicKey.allowCredentials?.forEach(function (listItem: any) {
 ### Retrieving the credential
 
 ```ts
-const credential = await navigator.credentials.get({
-    publicKey: options,
-});
+const credential = await navigator.credentials.get({ publicKey: options });
 ```
 
 ### Pre-processing the credential metadata and signature before authentication
 
-Before sending the public key and signature to the server, their outputs must be encoded into Base64.
+Before sending the public key and signature to the server, their outputs must be
+encoded into Base64.
 
 ```ts
-authenticatorData: _sodium.to_base64(
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
+authenticatorData: sodium.to_base64(
     new Uint8Array(credential.response.authenticatorData),
-    _sodium.base64_variants.URLSAFE_NO_PADDING
+    sodium.base64_variants.URLSAFE_NO_PADDING
 ),
-clientDataJSON: _sodium.to_base64(
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
+clientDataJSON: sodium.to_base64(
     new Uint8Array(credential.response.clientDataJSON),
-    _sodium.base64_variants.URLSAFE_NO_PADDING
+    sodium.base64_variants.URLSAFE_NO_PADDING
 ),
-signature: _sodium.to_base64(
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
+signature: sodium.to_base64(
     new Uint8Array(credential.response.signature),
-    _sodium.base64_variants.URLSAFE_NO_PADDING
+    sodium.base64_variants.URLSAFE_NO_PADDING
 ),
-userHandle: _sodium.to_base64(
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
+userHandle: sodium.to_base64(
     new Uint8Array(credential.response.userHandle),
-    _sodium.base64_variants.URLSAFE_NO_PADDING
+    sodium.base64_variants.URLSAFE_NO_PADDING
 ),
 ```
 
@@ -410,14 +404,14 @@ userHandle: _sodium.to_base64(
 
 #### POST /users/two-factor/passkeys/finish
 
-##### Query Parameters
+##### Query parameters
 
 | Key               | Value                                                                                    |
 | ----------------- | ---------------------------------------------------------------------------------------- |
 | ceremonySessionID | The `ceremonySessionID` identifier from the begin step.                                  |
 | sessionID         | The `passkeySessionID` identifier from the SRP login or email OTT verification response. |
 
-##### Request Body (JSON)
+##### Request body (JSON)
 
 | Key      | Type   | Value                                                                                                                                             |
 | -------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -426,7 +420,7 @@ userHandle: _sodium.to_base64(
 | type     | string | The type of credential.                                                                                                                           |
 | response | object | Contains authenticatorData, clientDataJSON, signature and userHandle fields that were encoded prior to request.                                   |
 
-##### Response Body (JSON)
+##### Response body (JSON)
 
 | Key            | Type   | Value                                       |
 | -------------- | ------ | ------------------------------------------- |

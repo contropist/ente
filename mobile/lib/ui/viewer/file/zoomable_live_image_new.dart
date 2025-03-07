@@ -1,3 +1,4 @@
+import "dart:async";
 import "dart:io";
 
 import 'package:flutter/material.dart';
@@ -5,15 +6,17 @@ import 'package:logging/logging.dart';
 import "package:media_kit/media_kit.dart";
 import "package:media_kit_video/media_kit_video.dart";
 import 'package:motion_photos/motion_photos.dart';
+import "package:path_provider/path_provider.dart";
+import "package:photos/core/event_bus.dart";
+import "package:photos/events/guest_view_event.dart";
 import "package:photos/generated/l10n.dart";
 import "package:photos/models/file/extensions/file_props.dart";
 import 'package:photos/models/file/file.dart';
 import "package:photos/models/metadata/file_magic.dart";
 import "package:photos/services/file_magic_service.dart";
-import "package:photos/services/local_file_update_service.dart";
+import 'package:photos/ui/notification/toast.dart';
 import 'package:photos/ui/viewer/file/zoomable_image.dart';
 import 'package:photos/utils/file_util.dart';
-import 'package:photos/utils/toast_util.dart';
 
 class ZoomableLiveImageNew extends StatefulWidget {
   final EnteFile enteFile;
@@ -23,11 +26,11 @@ class ZoomableLiveImageNew extends StatefulWidget {
 
   const ZoomableLiveImageNew(
     this.enteFile, {
-    Key? key,
+    super.key,
     this.shouldDisableScroll,
     required this.tagPrefix,
     this.backgroundDecoration,
-  }) : super(key: key);
+  });
 
   @override
   State<ZoomableLiveImageNew> createState() => _ZoomableLiveImageNewState();
@@ -43,16 +46,23 @@ class _ZoomableLiveImageNewState extends State<ZoomableLiveImageNew>
   late final _player = Player();
   VideoController? _videoController;
 
+  bool isGuestView = false;
+  late final StreamSubscription<GuestViewEvent> _guestViewEventSubscription;
+
   @override
   void initState() {
+    super.initState();
+
     _enteFile = widget.enteFile;
     _logger.info(
       'initState for ${_enteFile.generatedID} with tag ${_enteFile.tag} and name ${_enteFile.displayName}',
     );
-    if (_enteFile.isLivePhoto && _enteFile.isUploaded) {
-      LocalFileUpdateService.instance.checkLivePhoto(_enteFile).ignore();
-    }
-    super.initState();
+    _guestViewEventSubscription =
+        Bus.instance.on<GuestViewEvent>().listen((event) {
+      setState(() {
+        isGuestView = event.isGuestView;
+      });
+    });
   }
 
   void _onLongPressEvent(bool isPressed) {
@@ -83,6 +93,7 @@ class _ZoomableLiveImageNewState extends State<ZoomableLiveImageNew>
         tagPrefix: widget.tagPrefix,
         shouldDisableScroll: widget.shouldDisableScroll,
         backgroundDecoration: widget.backgroundDecoration,
+        isGuestView: isGuestView,
       );
     }
     return GestureDetector(
@@ -98,6 +109,7 @@ class _ZoomableLiveImageNewState extends State<ZoomableLiveImageNew>
       _videoController!.player.stop();
       _videoController!.player.dispose();
     }
+    _guestViewEventSubscription.cancel();
     super.dispose();
   }
 
@@ -187,6 +199,7 @@ class _ZoomableLiveImageNewState extends State<ZoomableLiveImageNew>
           ).ignore();
         }
         return motionPhoto.getMotionVideoFile(
+          await getTemporaryDirectory(),
           index: index,
         );
       } else if (_enteFile.isMotionPhoto && _enteFile.canEditMetaInfo) {

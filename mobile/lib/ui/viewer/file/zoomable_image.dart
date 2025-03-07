@@ -2,19 +2,17 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
+import "package:flutter_image_compress/flutter_image_compress.dart";
 import 'package:logging/logging.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photos/core/cache/thumbnail_in_memory_cache.dart';
 import 'package:photos/core/constants.dart';
 import 'package:photos/core/event_bus.dart';
 import 'package:photos/db/files_db.dart';
-import 'package:photos/events/files_updated_event.dart';
+import "package:photos/events/files_updated_event.dart";
 import 'package:photos/events/local_photos_updated_event.dart';
 import "package:photos/models/file/extensions/file_props.dart";
 import 'package:photos/models/file/file.dart';
-import "package:photos/models/metadata/file_magic.dart";
-import "package:photos/services/file_magic_service.dart";
 import "package:photos/ui/actions/file/file_actions.dart";
 import 'package:photos/ui/common/loading_widget.dart';
 import 'package:photos/utils/file_util.dart';
@@ -27,22 +25,23 @@ class ZoomableImage extends StatefulWidget {
   final String? tagPrefix;
   final Decoration? backgroundDecoration;
   final bool shouldCover;
+  final bool isGuestView;
 
   const ZoomableImage(
     this.photo, {
-    Key? key,
+    super.key,
     this.shouldDisableScroll,
     required this.tagPrefix,
     this.backgroundDecoration,
     this.shouldCover = false,
-  }) : super(key: key);
+    this.isGuestView = false,
+  });
 
   @override
   State<ZoomableImage> createState() => _ZoomableImageState();
 }
 
-class _ZoomableImageState extends State<ZoomableImage>
-    with SingleTickerProviderStateMixin {
+class _ZoomableImageState extends State<ZoomableImage> {
   late Logger _logger;
   late EnteFile _photo;
   ImageProvider? _imageProvider;
@@ -51,12 +50,15 @@ class _ZoomableImageState extends State<ZoomableImage>
   bool _loadedLargeThumbnail = false;
   bool _loadingFinalImage = false;
   bool _loadedFinalImage = false;
+  bool _convertToSupportedFormat = false;
   ValueChanged<PhotoViewScaleState>? _scaleStateChangedCallback;
   bool _isZooming = false;
   PhotoViewController _photoViewController = PhotoViewController();
+  final _scaleStateController = PhotoViewScaleStateController();
 
   @override
   void initState() {
+    super.initState();
     _photo = widget.photo;
     _logger = Logger("ZoomableImage");
     _logger.info('initState for ${_photo.generatedID} with tag ${_photo.tag}');
@@ -68,12 +70,12 @@ class _ZoomableImageState extends State<ZoomableImage>
       debugPrint("isZooming = $_isZooming, currentState $value");
       // _logger.info('is reakky zooming $_isZooming with state $value');
     };
-    super.initState();
   }
 
   @override
   void dispose() {
     _photoViewController.dispose();
+    _scaleStateController.dispose();
     super.dispose();
   }
 
@@ -90,8 +92,10 @@ class _ZoomableImageState extends State<ZoomableImage>
       content = PhotoViewGestureDetectorScope(
         axis: Axis.vertical,
         child: PhotoView(
+          key: ValueKey(_loadedFinalImage),
           imageProvider: _imageProvider,
           controller: _photoViewController,
+          scaleStateController: _scaleStateController,
           scaleStateChangedCallback: _scaleStateChangedCallback,
           minScale: widget.shouldCover
               ? PhotoViewComputedScale.covered
@@ -101,27 +105,66 @@ class _ZoomableImageState extends State<ZoomableImage>
             tag: widget.tagPrefix! + _photo.tag,
           ),
           backgroundDecoration: widget.backgroundDecoration as BoxDecoration?,
+          loadingBuilder: (context, event) {
+            // This is to make sure the hero anitmation animates and fits in the
+            //dimensions of the image on screen.
+            final screenDimensions = MediaQuery.sizeOf(context);
+            late final double screenRelativeImageWidth;
+            late final double screenRelativeImageHeight;
+            final screenWidth = screenDimensions.width;
+            final screenHeight = screenDimensions.height;
+
+            final aspectRatioOfScreen = screenWidth / screenHeight;
+            final aspectRatioOfImage = _photo.width / _photo.height;
+
+            if (aspectRatioOfImage > aspectRatioOfScreen) {
+              screenRelativeImageWidth = screenWidth;
+              screenRelativeImageHeight = screenWidth / aspectRatioOfImage;
+            } else if (aspectRatioOfImage < aspectRatioOfScreen) {
+              screenRelativeImageHeight = screenHeight;
+              screenRelativeImageWidth = screenHeight * aspectRatioOfImage;
+            } else {
+              screenRelativeImageWidth = screenWidth;
+              screenRelativeImageHeight = screenHeight;
+            }
+
+            return Center(
+              child: SizedBox(
+                width: screenRelativeImageWidth,
+                height: screenRelativeImageHeight,
+                child: Hero(
+                  tag: widget.tagPrefix! + _photo.tag,
+                  child: const EnteLoadingWidget(
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       );
     } else {
-      content = const EnteLoadingWidget();
+      content = const EnteLoadingWidget(
+        color: Colors.white,
+      );
     }
 
-    final GestureDragUpdateCallback? verticalDragCallback = _isZooming
-        ? null
-        : (d) => {
-              if (!_isZooming)
-                {
-                  if (d.delta.dy > dragSensitivity)
+    final GestureDragUpdateCallback? verticalDragCallback =
+        _isZooming || widget.isGuestView
+            ? null
+            : (d) => {
+                  if (!_isZooming)
                     {
-                      {Navigator.of(context).pop()},
-                    }
-                  else if (d.delta.dy < (dragSensitivity * -1))
-                    {
-                      showDetailsSheet(context, widget.photo),
+                      if (d.delta.dy > dragSensitivity)
+                        {
+                          {Navigator.of(context).pop()},
+                        }
+                      else if (d.delta.dy < (dragSensitivity * -1))
+                        {
+                          showDetailsSheet(context, widget.photo),
+                        },
                     },
-                },
-            };
+                };
     return GestureDetector(
       onVerticalDragUpdate: verticalDragCallback,
       child: content,
@@ -157,11 +200,8 @@ class _ZoomableImageState extends State<ZoomableImage>
       _loadingFinalImage = true;
       getFileFromServer(_photo).then((file) {
         if (file != null) {
-          _onFinalImageLoaded(
-            Image.file(
-              file,
-              gaplessPlayback: true,
-            ).image,
+          _onFileLoaded(
+            file,
           );
         } else {
           _loadingFinalImage = false;
@@ -202,7 +242,9 @@ class _ZoomableImageState extends State<ZoomableImage>
             _isGIF(), // since on iOS GIFs playback only when origin-files are loaded
       ).then((file) {
         if (file != null && file.existsSync()) {
-          _onFinalImageLoaded(Image.file(file).image);
+          _onFileLoaded(
+            file,
+          );
         } else {
           _logger.info("File was deleted " + _photo.toString());
           if (_photo.uploadedFileID != null) {
@@ -240,22 +282,43 @@ class _ZoomableImageState extends State<ZoomableImage>
     }
   }
 
-  void _onFinalImageLoaded(ImageProvider imageProvider) {
+  void _onFileLoaded(File file) {
+    final imageProvider = Image.file(
+      file,
+      gaplessPlayback: true,
+    ).image;
+
     if (mounted) {
-      precacheImage(imageProvider, context).then((value) async {
-        if (mounted) {
-          await _updatePhotoViewController(
-            previewImageProvider: _imageProvider,
-            finalImageProvider: imageProvider,
-          );
-          setState(() {
-            _imageProvider = imageProvider;
-            _loadedFinalImage = true;
-            _logger.info("Final image loaded");
-          });
+      precacheImage(
+        imageProvider,
+        context,
+        onError: (exception, _) async {
+          _logger
+              .info(exception.toString() + ". Filename: ${_photo.displayName}");
+          if (exception.toString().contains(
+                "Codec failed to produce an image, possibly due to invalid image data",
+              )) {
+            unawaited(_loadInSupportedFormat(file));
+          }
+        },
+      ).then((value) {
+        if (mounted && !_loadedFinalImage && !_convertToSupportedFormat) {
+          _updateViewWithFinalImage(imageProvider);
         }
       });
     }
+  }
+
+  Future<void> _updateViewWithFinalImage(ImageProvider imageProvider) async {
+    await _updatePhotoViewController(
+      previewImageProvider: _imageProvider,
+      finalImageProvider: imageProvider,
+    );
+    setState(() {
+      _imageProvider = imageProvider;
+      _loadedFinalImage = true;
+      _logger.info("Final image loaded");
+    });
   }
 
   Future<void> _updatePhotoViewController({
@@ -272,45 +335,44 @@ class _ZoomableImageState extends State<ZoomableImage>
       final scale = _photoViewController.scale! /
           (finalImageInfo.image.width / prevImageInfo.image.width);
       final currentPosition = _photoViewController.value.position;
-      final positionScaleFactor = 1 / scale;
-      final newPosition = currentPosition.scale(
-        positionScaleFactor,
-        positionScaleFactor,
-      );
       _photoViewController = PhotoViewController(
-        initialPosition: newPosition,
+        initialPosition: currentPosition,
         initialScale: scale,
       );
+      // Fix for auto-zooming when final image is loaded after double tapping
+      //twice.
+      _scaleStateController.scaleState = PhotoViewScaleState.zoomedIn;
     }
     final bool canUpdateMetadata = _photo.canEditMetaInfo;
     // forcefully get finalImageInfo is dimensions are not available in metadata
     if (finalImageInfo == null && canUpdateMetadata && !_photo.hasDimensions) {
       finalImageInfo = await getImageInfo(finalImageProvider);
     }
-    if (finalImageInfo != null && canUpdateMetadata) {
-      _updateAspectRatioIfNeeded(_photo, finalImageInfo).ignore();
-    }
-  }
-
-  // Fallback logic to finish back fill and update aspect
-  // ratio if needed.
-  Future<void> _updateAspectRatioIfNeeded(
-    EnteFile enteFile,
-    ImageInfo imageInfo,
-  ) async {
-    final int h = imageInfo.image.height, w = imageInfo.image.width;
-    if (h != enteFile.height || w != enteFile.width) {
-      final logMessage =
-          'Updating aspect ratio for from ${enteFile.height}x${enteFile.width} to ${h}x$w';
-      _logger.info(logMessage);
-      await FileMagicService.instance.updatePublicMagicMetadata([
-        enteFile,
-      ], {
-        heightKey: h,
-        widthKey: w,
-      });
-    }
   }
 
   bool _isGIF() => _photo.displayName.toLowerCase().endsWith(".gif");
+
+  Future<void> _loadInSupportedFormat(File file) async {
+    _logger.info("Compressing ${_photo.displayName} to viewable format");
+    _convertToSupportedFormat = true;
+
+    final compressedFile =
+        await FlutterImageCompress.compressWithFile(file.path);
+
+    if (compressedFile != null) {
+      final imageProvider = MemoryImage(compressedFile);
+
+      unawaited(
+        precacheImage(imageProvider, context).then((value) {
+          if (mounted) {
+            _updateViewWithFinalImage(imageProvider);
+          }
+        }),
+      );
+    } else {
+      _logger.severe(
+        "Failed to compress image ${_photo.displayName} to viewable format",
+      );
+    }
+  }
 }

@@ -14,15 +14,15 @@ import "package:photos/theme/ente_theme.dart";
 import 'package:photos/ui/viewer/file/detail_page.dart';
 import 'package:photos/ui/viewer/file/thumbnail_widget.dart';
 import 'package:photos/ui/viewer/gallery/empty_state.dart';
-import 'package:photos/utils/data_util.dart';
 import 'package:photos/utils/delete_file_util.dart';
 import "package:photos/utils/dialog_util.dart";
 import 'package:photos/utils/navigation_util.dart';
+import 'package:photos/utils/standalone/data.dart';
 
 class DeduplicatePage extends StatefulWidget {
   final List<DuplicateFiles> duplicates;
 
-  const DeduplicatePage(this.duplicates, {Key? key}) : super(key: key);
+  const DeduplicatePage(this.duplicates, {super.key});
 
   @override
   State<DeduplicatePage> createState() => _DeduplicatePageState();
@@ -123,8 +123,6 @@ class _DeduplicatePageState extends State<DeduplicatePage> {
           return bSize - aSize;
         case SortKey.count:
           return second.files.length - first.files.length;
-        default:
-          throw Exception("Unexpected sort key $sortKey");
       }
     });
   }
@@ -442,7 +440,6 @@ class _DeduplicatePageState extends State<DeduplicatePage> {
           DetailPage(
             DetailPageConfiguration(
               files,
-              null,
               files.indexOf(file),
               "deduplicate_",
               mode: DetailPageMode.minimalistic,
@@ -459,7 +456,6 @@ class _DeduplicatePageState extends State<DeduplicatePage> {
           DetailPage(
             DetailPageConfiguration(
               files,
-              null,
               files.indexOf(file),
               "deduplicate_",
               mode: DetailPageMode.minimalistic,

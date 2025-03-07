@@ -1,136 +1,50 @@
-import { setupI18n } from "@/ui/i18n";
-import { CacheProvider } from "@emotion/react";
-import { APPS, APP_TITLES } from "@ente/shared/apps/constants";
-import { EnteAppProps } from "@ente/shared/apps/types";
-import { Overlay } from "@ente/shared/components/Container";
-import DialogBoxV2 from "@ente/shared/components/DialogBoxV2";
-import {
-    DialogBoxAttributesV2,
-    SetDialogBoxAttributesV2,
-} from "@ente/shared/components/DialogBoxV2/types";
-import EnteSpinner from "@ente/shared/components/EnteSpinner";
-import AppNavbar from "@ente/shared/components/Navbar/app";
-import { useLocalState } from "@ente/shared/hooks/useLocalState";
-import HTTPService from "@ente/shared/network/HTTPService";
-import { LS_KEYS, getData } from "@ente/shared/storage/localStorage";
-import { getTheme } from "@ente/shared/themes";
-import { THEME_COLOR } from "@ente/shared/themes/constants";
-import createEmotionCache from "@ente/shared/themes/createEmotionCache";
-import { CssBaseline, useMediaQuery } from "@mui/material";
+import { staticAppTitle } from "@/base/app";
+import { assertionFailed } from "@/base/assert";
+import { CustomHead } from "@/base/components/Head";
+import { LoadingIndicator } from "@/base/components/loaders";
+import { AttributedMiniDialog } from "@/base/components/MiniDialog";
+import { useAttributedMiniDialog } from "@/base/components/utils/dialog";
+import { useSetupI18n, useSetupLogs } from "@/base/components/utils/hooks-app";
+import { photosTheme } from "@/base/components/utils/theme";
+import { BaseContext, deriveBaseContext } from "@/base/context";
+import "@fontsource-variable/inter";
+import { CssBaseline } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
-import Head from "next/head";
-import { useRouter } from "next/router";
-import { createContext, useEffect, useState } from "react";
-import "styles/global.css";
+import { t } from "i18next";
+import type { AppProps } from "next/app";
+import React, { useMemo } from "react";
 
-interface AppContextProps {
-    isMobile: boolean;
-    showNavBar: (show: boolean) => void;
-    setDialogBoxAttributesV2: SetDialogBoxAttributesV2;
-}
+const App: React.FC<AppProps> = ({ Component, pageProps }) => {
+    useSetupLogs({ disableDiskLogs: true });
 
-export const AppContext = createContext<AppContextProps>({} as AppContextProps);
+    const isI18nReady = useSetupI18n();
+    const { showMiniDialog, miniDialogProps } = useAttributedMiniDialog();
 
-// Client-side cache, shared for the whole session of the user in the browser.
-const clientSideEmotionCache = createEmotionCache();
+    // No code in the accounts app is currently expected to reach a code path
+    // where they would need to "logout". Also, the accounts app doesn't store
+    // any user specific persistent state that'd need to be cleared, so there
+    // really isn't anything to do here even if we needed to.
+    const logout = assertionFailed;
 
-export default function App(props: EnteAppProps) {
-    const [isI18nReady, setIsI18nReady] = useState<boolean>(false);
-
-    const [showNavbar, setShowNavBar] = useState(false);
-
-    const [dialogBoxAttributeV2, setDialogBoxAttributesV2] =
-        useState<DialogBoxAttributesV2>();
-
-    const [dialogBoxV2View, setDialogBoxV2View] = useState(false);
-
-    useEffect(() => {
-        setDialogBoxV2View(true);
-    }, [dialogBoxAttributeV2]);
-
-    const showNavBar = (show: boolean) => setShowNavBar(show);
-
-    const isMobile = useMediaQuery("(max-width:428px)");
-
-    const router = useRouter();
-
-    const {
-        Component,
-        emotionCache = clientSideEmotionCache,
-        pageProps,
-    } = props;
-
-    const [themeColor] = useLocalState(LS_KEYS.THEME, THEME_COLOR.DARK);
-
-    useEffect(() => {
-        setupI18n().finally(() => setIsI18nReady(true));
-    }, []);
-
-    const setupPackageName = () => {
-        const pkg = getData(LS_KEYS.CLIENT_PACKAGE);
-        if (!pkg) return;
-        HTTPService.setHeaders({
-            "X-Client-Package": pkg.name,
-        });
-    };
-
-    useEffect(() => {
-        router.events.on("routeChangeComplete", setupPackageName);
-        return () => {
-            router.events.off("routeChangeComplete", setupPackageName);
-        };
-    }, [router.events]);
-
-    const closeDialogBoxV2 = () => setDialogBoxV2View(false);
-
-    const theme = getTheme(themeColor, APPS.PHOTOS);
-
-    // TODO: Localise APP_TITLES
-    return (
-        <CacheProvider value={emotionCache}>
-            <Head>
-                <title>{APP_TITLES.get(APPS.ACCOUNTS)}</title>
-                <meta
-                    name="viewport"
-                    content="initial-scale=1, width=device-width"
-                />
-            </Head>
-
-            <ThemeProvider theme={theme}>
-                <CssBaseline enableColorScheme />
-                <DialogBoxV2
-                    sx={{ zIndex: 1600 }}
-                    open={dialogBoxV2View}
-                    onClose={closeDialogBoxV2}
-                    attributes={dialogBoxAttributeV2 as any}
-                />
-
-                <AppContext.Provider
-                    value={{
-                        isMobile,
-                        showNavBar,
-                        setDialogBoxAttributesV2:
-                            setDialogBoxAttributesV2 as any,
-                    }}
-                >
-                    {!isI18nReady && (
-                        <Overlay
-                            sx={(theme) => ({
-                                display: "flex",
-                                justifyContent: "center",
-                                alignItems: "center",
-                                zIndex: 2000,
-                                backgroundColor: (theme as any).colors
-                                    .background.base,
-                            })}
-                        >
-                            <EnteSpinner />
-                        </Overlay>
-                    )}
-                    {showNavbar && <AppNavbar isMobile={isMobile} />}
-                    <Component {...pageProps} />
-                </AppContext.Provider>
-            </ThemeProvider>
-        </CacheProvider>
+    const baseContext = useMemo(
+        () => deriveBaseContext({ logout, showMiniDialog }),
+        [logout, showMiniDialog],
     );
-}
+
+    const title = isI18nReady ? t("title_accounts") : staticAppTitle;
+
+    return (
+        <ThemeProvider theme={photosTheme}>
+            <CustomHead {...{ title }} />
+            <CssBaseline enableColorScheme />
+            <AttributedMiniDialog {...miniDialogProps} />
+
+            <BaseContext value={baseContext}>
+                {!isI18nReady && <LoadingIndicator />}
+                {isI18nReady && <Component {...pageProps} />}
+            </BaseContext>
+        </ThemeProvider>
+    );
+};
+
+export default App;

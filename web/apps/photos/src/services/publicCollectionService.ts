@@ -1,24 +1,23 @@
-import ComlinkCryptoWorker from "@ente/shared/crypto";
+import { sharedCryptoWorker } from "@/base/crypto";
+import log from "@/base/log";
+import { apiURL } from "@/base/origins";
+import type {
+    Collection,
+    CollectionPublicMagicMetadata,
+} from "@/media/collection";
+import type { EncryptedEnteFile, EnteFile } from "@/media/file";
+import { decryptFile, mergeMetadata } from "@/media/file";
+import { sortFiles } from "@/new/photos/services/files";
 import { CustomError, parseSharingErrorCodes } from "@ente/shared/error";
 import HTTPService from "@ente/shared/network/HTTPService";
-import { getEndpoint } from "@ente/shared/network/api";
-import { logError } from "@ente/shared/sentry";
 import localForage from "@ente/shared/storage/localForage";
-import { REPORT_REASON } from "constants/publicCollection";
-import { Collection, CollectionPublicMagicMetadata } from "types/collection";
-import { EncryptedEnteFile, EnteFile } from "types/file";
-import {
-    AbuseReportDetails,
-    AbuseReportRequest,
-    LocalSavedPublicCollectionFiles,
-} from "types/publicCollection";
-import { decryptFile, mergeMetadata, sortFiles } from "utils/file";
 
-const ENDPOINT = getEndpoint();
 const PUBLIC_COLLECTION_FILES_TABLE = "public-collection-files";
 const PUBLIC_COLLECTIONS_TABLE = "public-collections";
 const PUBLIC_REFERRAL_CODE = "public-referral-code";
 
+// Fix this once we can trust the types.
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-template-expression
 export const getPublicCollectionUID = (token: string) => `${token}`;
 
 const getPublicCollectionLastSyncTimeKey = (collectionUID: string) =>
@@ -43,6 +42,11 @@ export const savePublicCollectionUploaderName = async (
         getPublicCollectionUploaderNameKey(collectionUID),
         uploaderName,
     );
+
+export interface LocalSavedPublicCollectionFiles {
+    collectionUID: string;
+    files: EnteFile[];
+}
 
 export const getLocalPublicFiles = async (collectionUID: string) => {
     const localSavedPublicCollectionFiles =
@@ -228,14 +232,14 @@ export const syncPublicFiles = async (
             setPublicFiles([...sortFiles(mergeMetadata(files), sortAsc)]);
         } catch (e) {
             const parsedError = parseSharingErrorCodes(e);
-            logError(e, "failed to sync shared collection files");
+            log.error("failed to sync shared collection files", e);
             if (parsedError.message === CustomError.TOKEN_EXPIRED) {
                 throw e;
             }
         }
         return [...sortFiles(mergeMetadata(files), sortAsc)];
     } catch (e) {
-        logError(e, "failed to get local  or sync shared collection files");
+        log.error("failed to get local  or sync shared collection files", e);
         throw e;
     }
 };
@@ -258,12 +262,9 @@ const getPublicFiles = async (
                 break;
             }
             resp = await HTTPService.get(
-                `${ENDPOINT}/public-collection/diff`,
+                await apiURL("/public-collection/diff"),
+                { sinceTime: time },
                 {
-                    sinceTime: time,
-                },
-                {
-                    "Cache-Control": "no-cache",
                     "X-Auth-Access-Token": token,
                     ...(passwordToken && {
                         "X-Auth-Access-Token-JWT": passwordToken,
@@ -299,7 +300,7 @@ const getPublicFiles = async (
         } while (resp.data.hasMore);
         return decryptedFiles;
     } catch (e) {
-        logError(e, "Get public  files failed");
+        log.error("Get public  files failed", e);
         throw e;
     }
 };
@@ -313,14 +314,14 @@ export const getPublicCollection = async (
             return;
         }
         const resp = await HTTPService.get(
-            `${ENDPOINT}/public-collection/info`,
+            await apiURL("/public-collection/info"),
             null,
-            { "Cache-Control": "no-cache", "X-Auth-Access-Token": token },
+            { "X-Auth-Access-Token": token },
         );
         const fetchedCollection = resp.data.collection;
         const referralCode = resp.data.referralCode ?? "";
 
-        const cryptoWorker = await ComlinkCryptoWorker.getInstance();
+        const cryptoWorker = await sharedCryptoWorker();
 
         const collectionName = (fetchedCollection.name =
             fetchedCollection.name ||
@@ -334,11 +335,12 @@ export const getPublicCollection = async (
         if (fetchedCollection.pubMagicMetadata?.data) {
             collectionPublicMagicMetadata = {
                 ...fetchedCollection.pubMagicMetadata,
-                data: await cryptoWorker.decryptMetadata(
-                    fetchedCollection.pubMagicMetadata.data,
-                    fetchedCollection.pubMagicMetadata.header,
-                    collectionKey,
-                ),
+                data: await cryptoWorker.decryptMetadataJSON({
+                    encryptedDataB64: fetchedCollection.pubMagicMetadata.data,
+                    decryptionHeaderB64:
+                        fetchedCollection.pubMagicMetadata.header,
+                    keyB64: collectionKey,
+                }),
             };
         }
 
@@ -352,50 +354,7 @@ export const getPublicCollection = async (
         await saveReferralCode(referralCode);
         return [collection, referralCode];
     } catch (e) {
-        logError(e, "failed to get public collection");
-        throw e;
-    }
-};
-
-export const verifyPublicCollectionPassword = async (
-    token: string,
-    passwordHash: string,
-): Promise<string> => {
-    try {
-        const resp = await HTTPService.post(
-            `${ENDPOINT}/public-collection/verify-password`,
-            { passHash: passwordHash },
-            null,
-            { "Cache-Control": "no-cache", "X-Auth-Access-Token": token },
-        );
-        const jwtToken = resp.data.jwtToken;
-        return jwtToken;
-    } catch (e) {
-        logError(e, "failed to verify public collection password");
-        throw e;
-    }
-};
-
-export const reportAbuse = async (
-    token: string,
-    url: string,
-    reason: REPORT_REASON,
-    details: AbuseReportDetails,
-) => {
-    try {
-        if (!token) {
-            return;
-        }
-        const abuseReportRequest: AbuseReportRequest = { url, reason, details };
-
-        await HTTPService.post(
-            `${ENDPOINT}/public-collection/report-abuse`,
-            abuseReportRequest,
-            null,
-            { "X-Auth-Access-Token": token },
-        );
-    } catch (e) {
-        logError(e, "failed to post abuse report");
+        log.error("failed to get public collection", e);
         throw e;
     }
 };

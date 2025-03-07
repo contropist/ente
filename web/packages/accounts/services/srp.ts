@@ -1,22 +1,19 @@
-import { SRP, SrpClient } from "fast-srp-hap";
-
-import { SRPAttributes, SRPSetupAttributes } from "../types/srp";
-
-import { UserVerificationResponse } from "@ente/accounts/types/user";
-import ComlinkCryptoWorker from "@ente/shared/crypto";
+import { sharedCryptoWorker } from "@/base/crypto";
+import log from "@/base/log";
 import { generateLoginSubKey } from "@ente/shared/crypto/helpers";
-import { addLocalLog } from "@ente/shared/logging";
-import { logError } from "@ente/shared/sentry";
-import InMemoryStore, { MS_KEYS } from "@ente/shared/storage/InMemoryStore";
 import { getToken } from "@ente/shared/storage/localStorage/helpers";
+import type { KeyAttributes } from "@ente/shared/user/types";
+import { SRP, SrpClient } from "fast-srp-hap";
 import { v4 as uuidv4 } from "uuid";
 import {
     completeSRPSetup,
     createSRPSession,
     startSRPSetup,
     verifySRPSession,
-} from "../api/srp";
-import { convertBase64ToBuffer, convertBufferToBase64 } from "../utils";
+    type SRPAttributes,
+    type SRPSetupAttributes,
+} from "./srp-remote";
+import type { UserVerificationResponse } from "./user";
 
 const SRP_PARAMS = SRP.params["4096"];
 
@@ -27,13 +24,6 @@ export const configureSRP = async ({
     loginSubKey,
 }: SRPSetupAttributes) => {
     try {
-        const srpConfigureInProgress = InMemoryStore.get(
-            MS_KEYS.SRP_CONFIGURE_IN_PROGRESS,
-        );
-        if (srpConfigureInProgress) {
-            throw Error("SRP configure already in progress");
-        }
-        InMemoryStore.set(MS_KEYS.SRP_CONFIGURE_IN_PROGRESS, true);
         const srpClient = await generateSRPClient(
             srpSalt,
             srpUserID,
@@ -42,7 +32,7 @@ export const configureSRP = async ({
 
         const srpA = convertBufferToBase64(srpClient.computeA());
 
-        addLocalLog(() => `srp a: ${srpA}`);
+        log.debug(() => `srp a: ${srpA}`);
         const token = getToken();
         const { setupID, srpB } = await startSRPSetup(token, {
             srpA,
@@ -55,27 +45,23 @@ export const configureSRP = async ({
 
         const srpM1 = convertBufferToBase64(srpClient.computeM1());
 
-        const { srpM2 } = await completeSRPSetup(token, {
-            srpM1,
-            setupID,
-        });
+        const { srpM2 } = await completeSRPSetup(token, { srpM1, setupID });
 
         srpClient.checkM2(convertBase64ToBuffer(srpM2));
     } catch (e) {
-        logError(e, "srp configure failed");
+        log.error("Failed to configure SRP", e);
         throw e;
-    } finally {
-        InMemoryStore.set(MS_KEYS.SRP_CONFIGURE_IN_PROGRESS, false);
     }
 };
 
 export const generateSRPSetupAttributes = async (
     loginSubKey: string,
 ): Promise<SRPSetupAttributes> => {
-    const cryptoWorker = await ComlinkCryptoWorker.getInstance();
+    const cryptoWorker = await sharedCryptoWorker();
 
     const srpSalt = await cryptoWorker.generateSaltToDeriveKey();
 
+    // Museum schema requires this to be a UUID.
     const srpUserID = uuidv4();
 
     const srpVerifierBuffer = SRP.computeVerifier(
@@ -87,22 +73,13 @@ export const generateSRPSetupAttributes = async (
 
     const srpVerifier = convertBufferToBase64(srpVerifierBuffer);
 
-    addLocalLog(
-        () => `SRP setup attributes generated',
-        ${JSON.stringify({
-            srpSalt,
-            srpUserID,
-            srpVerifier,
-            loginSubKey,
-        })}`,
+    const result = { srpUserID, srpSalt, srpVerifier, loginSubKey };
+
+    log.debug(
+        () => `SRP setup attributes generated: ${JSON.stringify(result)}`,
     );
 
-    return {
-        srpUserID,
-        srpSalt,
-        srpVerifier,
-        loginSubKey,
-    };
+    return result;
 };
 
 export const loginViaSRP = async (
@@ -124,20 +101,20 @@ export const loginViaSRP = async (
         srpClient.setB(convertBase64ToBuffer(srpB));
 
         const m1 = srpClient.computeM1();
-        addLocalLog(() => `srp m1: ${convertBufferToBase64(m1)}`);
+        log.debug(() => `srp m1: ${convertBufferToBase64(m1)}`);
         const { srpM2, ...rest } = await verifySRPSession(
             sessionID,
             srpAttributes.srpUserID,
             convertBufferToBase64(m1),
         );
-        addLocalLog(() => `srp verify session successful,srpM2: ${srpM2}`);
+        log.debug(() => `srp verify session successful,srpM2: ${srpM2}`);
 
         srpClient.checkM2(convertBase64ToBuffer(srpM2));
 
-        addLocalLog(() => `srp server verify successful`);
+        log.debug(() => `srp server verify successful`);
         return rest;
     } catch (e) {
-        logError(e, "srp verify failed");
+        log.error("srp verify failed", e);
         throw e;
     }
 };
@@ -171,8 +148,73 @@ export const generateSRPClient = async (
 
                 resolve(srpClient);
             } catch (e) {
+                // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
                 reject(e);
             }
         });
     });
 };
+
+export const convertBufferToBase64 = (buffer: Buffer) => {
+    return buffer.toString("base64");
+};
+
+export const convertBase64ToBuffer = (base64: string) => {
+    return Buffer.from(base64, "base64");
+};
+
+export async function generateKeyAndSRPAttributes(
+    passphrase: string,
+): Promise<{
+    keyAttributes: KeyAttributes;
+    masterKey: string;
+    srpSetupAttributes: SRPSetupAttributes;
+}> {
+    const cryptoWorker = await sharedCryptoWorker();
+    const masterKey = await cryptoWorker.generateEncryptionKey();
+    const recoveryKey = await cryptoWorker.generateEncryptionKey();
+    const kekSalt = await cryptoWorker.generateSaltToDeriveKey();
+    const kek = await cryptoWorker.deriveSensitiveKey(passphrase, kekSalt);
+
+    const masterKeyEncryptedWithKek = await cryptoWorker.encryptToB64(
+        masterKey,
+        kek.key,
+    );
+    const masterKeyEncryptedWithRecoveryKey = await cryptoWorker.encryptToB64(
+        masterKey,
+        recoveryKey,
+    );
+    const recoveryKeyEncryptedWithMasterKey = await cryptoWorker.encryptToB64(
+        recoveryKey,
+        masterKey,
+    );
+
+    const keyPair = await cryptoWorker.generateKeyPair();
+    const encryptedKeyPairAttributes = await cryptoWorker.encryptToB64(
+        keyPair.privateKey,
+        masterKey,
+    );
+
+    const loginSubKey = await generateLoginSubKey(kek.key);
+
+    const srpSetupAttributes = await generateSRPSetupAttributes(loginSubKey);
+
+    const keyAttributes: KeyAttributes = {
+        kekSalt,
+        encryptedKey: masterKeyEncryptedWithKek.encryptedData,
+        keyDecryptionNonce: masterKeyEncryptedWithKek.nonce,
+        publicKey: keyPair.publicKey,
+        encryptedSecretKey: encryptedKeyPairAttributes.encryptedData,
+        secretKeyDecryptionNonce: encryptedKeyPairAttributes.nonce,
+        opsLimit: kek.opsLimit,
+        memLimit: kek.memLimit,
+        masterKeyEncryptedWithRecoveryKey:
+            masterKeyEncryptedWithRecoveryKey.encryptedData,
+        masterKeyDecryptionNonce: masterKeyEncryptedWithRecoveryKey.nonce,
+        recoveryKeyEncryptedWithMasterKey:
+            recoveryKeyEncryptedWithMasterKey.encryptedData,
+        recoveryKeyDecryptionNonce: recoveryKeyEncryptedWithMasterKey.nonce,
+    };
+
+    return { keyAttributes, masterKey, srpSetupAttributes };
+}

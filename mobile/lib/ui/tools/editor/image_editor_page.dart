@@ -2,6 +2,7 @@ import "dart:async";
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
+import 'dart:ui' as ui show Image;
 
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
@@ -16,16 +17,16 @@ import 'package:photos/events/local_photos_updated_event.dart';
 import "package:photos/generated/l10n.dart";
 import 'package:photos/models/file/file.dart' as ente;
 import 'package:photos/models/location/location.dart';
-import 'package:photos/services/sync_service.dart';
+import 'package:photos/services/sync/sync_service.dart';
 import 'package:photos/ui/common/loading_widget.dart';
 import 'package:photos/ui/components/action_sheet_widget.dart';
 import 'package:photos/ui/components/buttons/button_widget.dart';
 import 'package:photos/ui/components/models/button_type.dart';
+import 'package:photos/ui/notification/toast.dart';
 import 'package:photos/ui/tools/editor/filtered_image.dart';
 import 'package:photos/ui/viewer/file/detail_page.dart';
 import 'package:photos/utils/dialog_util.dart';
 import 'package:photos/utils/navigation_util.dart';
-import 'package:photos/utils/toast_util.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
 import 'package:syncfusion_flutter_sliders/sliders.dart';
 
@@ -38,8 +39,8 @@ class ImageEditorPage extends StatefulWidget {
     this.imageProvider,
     this.originalFile,
     this.detailPageConfig, {
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<ImageEditorPage> createState() => _ImageEditorPageState();
@@ -63,14 +64,14 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
         if (_hasBeenEdited()) {
           await _showExitConfirmationDialog(context);
         } else {
           replacePage(context, DetailPage(widget.detailPageConfig));
         }
-        return false;
       },
       child: Scaffold(
         appBar: AppBar(
@@ -103,7 +104,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
               ],
             ),
             const Padding(padding: EdgeInsets.all(8)),
-            _buildBottomBar(),
+            SafeArea(child: _buildBottomBar()),
             Padding(padding: EdgeInsets.all(Platform.isIOS ? 16 : 6)),
           ],
         ),
@@ -337,7 +338,13 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
       return;
     }
     _logger.info('Size before compression = ${result.length}');
-    result = await FlutterImageCompress.compressWithList(result);
+
+    final ui.Image decodedResult = await decodeImageFromList(result);
+    result = await FlutterImageCompress.compressWithList(
+      result,
+      minWidth: decodedResult.width,
+      minHeight: decodedResult.height,
+    );
     _logger.info('Size after compression = ${result.length}');
     final Duration diff = DateTime.now().difference(start);
     _logger.info('image_editor time : $diff');
@@ -352,7 +359,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
       //files db before triggering a sync.
       await PhotoManager.stopChangeNotify();
       final AssetEntity? newAsset =
-          await (PhotoManager.editor.saveImage(result, title: fileName));
+          await (PhotoManager.editor.saveImage(result, filename: fileName));
       final newFile = await ente.EnteFile.fromAsset(
         widget.originalFile.deviceFolder ?? '',
         newAsset!,
@@ -371,18 +378,14 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
           );
         }
       }
-      newFile.generatedID = await FilesDB.instance.insert(newFile);
+      newFile.generatedID = await FilesDB.instance.insertAndGetId(newFile);
       Bus.instance.fire(LocalPhotosUpdatedEvent([newFile], source: "editSave"));
       unawaited(SyncService.instance.sync());
       showShortToast(context, S.of(context).editsSaved);
       _logger.info("Original file " + widget.originalFile.toString());
       _logger.info("Saved edits to file " + newFile.toString());
-      final existingFiles = widget.detailPageConfig.files;
-      final files = (await widget.detailPageConfig.asyncLoader!(
-        existingFiles[existingFiles.length - 1].creationTime!,
-        existingFiles[0].creationTime!,
-      ))
-          .files;
+      final files = widget.detailPageConfig.files;
+
       // the index could be -1 if the files fetched doesn't contain the newly
       // edited files
       int selectionIndex =
@@ -391,6 +394,7 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
         files.add(newFile);
         selectionIndex = files.length - 1;
       }
+      await dialog.hide();
       replacePage(
         context,
         DetailPage(
@@ -401,12 +405,12 @@ class _ImageEditorPageState extends State<ImageEditorPage> {
         ),
       );
     } catch (e, s) {
+      await dialog.hide();
       showToast(context, S.of(context).oopsCouldNotSaveEdits);
       _logger.severe(e, s);
     } finally {
       await PhotoManager.startChangeNotify();
     }
-    await dialog.hide();
   }
 
   void flip() {

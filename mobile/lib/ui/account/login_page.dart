@@ -7,14 +7,15 @@ import "package:photos/core/errors.dart";
 import "package:photos/generated/l10n.dart";
 import "package:photos/l10n/l10n.dart";
 import "package:photos/models/api/user/srp.dart";
-import 'package:photos/services/user_service.dart';
+import 'package:photos/services/account/user_service.dart';
+import "package:photos/theme/ente_theme.dart";
 import "package:photos/ui/account/login_pwd_verification_page.dart";
 import 'package:photos/ui/common/dynamic_fab.dart';
 import 'package:photos/ui/common/web_page.dart';
 import "package:styled_text/styled_text.dart";
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({Key? key}) : super(key: key);
+  const LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -28,18 +29,18 @@ class _LoginPageState extends State<LoginPage> {
   final Logger _logger = Logger('_LoginPageState');
 
   @override
-  void initState() {
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     if ((_config.getEmail() ?? '').isNotEmpty) {
       updateEmail(_config.getEmail()!);
     } else if (kDebugMode) {
       updateEmail(const String.fromEnvironment("email"));
     }
-    super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
-    final isKeypadOpen = MediaQuery.of(context).viewInsets.bottom > 100;
+    final isKeypadOpen = MediaQuery.viewInsetsOf(context).bottom > 100;
 
     FloatingActionButtonLocation? fabLocation() {
       if (isKeypadOpen) {
@@ -69,6 +70,7 @@ class _LoginPageState extends State<LoginPage> {
         buttonText: S.of(context).logInLabel,
         onPressedFunction: () async {
           await UserService.instance.setEmail(_email!);
+          Configuration.instance.resetVolatilePassword();
           SrpAttributes? attr;
           bool isEmailVerificationEnabled = true;
           try {
@@ -91,8 +93,12 @@ class _LoginPageState extends State<LoginPage> {
               ),
             );
           } else {
-            await UserService.instance
-                .sendOtt(context, _email!, isCreateAccountScreen: false);
+            await UserService.instance.sendOtt(
+              context,
+              _email!,
+              isCreateAccountScreen: false,
+              purpose: "login",
+            );
           }
           FocusScope.of(context).unfocus();
         },
@@ -158,10 +164,11 @@ class _LoginPageState extends State<LoginPage> {
                     autofocus: true,
                   ),
                 ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 18),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 18),
                   child: Divider(
                     thickness: 1,
+                    color: getEnteColorScheme(context).strokeFaint,
                   ),
                 ),
                 Padding(
@@ -234,7 +241,7 @@ class _LoginPageState extends State<LoginPage> {
     if (_emailIsValid) {
       _emailInputFieldColor = const Color.fromRGBO(45, 194, 98, 0.2);
     } else {
-      _emailInputFieldColor = null;
+      _emailInputFieldColor = getEnteColorScheme(context).fillFaint;
     }
   }
 }

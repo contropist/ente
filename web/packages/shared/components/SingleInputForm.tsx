@@ -1,12 +1,13 @@
+import { FocusVisibleButton } from "@/base/components/mui/FocusVisibleButton";
+import { LoadingButton } from "@/base/components/mui/LoadingButton";
 import { FlexWrapper } from "@ente/shared/components/Container";
 import ShowHidePassword from "@ente/shared/components/Form/ShowHidePassword";
-import { Button, FormHelperText } from "@mui/material";
+import { FormHelperText } from "@mui/material";
 import TextField from "@mui/material/TextField";
-import { Formik, FormikHelpers, FormikState } from "formik";
+import { Formik, type FormikHelpers, type FormikState } from "formik";
 import { t } from "i18next";
 import React, { useMemo, useState } from "react";
 import * as Yup from "yup";
-import SubmitButton from "./SubmitButton";
 
 interface formValues {
     inputValue: string;
@@ -18,7 +19,27 @@ export interface SingleInputFormProps {
         resetForm: (nextState?: Partial<FormikState<formValues>>) => void,
     ) => Promise<void>;
     fieldType: "text" | "email" | "password";
-    placeholder: string;
+    /** deprecated: Use realPlaceholder */
+    placeholder?: string;
+    /**
+     * Placeholder
+     *
+     * The existing `placeholder` property uses the placeholder as a label (i.e.
+     * it doesn't appear as the placeholder within the text input area but
+     * rather as the label on top of it). This happens conditionally, so it is
+     * not a matter of simple rename.
+     *
+     * Gradually migrate the existing UI to use this property when we really
+     * want a placeholder, and then create a separate label property for places
+     * that actually want to set the label.
+     */
+    realPlaceholder?: string;
+    /**
+     * Label to show on top of the text input area.
+     *
+     * Sibling of {@link realPlaceholder}.
+     */
+    realLabel?: string;
     buttonText: string;
     submitButtonProps?: any;
     initialValue?: string;
@@ -33,6 +54,9 @@ export interface SingleInputFormProps {
     disableAutoComplete?: boolean;
 }
 
+/**
+ * Deprecated version, gradually migrate to use the one from @/base.
+ */
 export default function SingleInputForm(props: SingleInputFormProps) {
     const { submitButtonProps } = props;
     const { sx: buttonSx, ...restSubmitButtonProps } = submitButtonProps ?? {};
@@ -67,17 +91,17 @@ export default function SingleInputForm(props: SingleInputFormProps) {
         switch (props.fieldType) {
             case "text":
                 return Yup.object().shape({
-                    inputValue: Yup.string().required(t("REQUIRED")),
+                    inputValue: Yup.string().required(t("required")),
                 });
             case "password":
                 return Yup.object().shape({
-                    inputValue: Yup.string().required(t("REQUIRED")),
+                    inputValue: Yup.string().required(t("required")),
                 });
             case "email":
                 return Yup.object().shape({
                     inputValue: Yup.string()
-                        .email(t("EMAIL_ERROR"))
-                        .required(t("REQUIRED")),
+                        .email(t("invalid_email_error"))
+                        .required(t("required")),
                 });
         }
     }, [props.fieldType]);
@@ -102,7 +126,12 @@ export default function SingleInputForm(props: SingleInputFormProps) {
                         name={props.fieldType}
                         {...(props.hiddenLabel
                             ? { placeholder: props.placeholder }
-                            : { label: props.placeholder })}
+                            : props.realPlaceholder
+                              ? {
+                                    placeholder: props.realPlaceholder,
+                                    label: props.realLabel,
+                                }
+                              : { label: props.placeholder })}
                         value={values.inputValue}
                         onChange={handleChange("inputValue")}
                         error={Boolean(errors.inputValue)}
@@ -110,23 +139,26 @@ export default function SingleInputForm(props: SingleInputFormProps) {
                         disabled={loading}
                         autoFocus={!props.disableAutoFocus}
                         autoComplete={props.autoComplete}
-                        InputProps={{
-                            autoComplete:
-                                props.disableAutoComplete ||
-                                props.fieldType === "password"
-                                    ? "off"
-                                    : "on",
-                            endAdornment: props.fieldType === "password" && (
-                                <ShowHidePassword
-                                    showPassword={showPassword}
-                                    handleClickShowPassword={
-                                        handleClickShowPassword
-                                    }
-                                    handleMouseDownPassword={
-                                        handleMouseDownPassword
-                                    }
-                                />
-                            ),
+                        slotProps={{
+                            input: {
+                                autoComplete:
+                                    props.disableAutoComplete ||
+                                    props.fieldType === "password"
+                                        ? "off"
+                                        : "on",
+                                endAdornment: props.fieldType ===
+                                    "password" && (
+                                    <ShowHidePassword
+                                        showPassword={showPassword}
+                                        handleClickShowPassword={
+                                            handleClickShowPassword
+                                        }
+                                        handleMouseDownPassword={
+                                            handleMouseDownPassword
+                                        }
+                                    />
+                                ),
+                            },
                         }}
                     />
                     <FormHelperText
@@ -145,9 +177,9 @@ export default function SingleInputForm(props: SingleInputFormProps) {
                         flexWrap={props.blockButton ? "wrap-reverse" : "nowrap"}
                     >
                         {props.secondaryButtonAction && (
-                            <Button
+                            <FocusVisibleButton
                                 onClick={props.secondaryButtonAction}
-                                size="large"
+                                fullWidth
                                 color="secondary"
                                 sx={{
                                     "&&&": {
@@ -159,20 +191,20 @@ export default function SingleInputForm(props: SingleInputFormProps) {
                                 }}
                                 {...restSubmitButtonProps}
                             >
-                                {t("CANCEL")}
-                            </Button>
+                                {t("cancel")}
+                            </FocusVisibleButton>
                         )}
-                        <SubmitButton
-                            sx={{
-                                "&&&": {
-                                    mt: 2,
-                                    ...buttonSx,
-                                },
-                            }}
-                            buttonText={props.buttonText}
+                        <LoadingButton
+                            sx={{ "&&&": { mt: 2, ...buttonSx } }}
+                            fullWidth
+                            variant="contained"
+                            color="accent"
+                            type="submit"
                             loading={loading}
                             {...restSubmitButtonProps}
-                        />
+                        >
+                            {props.buttonText}
+                        </LoadingButton>
                     </FlexWrapper>
                 </form>
             )}

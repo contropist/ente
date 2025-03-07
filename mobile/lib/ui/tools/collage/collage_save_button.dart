@@ -4,12 +4,12 @@ import "package:logging/logging.dart";
 import "package:photo_manager/photo_manager.dart";
 import "package:photos/generated/l10n.dart";
 import 'package:photos/models/file/file.dart';
-import "package:photos/services/sync_service.dart";
+import "package:photos/services/sync/sync_service.dart";
 import "package:photos/ui/components/buttons/button_widget.dart";
 import "package:photos/ui/components/models/button_type.dart";
+import "package:photos/ui/notification/toast.dart";
 import "package:photos/ui/viewer/file/detail_page.dart";
 import "package:photos/utils/navigation_util.dart";
-import "package:photos/utils/toast_util.dart";
 import "package:widgets_to_image/widgets_to_image.dart";
 
 class SaveCollageButton extends StatelessWidget {
@@ -40,26 +40,25 @@ class SaveCollageButton extends StatelessWidget {
             final fileName = "ente_collage_" +
                 DateTime.now().microsecondsSinceEpoch.toString() +
                 ".jpeg";
-            AssetEntity? newAsset = await (PhotoManager.editor.saveImage(
+            final newAsset = await (PhotoManager.editor
+                .saveImage(
               compressedBytes,
-              title: fileName,
+              filename: fileName,
               relativePath: "ente Collages",
-            ));
-            newAsset ??= await (PhotoManager.editor.saveImage(
-              compressedBytes,
-              title: fileName,
-            ));
-            if (newAsset == null) {
-              showShortToast(context, S.of(context).fileFailedToSaveToGallery);
-              return;
-            }
+            )
+                .onError((err, st) async {
+              return await (PhotoManager.editor.saveImage(
+                compressedBytes,
+                filename: fileName,
+              ));
+            }));
             final newFile = await EnteFile.fromAsset("ente Collages", newAsset);
             SyncService.instance.sync().ignore();
             showShortToast(context, S.of(context).collageSaved);
             replacePage(
               context,
               DetailPage(
-                DetailPageConfiguration([newFile], null, 0, "collage"),
+                DetailPageConfiguration([newFile], 0, "collage"),
               ),
               result: true,
             );

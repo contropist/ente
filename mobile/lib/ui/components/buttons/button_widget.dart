@@ -9,8 +9,8 @@ import 'package:photos/theme/text_style.dart';
 import 'package:photos/ui/common/loading_widget.dart';
 import 'package:photos/ui/components/models/button_type.dart';
 import 'package:photos/ui/components/models/custom_button_style.dart';
-import 'package:photos/utils/debouncer.dart';
 import "package:photos/utils/dialog_util.dart";
+import 'package:photos/utils/standalone/debouncer.dart';
 
 enum ButtonSize {
   small,
@@ -202,14 +202,14 @@ class _ButtonChildWidgetState extends State<ButtonChildWidget> {
 
   @override
   void initState() {
-    _setButtonTheme();
     super.initState();
+    _setButtonTheme();
   }
 
   @override
   void didUpdateWidget(covariant ButtonChildWidget oldWidget) {
-    _setButtonTheme();
     super.didUpdateWidget(oldWidget);
+    _setButtonTheme();
   }
 
   @override
@@ -416,13 +416,13 @@ class _ButtonChildWidgetState extends State<ButtonChildWidget> {
         onError: (error, stackTrace) {
           executionState = ExecutionState.error;
           _exception = error as Exception;
-          _debouncer.cancelDebounce();
+          _debouncer.cancelDebounceTimer();
         },
       );
       widget.shouldShowSuccessConfirmation && _debouncer.isActive()
           ? executionState = ExecutionState.successful
           : null;
-      _debouncer.cancelDebounce();
+      _debouncer.cancelDebounceTimer();
       if (executionState == ExecutionState.successful) {
         setState(() {});
       }

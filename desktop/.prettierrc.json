@@ -1,6 +1,9 @@
 {
     "tabWidth": 4,
-    "trailingComma": "es5",
-    "singleQuote": true,
-    "bracketSameLine": true
+    "proseWrap": "always",
+    "objectWrap": "collapse",
+    "plugins": [
+        "prettier-plugin-organize-imports",
+        "prettier-plugin-packagejson"
+    ]
 }

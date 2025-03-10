@@ -1,16 +1,16 @@
+import { TitledMiniDialog } from "@/base/components/MiniDialog";
+import { FocusVisibleButton } from "@/base/components/mui/FocusVisibleButton";
+import { EnteFile } from "@/media/file";
+import { ItemCard, PreviewItemTile } from "@/new/photos/components/Tiles";
 import { FlexWrapper } from "@ente/shared/components/Container";
-import DialogBoxV2 from "@ente/shared/components/DialogBoxV2";
 import { Box, styled } from "@mui/material";
 import ItemList from "components/ItemList";
 import { t } from "i18next";
-import { EnteFile } from "types/file";
-import CollectionCard from "./Collections/CollectionCard";
-import { ResultPreviewTile } from "./Collections/styledComponents";
 
 interface Iprops {
     isOpen: boolean;
     onClose: () => void;
-    collectionNameMap: Map<number, string>;
+    allCollectionsNameByID: Map<number, string>;
     pendingExports: EnteFile[];
 }
 
@@ -29,15 +29,14 @@ const ExportPendingList = (props: Iprops) => {
         return (
             <FlexWrapper>
                 <Box sx={{ marginRight: "8px" }}>
-                    <CollectionCard
+                    <ItemCard
                         key={file.id}
+                        TileComponent={PreviewItemTile}
                         coverFile={file}
-                        onClick={() => null}
-                        collectionTile={ResultPreviewTile}
                     />
                 </Box>
                 <ItemContainer>
-                    {`${props.collectionNameMap.get(file.collectionID)} / ${
+                    {`${props.allCollectionsNameByID.get(file.collectionID)} / ${
                         file.metadata.title
                     }`}
                 </ItemContainer>
@@ -46,7 +45,7 @@ const ExportPendingList = (props: Iprops) => {
     };
 
     const getItemTitle = (file: EnteFile) => {
-        return `${props.collectionNameMap.get(file.collectionID)} / ${
+        return `${props.allCollectionsNameByID.get(file.collectionID)} / ${
             file.metadata.title
         }`;
     };
@@ -56,19 +55,11 @@ const ExportPendingList = (props: Iprops) => {
     };
 
     return (
-        <DialogBoxV2
+        <TitledMiniDialog
             open={props.isOpen}
             onClose={props.onClose}
-            PaperProps={{
-                sx: { maxWidth: "444px" },
-            }}
-            attributes={{
-                title: t("PENDING_ITEMS"),
-                close: {
-                    action: props.onClose,
-                    text: t("CLOSE"),
-                },
-            }}
+            paperMaxWidth="444px"
+            title={t("pending_items")}
         >
             <ItemList
                 maxHeight={240}
@@ -78,7 +69,14 @@ const ExportPendingList = (props: Iprops) => {
                 getItemTitle={getItemTitle}
                 generateItemKey={generateItemKey}
             />
-        </DialogBoxV2>
+            <FocusVisibleButton
+                fullWidth
+                color="secondary"
+                onClick={props.onClose}
+            >
+                {t("close")}
+            </FocusVisibleButton>
+        </TitledMiniDialog>
     );
 };
 

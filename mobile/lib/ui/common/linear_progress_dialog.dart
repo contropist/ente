@@ -4,7 +4,7 @@ import 'package:photos/ente_theme_data.dart';
 class LinearProgressDialog extends StatefulWidget {
   final String message;
 
-  const LinearProgressDialog(this.message, {Key? key}) : super(key: key);
+  const LinearProgressDialog(this.message, {super.key});
 
   @override
   LinearProgressDialogState createState() => LinearProgressDialogState();
@@ -27,8 +27,8 @@ class LinearProgressDialogState extends State<LinearProgressDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async => false,
+    return PopScope(
+      canPop: false,
       child: AlertDialog(
         title: Text(
           widget.message,

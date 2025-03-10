@@ -159,7 +159,7 @@
 		97C146E61CF9000F007C117D /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 1510;
 				ORGANIZATIONNAME = "";
 				TargetAttributes = {
 					97C146ED1CF9000F007C117D = {
@@ -365,7 +365,7 @@
 				DEVELOPMENT_TEAM = 6Z68YJY9Q2;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = auth;
+				INFOPLIST_KEY_CFBundleDisplayName = "Ente Auth";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -439,10 +439,104 @@
 				DEVELOPMENT_TEAM = 6Z68YJY9Q2;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = auth;
+				INFOPLIST_KEY_CFBundleDisplayName = "Ente Auth";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-l\"swiftCoreGraphics\"",
+					"-framework",
+					"\"AVFoundation\"",
+					"-framework",
+					"\"AVKit\"",
+					"-framework",
+					"\"DKImagePickerController\"",
+					"-framework",
+					"\"DKPhotoGallery\"",
+					"-framework",
+					"\"Foundation\"",
+					"-framework",
+					"\"ImageIO\"",
+					"-framework",
+					"\"LocalAuthentication\"",
+					"-framework",
+					"\"MTBBarcodeScanner\"",
+					"-framework",
+					"\"OrderedSet\"",
+					"-framework",
+					"\"Photos\"",
+					"-framework",
+					"\"QuartzCore\"",
+					"-framework",
+					"\"SDWebImage\"",
+					"-framework",
+					"\"Sentry\"",
+					"-framework",
+					"\"SwiftyGif\"",
+					"-framework",
+					"\"Toast\"",
+					"-framework",
+					"\"UIKit\"",
+					"-framework",
+					"\"app_links\"",
+					"-framework",
+					"\"connectivity_plus\"",
+					"-framework",
+					"\"device_info_plus\"",
+					"-framework",
+					"\"file_picker\"",
+					"-framework",
+					"\"file_saver\"",
+					"-framework",
+					"\"fk_user_agent\"",
+					"-framework",
+					"\"flutter_email_sender\"",
+					"-framework",
+					"\"flutter_inappwebview_ios\"",
+					"-framework",
+					"\"flutter_local_authentication\"",
+					"-framework",
+					"\"flutter_local_notifications\"",
+					"-framework",
+					"\"flutter_native_splash\"",
+					"-framework",
+					"\"flutter_secure_storage\"",
+					"-framework",
+					"\"fluttertoast\"",
+					"-framework",
+					"\"local_auth_darwin\"",
+					"-framework",
+					"\"move_to_background\"",
+					"-framework",
+					"\"package_info_plus\"",
+					"-framework",
+					"\"path_provider_foundation\"",
+					"-framework",
+					"\"privacy_screen\"",
+					"-framework",
+					"\"qr_code_scanner\"",
+					"-framework",
+					"\"sentry_flutter\"",
+					"-framework",
+					"\"share_plus\"",
+					"-framework",
+					"\"shared_preferences_foundation\"",
+					"-framework",
+					"\"sodium_libs\"",
+					"-framework",
+					"\"sqflite\"",
+					"-framework",
+					"\"sqlite3\"",
+					"-framework",
+					"\"sqlite3_flutter_libs\"",
+					"-framework",
+					"\"url_launcher_ios\"",
+					"-weak_framework",
+					"\"LinkPresentation\"",
+					"-weak_framework",
+					SwiftUI,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = io.ente.auth;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -513,7 +607,7 @@
 				DEVELOPMENT_TEAM = 6Z68YJY9Q2;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = auth;
+				INFOPLIST_KEY_CFBundleDisplayName = "Ente Auth";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -587,10 +681,104 @@
 				DEVELOPMENT_TEAM = 6Z68YJY9Q2;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = auth;
+				INFOPLIST_KEY_CFBundleDisplayName = "Ente Auth";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-l\"swiftCoreGraphics\"",
+					"-framework",
+					"\"AVFoundation\"",
+					"-framework",
+					"\"AVKit\"",
+					"-framework",
+					"\"DKImagePickerController\"",
+					"-framework",
+					"\"DKPhotoGallery\"",
+					"-framework",
+					"\"Foundation\"",
+					"-framework",
+					"\"ImageIO\"",
+					"-framework",
+					"\"LocalAuthentication\"",
+					"-framework",
+					"\"MTBBarcodeScanner\"",
+					"-framework",
+					"\"OrderedSet\"",
+					"-framework",
+					"\"Photos\"",
+					"-framework",
+					"\"QuartzCore\"",
+					"-framework",
+					"\"SDWebImage\"",
+					"-framework",
+					"\"Sentry\"",
+					"-framework",
+					"\"SwiftyGif\"",
+					"-framework",
+					"\"Toast\"",
+					"-framework",
+					"\"UIKit\"",
+					"-framework",
+					"\"app_links\"",
+					"-framework",
+					"\"connectivity_plus\"",
+					"-framework",
+					"\"device_info_plus\"",
+					"-framework",
+					"\"file_picker\"",
+					"-framework",
+					"\"file_saver\"",
+					"-framework",
+					"\"fk_user_agent\"",
+					"-framework",
+					"\"flutter_email_sender\"",
+					"-framework",
+					"\"flutter_inappwebview_ios\"",
+					"-framework",
+					"\"flutter_local_authentication\"",
+					"-framework",
+					"\"flutter_local_notifications\"",
+					"-framework",
+					"\"flutter_native_splash\"",
+					"-framework",
+					"\"flutter_secure_storage\"",
+					"-framework",
+					"\"fluttertoast\"",
+					"-framework",
+					"\"local_auth_darwin\"",
+					"-framework",
+					"\"move_to_background\"",
+					"-framework",
+					"\"package_info_plus\"",
+					"-framework",
+					"\"path_provider_foundation\"",
+					"-framework",
+					"\"privacy_screen\"",
+					"-framework",
+					"\"qr_code_scanner\"",
+					"-framework",
+					"\"sentry_flutter\"",
+					"-framework",
+					"\"share_plus\"",
+					"-framework",
+					"\"shared_preferences_foundation\"",
+					"-framework",
+					"\"sodium_libs\"",
+					"-framework",
+					"\"sqflite\"",
+					"-framework",
+					"\"sqlite3\"",
+					"-framework",
+					"\"sqlite3_flutter_libs\"",
+					"-framework",
+					"\"url_launcher_ios\"",
+					"-weak_framework",
+					"\"LinkPresentation\"",
+					"-weak_framework",
+					SwiftUI,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = io.ente.auth;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -661,7 +849,7 @@
 				DEVELOPMENT_TEAM = 6Z68YJY9Q2;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = auth;
+				INFOPLIST_KEY_CFBundleDisplayName = "Ente Auth";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

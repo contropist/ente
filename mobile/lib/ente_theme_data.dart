@@ -15,7 +15,8 @@ final lightThemeData = ThemeData(
   colorScheme: const ColorScheme.light(
     primary: Colors.black,
     secondary: Color.fromARGB(255, 163, 163, 163),
-    background: Colors.white,
+    surface: Colors.white,
+    surfaceTint: Colors.transparent,
   ),
   outlinedButtonTheme: buildOutlinedButtonThemeData(
     bgDisabled: const Color.fromRGBO(158, 158, 158, 1),
@@ -69,13 +70,13 @@ final lightThemeData = ThemeData(
       color: Colors.black,
       width: 2,
     ),
-    fillColor: MaterialStateProperty.resolveWith((states) {
-      return states.contains(MaterialState.selected)
+    fillColor: WidgetStateProperty.resolveWith((states) {
+      return states.contains(WidgetState.selected)
           ? const Color.fromRGBO(0, 0, 0, 1)
           : const Color.fromRGBO(255, 255, 255, 1);
     }),
-    checkColor: MaterialStateProperty.resolveWith((states) {
-      return states.contains(MaterialState.selected)
+    checkColor: WidgetStateProperty.resolveWith((states) {
+      return states.contains(WidgetState.selected)
           ? const Color.fromRGBO(255, 255, 255, 1)
           : const Color.fromRGBO(0, 0, 0, 1);
     }),
@@ -92,8 +93,9 @@ final darkThemeData = ThemeData(
   hintColor: const Color.fromRGBO(158, 158, 158, 1),
   colorScheme: const ColorScheme.dark(
     primary: Colors.white,
-    background: Color.fromRGBO(0, 0, 0, 1),
+    surface: Color.fromRGBO(0, 0, 0, 1),
     secondary: Color.fromARGB(255, 163, 163, 163),
+    surfaceTint: Colors.transparent,
   ),
   buttonTheme: const ButtonThemeData().copyWith(
     buttonColor: const Color.fromRGBO(45, 194, 98, 1.0),
@@ -143,15 +145,15 @@ final darkThemeData = ThemeData(
       color: Colors.grey,
       width: 2,
     ),
-    fillColor: MaterialStateProperty.resolveWith((states) {
-      if (states.contains(MaterialState.selected)) {
+    fillColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.selected)) {
         return const Color.fromRGBO(158, 158, 158, 1);
       } else {
         return const Color.fromRGBO(0, 0, 0, 1);
       }
     }),
-    checkColor: MaterialStateProperty.resolveWith((states) {
-      if (states.contains(MaterialState.selected)) {
+    checkColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.selected)) {
         return const Color.fromRGBO(0, 0, 0, 1);
       } else {
         return const Color.fromRGBO(158, 158, 158, 1);
@@ -220,6 +222,18 @@ TextTheme _buildTextTheme(Color textColor) {
 }
 
 extension CustomColorScheme on ColorScheme {
+  Color get videoPlayerPrimaryColor => brightness == Brightness.light
+      ? const Color.fromRGBO(0, 179, 60, 1)
+      : const Color.fromRGBO(1, 222, 77, 1);
+
+  Color get videoPlayerBackgroundColor => brightness == Brightness.light
+      ? const Color(0xFFF5F5F5)
+      : const Color(0xFF252525);
+
+  Color get videoPlayerBorderColor => brightness == Brightness.light
+      ? const Color(0xFF424242)
+      : const Color(0xFFFFFFFF);
+
   Color get defaultBackgroundColor =>
       brightness == Brightness.light ? backgroundBaseLight : backgroundBaseDark;
 
@@ -364,17 +378,17 @@ OutlinedButtonThemeData buildOutlinedButtonThemeData({
         fontSize: 18,
       ),
     ).copyWith(
-      backgroundColor: MaterialStateProperty.resolveWith<Color>(
-        (Set<MaterialState> states) {
-          if (states.contains(MaterialState.disabled)) {
+      backgroundColor: WidgetStateProperty.resolveWith<Color>(
+        (Set<WidgetState> states) {
+          if (states.contains(WidgetState.disabled)) {
             return bgDisabled;
           }
           return bgEnabled;
         },
       ),
-      foregroundColor: MaterialStateProperty.resolveWith<Color>(
-        (Set<MaterialState> states) {
-          if (states.contains(MaterialState.disabled)) {
+      foregroundColor: WidgetStateProperty.resolveWith<Color>(
+        (Set<WidgetState> states) {
+          if (states.contains(WidgetState.disabled)) {
             return fgDisabled;
           }
           return fgEnabled;
@@ -392,7 +406,9 @@ ElevatedButtonThemeData buildElevatedButtonThemeData({
 }) {
   return ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
-      foregroundColor: onPrimary, backgroundColor: primary, elevation: elevation,
+      foregroundColor: onPrimary,
+      backgroundColor: primary,
+      elevation: elevation,
       alignment: Alignment.center,
       textStyle: const TextStyle(
         fontWeight: FontWeight.w600,
@@ -410,21 +426,21 @@ ElevatedButtonThemeData buildElevatedButtonThemeData({
 SwitchThemeData getSwitchThemeData(Color activeColor) {
   return SwitchThemeData(
     thumbColor:
-        MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) {
-      if (states.contains(MaterialState.disabled)) {
+        WidgetStateProperty.resolveWith<Color?>((Set<WidgetState> states) {
+      if (states.contains(WidgetState.disabled)) {
         return null;
       }
-      if (states.contains(MaterialState.selected)) {
+      if (states.contains(WidgetState.selected)) {
         return activeColor;
       }
       return null;
     }),
     trackColor:
-        MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) {
-      if (states.contains(MaterialState.disabled)) {
+        WidgetStateProperty.resolveWith<Color?>((Set<WidgetState> states) {
+      if (states.contains(WidgetState.disabled)) {
         return null;
       }
-      if (states.contains(MaterialState.selected)) {
+      if (states.contains(WidgetState.selected)) {
         return activeColor;
       }
       return null;

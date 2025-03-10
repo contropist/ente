@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ente-io/cli/internal/api"
+	"golang.org/x/term"
 	"log"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
-
-	"golang.org/x/term"
 )
 
 func GetSensitiveField(label string) (string, error) {
@@ -35,6 +36,17 @@ func GetUserInput(label string) (string, error) {
 		return "", errors.New("input cannot be empty")
 	}
 	return input, nil
+}
+
+func WaitForEnter(prompt string) error {
+	fmt.Println(prompt)
+	// Create a new reader from standard input.
+	reader := bufio.NewReader(os.Stdin)
+	_, err := reader.ReadString('\n')
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func GetAppType() api.App {
@@ -78,6 +90,79 @@ func GetCode(promptText string, length int) (string, error) {
 			continue
 		}
 		return ott, nil
+	}
+}
+
+// parseStorageSize parses a string representing a storage size (e.g., "500MB", "2GB") into bytes.
+func parseStorageSize(input string) (int64, error) {
+	units := map[string]int64{
+		"MB": 1 << 20,
+		"GB": 1 << 30,
+		"TB": 1 << 40,
+	}
+	re := regexp.MustCompile(`(?i)^(\d+(?:\.\d+)?)(MB|GB|TB)$`)
+	matches := re.FindStringSubmatch(input)
+
+	if matches == nil {
+		return 0, errors.New("invalid format")
+	}
+
+	number, err := strconv.ParseFloat(matches[1], 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid number: %s", matches[1])
+	}
+
+	unit := strings.ToUpper(matches[2])
+	bytes := int64(number * float64(units[unit]))
+
+	return bytes, nil
+}
+
+func ConfirmAction(promptText string) (bool, error) {
+	for {
+		input, err := GetUserInput(promptText)
+		if err != nil {
+			return false, err
+		}
+		if input == "" {
+			log.Fatal("No input entered")
+			return false, errors.New("invalid input. Please enter 'y' or 'n'")
+		}
+		if input == "c" {
+			return false, errors.New("cancelled")
+		}
+		if input == "y" {
+			return true, nil
+		}
+		if input == "n" {
+			return false, nil
+		}
+		fmt.Println("Invalid input. Please enter 'y' or 'n'.")
+	}
+}
+
+// GetStorageSize prompts the user for a storage size and returns the size in bytes.
+func GetStorageSize(promptText string) (int64, error) {
+	for {
+		input, err := GetUserInput(promptText)
+		if err != nil {
+			return 0, err
+		}
+		if input == "" {
+			log.Fatal("No storage size entered")
+			return 0, errors.New("no storage size entered")
+		}
+		if input == "c" {
+			return 0, errors.New("storage size entry cancelled")
+		}
+
+		bytes, err := parseStorageSize(input)
+		if err != nil {
+			fmt.Println("Invalid storage size format. Please use a valid format like '500MB', '2GB'.")
+			continue
+		}
+
+		return bytes, nil
 	}
 }
 
@@ -129,10 +214,11 @@ func ValidateDirForWrite(dir string) (bool, error) {
 		return false, fmt.Errorf("write permission denied: %v", err)
 	}
 
-	// Delete temp file
-	defer os.Remove(tempFile.Name())
-	if err != nil {
-		return false, err
+	if tempErr := tempFile.Close(); tempErr != nil {
+		return false, fmt.Errorf("failed to close temp file: %v", tempErr)
+	}
+	if tempErr := os.Remove(tempFile.Name()); tempErr != nil {
+		return false, fmt.Errorf("failed to remove temp file: %v", tempErr)
 	}
 
 	return true, nil

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
-	"strings"
 	t "time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -102,60 +101,12 @@ func (repo *CollectionRepository) GetCollectionByType(userID int64, collectionTy
 	return c, nil
 }
 
-// GetCollectionsOwnedByUser returns the list of collections that a user owns
-// todo: refactor this method
-func (repo *CollectionRepository) GetCollectionsOwnedByUser(userID int64, updationTime int64, app ente.App) ([]ente.Collection, error) {
-	rows, err := repo.DB.Query(`
-		SELECT collections.collection_id, collections.owner_id, collections.encrypted_key, collections.key_decryption_nonce, collections.name, collections.encrypted_name, collections.name_decryption_nonce, collections.type, collections.app, collections.attributes, collections.updation_time, collections.is_deleted, collections.magic_metadata, collections.pub_magic_metadata
-		FROM collections
-		WHERE collections.owner_id = $1 AND collections.updation_time > $2 AND app = $3`, userID, updationTime, strings.ToLower(string(app)))
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "")
-	}
-	defer rows.Close()
-	collectionIDs := make([]int64, 0)
-	collections := make([]ente.Collection, 0)
-	result := make([]ente.Collection, 0)
-	for rows.Next() {
-		var c ente.Collection
-		var name, encryptedName, nameDecryptionNonce sql.NullString
-		if err := rows.Scan(&c.ID, &c.Owner.ID, &c.EncryptedKey, &c.KeyDecryptionNonce, &name, &encryptedName, &nameDecryptionNonce, &c.Type, &c.App, &c.Attributes, &c.UpdationTime, &c.IsDeleted, &c.MagicMetadata, &c.PublicMagicMetadata); err != nil {
-			return collections, stacktrace.Propagate(err, "")
-		}
-		if name.Valid && len(name.String) > 0 {
-			c.Name = name.String
-		} else {
-			c.EncryptedName = encryptedName.String
-			c.NameDecryptionNonce = nameDecryptionNonce.String
-		}
-		// TODO: Pull this information in the previous query
-		sharees, err := repo.GetSharees(c.ID)
-		if err != nil {
-			return collections, stacktrace.Propagate(err, "")
-		}
-		c.Sharees = sharees
-		collections = append(collections, c)
-		collectionIDs = append(collectionIDs, c.ID)
-	}
-
-	urlMap, err := repo.PublicCollectionRepo.GetCollectionToActivePublicURLMap(context.Background(), collectionIDs)
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "failed to get publicURL info")
-	}
-	for _, c := range collections {
-		c.PublicURLs = urlMap[c.ID]
-		result = append(result, c)
-	}
-
-	return result, nil
-}
-
-func (repo *CollectionRepository) GetCollectionsOwnedByUserV2(userID int64, updationTime int64, app ente.App) ([]ente.Collection, error) {
-	rows, err := repo.DB.Query(`
+func (repo *CollectionRepository) GetCollectionsOwnedByUserV2(userID int64, updationTime int64, app ente.App, limit *int64) ([]ente.Collection, error) {
+	query := `
 		SELECT 
 c.collection_id, c.owner_id, c.encrypted_key,c.key_decryption_nonce, c.name, c.encrypted_name, c.name_decryption_nonce, c.type, c.app, c.attributes, c.updation_time, c.is_deleted, c.magic_metadata, c.pub_magic_metadata,
 users.user_id, users.encrypted_email, users.email_decryption_nonce, cs.role_type,
-pct.access_token, pct.valid_till, pct.device_limit, pct.created_at, pct.updated_at, pct.pw_hash, pct.pw_nonce, pct.mem_limit, pct.ops_limit, pct.enable_download, pct.enable_collect 
+pct.access_token, pct.valid_till, pct.device_limit, pct.created_at, pct.updated_at, pct.pw_hash, pct.pw_nonce, pct.mem_limit, pct.ops_limit, pct.enable_download, pct.enable_collect, pct.enable_join 
     FROM collections c
     LEFT JOIN collection_shares cs
     ON (cs.collection_id = c.collection_id AND cs.is_deleted = false)
@@ -163,7 +114,14 @@ pct.access_token, pct.valid_till, pct.device_limit, pct.created_at, pct.updated_
     ON (cs.to_user_id = users.user_id AND users.encrypted_email IS NOT NULL)
     LEFT JOIN public_collection_tokens pct
     ON (pct.collection_id = c.collection_id and pct.is_disabled=FALSE)
-    WHERE c.owner_id = $1 AND c.updation_time > $2 and c.app = $3`, userID, updationTime, string(app))
+    WHERE c.owner_id = $1 AND c.updation_time > $2 and c.app = $3`
+	args := []interface{}{userID, updationTime, string(app)}
+
+	if limit != nil {
+		query += " ORDER BY c.updation_time ASC LIMIT $4"
+		args = append(args, *limit)
+	}
+	rows, err := repo.DB.Query(query, args...)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
@@ -175,14 +133,14 @@ pct.access_token, pct.valid_till, pct.device_limit, pct.created_at, pct.updated_
 		var c ente.Collection
 		var name, encryptedName, nameDecryptionNonce sql.NullString
 		var pctDeviceLimit sql.NullInt32
-		var pctEnableDownload, pctEnableCollect sql.NullBool
+		var pctEnableDownload, pctEnableCollect, pctEnableJoin sql.NullBool
 		var shareUserID, pctValidTill, pctCreatedAt, pctUpdatedAt, pctMemLimit, pctOpsLimit sql.NullInt64
 		var encryptedEmail, nonce []byte
 		var shareeRoleType, pctToken, pctPwHash, pctPwNonce sql.NullString
 
 		if err := rows.Scan(&c.ID, &c.Owner.ID, &c.EncryptedKey, &c.KeyDecryptionNonce, &name, &encryptedName, &nameDecryptionNonce, &c.Type, &c.App, &c.Attributes, &c.UpdationTime, &c.IsDeleted, &c.MagicMetadata, &c.PublicMagicMetadata,
 			&shareUserID, &encryptedEmail, &nonce, &shareeRoleType,
-			&pctToken, &pctValidTill, &pctDeviceLimit, &pctCreatedAt, &pctUpdatedAt, &pctPwHash, &pctPwNonce, &pctMemLimit, &pctOpsLimit, &pctEnableDownload, &pctEnableCollect); err != nil {
+			&pctToken, &pctValidTill, &pctDeviceLimit, &pctCreatedAt, &pctUpdatedAt, &pctPwHash, &pctPwNonce, &pctMemLimit, &pctOpsLimit, &pctEnableDownload, &pctEnableCollect, &pctEnableJoin); err != nil {
 			return nil, stacktrace.Propagate(err, "")
 		}
 
@@ -216,12 +174,13 @@ pct.access_token, pct.valid_till, pct.device_limit, pct.created_at, pct.updated_
 			if _, ok := addPublicUrlMap[pctToken.String]; !ok {
 				addPublicUrlMap[pctToken.String] = true
 				url := ente.PublicURL{
-					URL:             fmt.Sprintf(BaseShareURL, pctToken.String),
+					URL:             repo.PublicCollectionRepo.GetAlbumUrl(pctToken.String),
 					DeviceLimit:     int(pctDeviceLimit.Int32),
 					ValidTill:       pctValidTill.Int64,
 					EnableDownload:  pctEnableDownload.Bool,
 					EnableCollect:   pctEnableCollect.Bool,
 					PasswordEnabled: pctPwNonce.Valid,
+					EnableJoin:      pctEnableJoin.Bool,
 				}
 				if pctPwNonce.Valid {
 					url.Nonce = &pctPwNonce.String
@@ -240,14 +199,21 @@ pct.access_token, pct.valid_till, pct.device_limit, pct.created_at, pct.updated_
 
 // GetCollectionsSharedWithUser returns the list of collections that are shared
 // with a user
-func (repo *CollectionRepository) GetCollectionsSharedWithUser(userID int64, updationTime int64, app ente.App) ([]ente.Collection, error) {
-	rows, err := repo.DB.Query(`
+func (repo *CollectionRepository) GetCollectionsSharedWithUser(userID int64, updationTime int64, app ente.App, limit *int64) ([]ente.Collection, error) {
+	query := `
 		SELECT collections.collection_id, collections.owner_id, users.encrypted_email, users.email_decryption_nonce, collection_shares.encrypted_key, collections.name, collections.encrypted_name, collections.name_decryption_nonce, collections.type, collections.app, collections.pub_magic_metadata, collection_shares.magic_metadata, collections.updation_time, collection_shares.is_deleted
 		FROM collections
 		INNER JOIN users
 			ON collections.owner_id = users.user_id
 		INNER JOIN collection_shares
-			ON collections.collection_id = collection_shares.collection_id AND collection_shares.to_user_id = $1 AND (collection_shares.updation_time > $2 OR collections.updation_time > $2) AND users.encrypted_email IS NOT NULL AND app = $3`, userID, updationTime, string(app))
+			ON collections.collection_id = collection_shares.collection_id AND collection_shares.to_user_id = $1 AND (collection_shares.updation_time > $2 OR collections.updation_time > $2) AND users.encrypted_email IS NOT NULL AND app = $3`
+	args := []interface{}{userID, updationTime, string(app)}
+	if limit != nil {
+		query += " ORDER BY collections.updation_time ASC LIMIT $4"
+		args = append(args, *limit)
+	}
+
+	rows, err := repo.DB.Query(query, args...)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
@@ -317,6 +283,29 @@ func (repo *CollectionRepository) GetCollectionIDsSharedWithUser(userID int64) (
 	return cIDs, nil
 }
 
+func (repo *CollectionRepository) GetCollectionsSharedWithOrByUser(userID int64) ([]int64, error) {
+	rows, err := repo.DB.Query(`
+		SELECT collection_id
+		FROM collection_shares
+		WHERE (to_user_id = $1 OR from_user_id = $1)
+		AND is_deleted = $2`, userID, false)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "")
+	}
+	defer rows.Close()
+
+	cIDs := make([]int64, 0)
+	for rows.Next() {
+		var cID int64
+		if err := rows.Scan(&cID); err != nil {
+			return cIDs, stacktrace.Propagate(err, "")
+		}
+		cIDs = append(cIDs, cID)
+	}
+	return cIDs, nil
+
+}
+
 // GetCollectionIDsOwnedByUser returns the map of collectionID (owned by user) to collection deletion status
 func (repo *CollectionRepository) GetCollectionIDsOwnedByUser(userID int64) (map[int64]bool, error) {
 	rows, err := repo.DB.Query(`
@@ -365,15 +354,6 @@ func (repo *CollectionRepository) GetAllSharedCollections(ctx context.Context, u
 	return result, nil
 }
 
-// DoesFileExistInCollections returns true if the file exists in one of the
-// provided collections
-func (repo *CollectionRepository) DoesFileExistInCollections(fileID int64, cIDs []int64) (bool, error) {
-	var exists bool
-	err := repo.DB.QueryRow(`SELECT EXISTS (SELECT 1 FROM collection_files WHERE file_id = $1 AND is_deleted = $2 AND collection_id = ANY ($3))`,
-		fileID, false, pq.Array(cIDs)).Scan(&exists)
-	return exists, stacktrace.Propagate(err, "")
-}
-
 // GetCollectionShareeRole returns true if the collection is shared with the user
 func (repo *CollectionRepository) GetCollectionShareeRole(cID int64, userID int64) (*ente.CollectionParticipantRole, error) {
 	var role *ente.CollectionParticipantRole
@@ -387,17 +367,6 @@ func (repo *CollectionRepository) GetOwnerID(collectionID int64) (int64, error) 
 	var ownerID int64
 	err := row.Scan(&ownerID)
 	return ownerID, stacktrace.Propagate(err, "failed to get collection owner")
-}
-
-// GetCollectionsFilesCount returns the number of non-deleted files which are present in the given collection
-func (repo *CollectionRepository) GetCollectionsFilesCount(collectionID int64) (int64, error) {
-	row := repo.DB.QueryRow(`SELECT count(*) FROM collection_files WHERE collection_id=$1 AND is_deleted = false`, collectionID)
-	var count int64 = 0
-	err := row.Scan(&count)
-	if err != nil {
-		return -1, stacktrace.Propagate(err, "")
-	}
-	return count, nil
 }
 
 // Share shares a collection with a userID
@@ -775,42 +744,6 @@ func (repo *CollectionRepository) GetSharees(cID int64) ([]ente.CollectionUser, 
 	return users, nil
 }
 
-// getCollectionExclusiveFiles return a list of filesIDs that are exclusive to the collection
-func (repo *CollectionRepository) getCollectionExclusiveFiles(collectionID int64, collectionOwnerID int64) ([]int64, error) {
-	rows, err := repo.DB.Query(`
-	SELECT file_id
-	FROM collection_files
-	WHERE is_deleted=false
-		AND file_id IN (
-			SELECT file_id   
-			FROM collection_files
-			WHERE is_deleted=false
-				AND collection_id =$1
-		)
-	AND collection_id IN (SELECT collection_id from collections where owner_id = $2)
-	GROUP BY file_id
-	HAVING COUNT(file_id) = 1`, collectionID, collectionOwnerID)
-	if err != nil {
-		return make([]int64, 0), stacktrace.Propagate(err, "")
-	}
-	return convertRowsToFileId(rows)
-}
-
-// GetCollectionFileIDs return list of fileIDs are  currently present in the given collection
-// and fileIDs are owned by the collection owner
-func (repo *CollectionRepository) GetCollectionFileIDs(collectionID int64, collectionOwnerID int64) ([]int64, error) {
-	// Collaboration Todo: Filter out files which are not owned by the collection owner
-	rows, err := repo.DB.Query(
-		`SELECT file_id   
-			FROM collection_files
-			WHERE is_deleted=false
-				AND collection_id =$1 AND (f_owner_id is null or f_owner_id = $2)`, collectionID, collectionOwnerID)
-	if err != nil {
-		return make([]int64, 0), stacktrace.Propagate(err, "")
-	}
-	return convertRowsToFileId(rows)
-}
-
 func convertRowsToFileId(rows *sql.Rows) ([]int64, error) {
 	fileIDs := make([]int64, 0)
 	defer rows.Close()
@@ -822,41 +755,6 @@ func convertRowsToFileId(rows *sql.Rows) ([]int64, error) {
 		fileIDs = append(fileIDs, fileID)
 	}
 	return fileIDs, nil
-}
-
-// TrashV2 removes an entry in the database for the collection referred to by `collectionID` and move all files
-// which are exclusive to this collection to trash
-// Deprecated. Please use TrashV3
-func (repo *CollectionRepository) TrashV2(collectionID int64, userID int64) error {
-	ctx := context.Background()
-	tx, err := repo.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return stacktrace.Propagate(err, "")
-	}
-	fileIDs, err := repo.getCollectionExclusiveFiles(collectionID, userID)
-	if err != nil {
-		tx.Rollback()
-		return stacktrace.Propagate(err, "")
-	}
-	items := make([]ente.TrashItemRequest, 0)
-	for _, fileID := range fileIDs {
-		items = append(items, ente.TrashItemRequest{
-			FileID:       fileID,
-			CollectionID: collectionID,
-		})
-	}
-	_, err = tx.ExecContext(ctx, `UPDATE collection_files SET is_deleted = true WHERE collection_id = $1`, collectionID)
-	if err != nil {
-		tx.Rollback()
-		return stacktrace.Propagate(err, "")
-	}
-	err = repo.TrashRepo.InsertItems(ctx, tx, userID, items)
-
-	if err != nil {
-		tx.Rollback()
-		return stacktrace.Propagate(err, "")
-	}
-	return tx.Commit()
 }
 
 // TrashV3  move the files belonging to the collection owner to the trash
@@ -949,11 +847,8 @@ func (repo *CollectionRepository) removeAllFilesAddedByOthers(collectionID int64
 
 // ScheduleDelete marks the collection as deleted and queue up an operation to
 // move the collection files to user's trash.
-// The deleteOnlyExcluiveFiles flag is true for v2 collection delete and is false for v3 version.
 // See [Collection Delete Versions] for more details
-func (repo *CollectionRepository) ScheduleDelete(
-	collectionID int64,
-	deleteOnlyExcluiveFiles bool) error {
+func (repo *CollectionRepository) ScheduleDelete(collectionID int64) error {
 	updationTime := time.Microseconds()
 	ctx := context.Background()
 	tx, err := repo.DB.BeginTx(ctx, nil)
@@ -974,12 +869,7 @@ func (repo *CollectionRepository) ScheduleDelete(
 		tx.Rollback()
 		return stacktrace.Propagate(err, "")
 	}
-	if deleteOnlyExcluiveFiles {
-		err = repo.QueueRepo.AddItems(ctx, tx, TrashCollectionQueue, []string{strconv.FormatInt(collectionID, 10)})
-	} else {
-		err = repo.QueueRepo.AddItems(ctx, tx, TrashCollectionQueueV3, []string{strconv.FormatInt(collectionID, 10)})
-	}
-
+	err = repo.QueueRepo.AddItems(ctx, tx, TrashCollectionQueueV3, []string{strconv.FormatInt(collectionID, 10)})
 	if err != nil {
 		tx.Rollback()
 		return stacktrace.Propagate(err, "")
@@ -1027,16 +917,6 @@ func (repo *CollectionRepository) UpdateMagicMetadata(ctx context.Context,
 
 func (repo *CollectionRepository) GetSharedCollectionsCount(userID int64) (int64, error) {
 	row := repo.DB.QueryRow(`SELECT count(*) FROM collection_shares WHERE from_user_id = $1`, userID)
-	var count int64 = 0
-	err := row.Scan(&count)
-	if err != nil {
-		return -1, stacktrace.Propagate(err, "")
-	}
-	return count, nil
-}
-
-func (repo *CollectionRepository) GetCollectionCount(fileID int64) (int64, error) {
-	row := repo.DB.QueryRow(`SELECT count(*) FROM collection_files WHERE file_id = $1 and is_deleted = false`, fileID)
 	var count int64 = 0
 	err := row.Scan(&count)
 	if err != nil {

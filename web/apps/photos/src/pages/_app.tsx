@@ -1,500 +1,215 @@
-import AppNavbar from "@ente/shared/components/Navbar/app";
-import { t } from "i18next";
-import { createContext, useEffect, useRef, useState } from "react";
-
-import { setupI18n } from "@/ui/i18n";
-import { CacheProvider } from "@emotion/react";
+import { clientPackageName, isDesktop, staticAppTitle } from "@/base/app";
+import { CenteredRow } from "@/base/components/containers";
+import { CustomHead } from "@/base/components/Head";
 import {
-    APP_TITLES,
-    APPS,
-    CLIENT_PACKAGE_NAMES,
-} from "@ente/shared/apps/constants";
-import { EnteAppProps } from "@ente/shared/apps/types";
-import { Overlay } from "@ente/shared/components/Container";
-import DialogBox from "@ente/shared/components/DialogBox";
+    LoadingIndicator,
+    TranslucentLoadingOverlay,
+} from "@/base/components/loaders";
+import { AttributedMiniDialog } from "@/base/components/MiniDialog";
+import { useAttributedMiniDialog } from "@/base/components/utils/dialog";
 import {
-    DialogBoxAttributes,
-    SetDialogBoxAttributes,
-} from "@ente/shared/components/DialogBox/types";
-import DialogBoxV2 from "@ente/shared/components/DialogBoxV2";
+    useIsRouteChangeInProgress,
+    useSetupI18n,
+    useSetupLogs,
+} from "@/base/components/utils/hooks-app";
+import { photosTheme } from "@/base/components/utils/theme";
+import { BaseContext, deriveBaseContext } from "@/base/context";
+import log from "@/base/log";
+import { logStartupBanner } from "@/base/log-web";
+import { AppUpdate } from "@/base/types/ipc";
+import { Notification } from "@/new/photos/components/Notification";
+import { ThemedLoadingBar } from "@/new/photos/components/ThemedLoadingBar";
 import {
-    DialogBoxAttributesV2,
-    SetDialogBoxAttributesV2,
-} from "@ente/shared/components/DialogBoxV2/types";
-import EnteSpinner from "@ente/shared/components/EnteSpinner";
-import { MessageContainer } from "@ente/shared/components/MessageContainer";
-import { PHOTOS_PAGES as PAGES } from "@ente/shared/constants/pages";
-import ElectronAPIs from "@ente/shared/electron";
-import { AppUpdateInfo } from "@ente/shared/electron/types";
-import { CustomError } from "@ente/shared/error";
-import { eventBus, Events } from "@ente/shared/events";
-import { useLocalState } from "@ente/shared/hooks/useLocalState";
-import { addLogLine } from "@ente/shared/logging";
-import {
-    clearLogsIfLocalStorageLimitExceeded,
-    logStartupMessage,
-} from "@ente/shared/logging/web";
+    updateAvailableForDownloadDialogAttributes,
+    updateReadyToInstallDialogAttributes,
+} from "@/new/photos/components/utils/download";
+import { useLoadingBar } from "@/new/photos/components/utils/use-loading-bar";
+import { runMigrations } from "@/new/photos/services/migration";
+import { initML, isMLSupported } from "@/new/photos/services/ml";
+import { getFamilyPortalRedirectURL } from "@/new/photos/services/user-details";
+import { PhotosAppContext } from "@/new/photos/types/context";
 import HTTPService from "@ente/shared/network/HTTPService";
-import { logError } from "@ente/shared/sentry";
-import { getData, LS_KEYS } from "@ente/shared/storage/localStorage";
 import {
-    getLocalMapEnabled,
-    getToken,
-    setLocalMapEnabled,
-} from "@ente/shared/storage/localStorage/helpers";
-import { getTheme } from "@ente/shared/themes";
-import { THEME_COLOR } from "@ente/shared/themes/constants";
-import createEmotionCache from "@ente/shared/themes/createEmotionCache";
-import { SetTheme } from "@ente/shared/themes/types";
-import ArrowForward from "@mui/icons-material/ArrowForward";
-import { CssBaseline, useMediaQuery } from "@mui/material";
-import { ThemeProvider } from "@mui/material/styles";
-import "bootstrap/dist/css/bootstrap.min.css";
-import Notification from "components/Notification";
-import { REDIRECTS } from "constants/redirects";
-import isElectron from "is-electron";
-import Head from "next/head";
+    getData,
+    isLocalStorageAndIndexedDBMismatch,
+    LS_KEYS,
+} from "@ente/shared/storage/localStorage";
+import type { User } from "@ente/shared/user/types";
+import "@fontsource-variable/inter";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import { CssBaseline, Typography } from "@mui/material";
+import { styled, ThemeProvider } from "@mui/material/styles";
+import { useNotification } from "components/utils/hooks-app";
+import { t } from "i18next";
+import type { AppProps } from "next/app";
 import { useRouter } from "next/router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { resumeExportsIfNeeded } from "services/export";
+import { photosLogout } from "services/logout";
+
 import "photoswipe/dist/photoswipe.css";
-import LoadingBar from "react-top-loading-bar";
-import DownloadManager from "services/download";
-import exportService from "services/export";
-import mlWorkManager from "services/machineLearning/mlWorkManager";
-import {
-    getFamilyPortalRedirectURL,
-    getRoadmapRedirectURL,
-    updateMapEnabledStatus,
-} from "services/userService";
 import "styles/global.css";
-import {
-    NotificationAttributes,
-    SetNotificationAttributes,
-} from "types/Notification";
-import { isExportInProgress } from "utils/export";
-import {
-    getMLSearchConfig,
-    updateMLSearchConfig,
-} from "utils/machineLearning/config";
-import {
-    getUpdateAvailableForDownloadMessage,
-    getUpdateReadyToInstallMessage,
-} from "utils/ui";
+import "styles/photoswipe.css";
 
-const redirectMap = new Map([
-    [REDIRECTS.ROADMAP, getRoadmapRedirectURL],
-    [REDIRECTS.FAMILIES, getFamilyPortalRedirectURL],
-]);
+const App: React.FC<AppProps> = ({ Component, pageProps }) => {
+    useSetupLogs();
 
-type AppContextType = {
-    showNavBar: (show: boolean) => void;
-    sharedFiles: File[];
-    resetSharedFiles: () => void;
-    mlSearchEnabled: boolean;
-    mapEnabled: boolean;
-    updateMlSearchEnabled: (enabled: boolean) => Promise<void>;
-    updateMapEnabled: (enabled: boolean) => Promise<void>;
-    startLoading: () => void;
-    finishLoading: () => void;
-    closeMessageDialog: () => void;
-    setDialogMessage: SetDialogBoxAttributes;
-    setNotificationAttributes: SetNotificationAttributes;
-    isFolderSyncRunning: boolean;
-    setIsFolderSyncRunning: (isRunning: boolean) => void;
-    watchFolderView: boolean;
-    setWatchFolderView: (isOpen: boolean) => void;
-    watchFolderFiles: FileList;
-    setWatchFolderFiles: (files: FileList) => void;
-    isMobile: boolean;
-    themeColor: THEME_COLOR;
-    setThemeColor: SetTheme;
-    somethingWentWrong: () => void;
-    setDialogBoxAttributesV2: SetDialogBoxAttributesV2;
-    isCFProxyDisabled: boolean;
-    setIsCFProxyDisabled: (disabled: boolean) => void;
-};
-
-export const AppContext = createContext<AppContextType>(null);
-
-// Client-side cache, shared for the whole session of the user in the browser.
-const clientSideEmotionCache = createEmotionCache();
-
-export default function App(props: EnteAppProps) {
-    const {
-        Component,
-        emotionCache = clientSideEmotionCache,
-        pageProps,
-    } = props;
+    const isI18nReady = useSetupI18n();
+    const isChangingRoute = useIsRouteChangeInProgress();
     const router = useRouter();
-    const [isI18nReady, setIsI18nReady] = useState<boolean>(false);
-    const [loading, setLoading] = useState(false);
-    const [offline, setOffline] = useState(
-        typeof window !== "undefined" && !window.navigator.onLine,
-    );
-    const [showNavbar, setShowNavBar] = useState(false);
-    const [sharedFiles, setSharedFiles] = useState<File[]>(null);
-    const [redirectName, setRedirectName] = useState<string>(null);
-    const [mlSearchEnabled, setMlSearchEnabled] = useState(false);
-    const [mapEnabled, setMapEnabled] = useState(false);
-    const isLoadingBarRunning = useRef(false);
-    const loadingBar = useRef(null);
-    const [dialogMessage, setDialogMessage] = useState<DialogBoxAttributes>();
-    const [dialogBoxAttributeV2, setDialogBoxAttributesV2] =
-        useState<DialogBoxAttributesV2>();
-    useState<DialogBoxAttributes>(null);
-    const [messageDialogView, setMessageDialogView] = useState(false);
-    const [dialogBoxV2View, setDialogBoxV2View] = useState(false);
-    const [isFolderSyncRunning, setIsFolderSyncRunning] = useState(false);
+    const { showMiniDialog, miniDialogProps } = useAttributedMiniDialog();
+    const { showNotification, notificationProps } = useNotification();
+    const { loadingBarRef, showLoadingBar, hideLoadingBar } = useLoadingBar();
+
     const [watchFolderView, setWatchFolderView] = useState(false);
-    const [watchFolderFiles, setWatchFolderFiles] = useState<FileList>(null);
-    const isMobile = useMediaQuery("(max-width:428px)");
-    const [notificationView, setNotificationView] = useState(false);
-    const closeNotification = () => setNotificationView(false);
-    const [notificationAttributes, setNotificationAttributes] =
-        useState<NotificationAttributes>(null);
-    const [themeColor, setThemeColor] = useLocalState(
-        LS_KEYS.THEME,
-        THEME_COLOR.DARK,
-    );
-    const [isCFProxyDisabled, setIsCFProxyDisabled] = useLocalState(
-        LS_KEYS.CF_PROXY_DISABLED,
-        false,
-    );
+
+    const logout = useCallback(() => void photosLogout(), []);
 
     useEffect(() => {
-        //setup i18n
-        setupI18n().finally(() => setIsI18nReady(true));
-        // set client package name in headers
-        HTTPService.setHeaders({
-            "X-Client-Package": CLIENT_PACKAGE_NAMES.get(APPS.PHOTOS),
-        });
-        // setup logging
-        clearLogsIfLocalStorageLimitExceeded();
-        logStartupMessage(APPS.PHOTOS);
-    }, []);
-
-    useEffect(() => {
-        if (isElectron()) {
-            const showUpdateDialog = (updateInfo: AppUpdateInfo) => {
-                if (updateInfo.autoUpdatable) {
-                    setDialogMessage(
-                        getUpdateReadyToInstallMessage(updateInfo),
-                    );
-                } else {
-                    setNotificationAttributes({
-                        endIcon: <ArrowForward />,
-                        variant: "secondary",
-                        message: t("UPDATE_AVAILABLE"),
-                        onClick: () =>
-                            setDialogMessage(
-                                getUpdateAvailableForDownloadMessage(
-                                    updateInfo,
-                                ),
-                            ),
-                    });
-                }
-            };
-            ElectronAPIs.registerUpdateEventListener(showUpdateDialog);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (!isElectron()) {
-            return;
-        }
-        const loadMlSearchState = async () => {
-            try {
-                const mlSearchConfig = await getMLSearchConfig();
-                setMlSearchEnabled(mlSearchConfig.enabled);
-                mlWorkManager.setMlSearchEnabled(mlSearchConfig.enabled);
-            } catch (e) {
-                logError(e, "Error while loading mlSearchEnabled");
-            }
-        };
-        loadMlSearchState();
-        try {
-            eventBus.on(Events.LOGOUT, () => {
-                setMlSearchEnabled(false);
-                mlWorkManager.setMlSearchEnabled(false);
-            });
-        } catch (e) {
-            logError(e, "Error while subscribing to logout event");
-        }
-    }, []);
-
-    useEffect(() => {
-        setMapEnabled(getLocalMapEnabled());
-    }, []);
-
-    useEffect(() => {
-        if (!isElectron()) {
-            return;
-        }
-        const initExport = async () => {
-            try {
-                addLogLine("init export");
-                const token = getToken();
-                if (!token) {
-                    addLogLine(
-                        "User not logged in, not starting export continuous sync job",
-                    );
-                    return;
-                }
-                await DownloadManager.init(APPS.PHOTOS, { token });
-                const exportSettings = exportService.getExportSettings();
-                if (!exportService.exportFolderExists(exportSettings?.folder)) {
-                    return;
-                }
-                const exportRecord = await exportService.getExportRecord(
-                    exportSettings.folder,
-                );
-                if (exportSettings.continuousExport) {
-                    exportService.enableContinuousExport();
-                }
-                if (isExportInProgress(exportRecord.stage)) {
-                    addLogLine("export was in progress, resuming");
-                    exportService.scheduleExport();
-                }
-            } catch (e) {
-                logError(e, "init export failed");
-            }
-        };
-        initExport();
-        try {
-            eventBus.on(Events.LOGOUT, () => {
-                exportService.disableContinuousExport();
-            });
-        } catch (e) {
-            logError(e, "Error while subscribing to logout event");
-        }
-    }, []);
-
-    const setUserOnline = () => setOffline(false);
-    const setUserOffline = () => setOffline(true);
-    const resetSharedFiles = () => setSharedFiles(null);
-
-    useEffect(() => {
-        if (isI18nReady) {
-            console.log(
-                `%c${t("CONSOLE_WARNING_STOP")}`,
-                "color: red; font-size: 52px;",
-            );
-            console.log(`%c${t("CONSOLE_WARNING_DESC")}`, "font-size: 20px;");
-        }
-    }, [isI18nReady]);
-
-    useEffect(() => {
-        const redirectTo = async (redirect) => {
-            if (
-                redirectMap.has(redirect) &&
-                typeof redirectMap.get(redirect) === "function"
-            ) {
-                const redirectAction = redirectMap.get(redirect);
-                window.location.href = await redirectAction();
+        const user = getData(LS_KEYS.USER) as User | undefined | null;
+        logStartupBanner(user?.id);
+        HTTPService.setHeaders({ "X-Client-Package": clientPackageName });
+        void isLocalStorageAndIndexedDBMismatch().then((mismatch) => {
+            if (mismatch) {
+                log.error("Logging out (IndexedDB and local storage mismatch)");
+                return logout();
             } else {
-                logError(CustomError.BAD_REQUEST, "invalid redirection", {
-                    redirect,
+                return runMigrations();
+            }
+        });
+    }, [logout]);
+
+    useEffect(() => {
+        const electron = globalThis.electron;
+        if (!electron) return;
+
+        // Attach various listeners for events sent to us by the Node.js layer.
+        // This is for events that we should listen for always, not just when
+        // the user is logged in.
+
+        const handleOpenEnteURL = (url: string) => {
+            if (url.startsWith("ente://app")) router.push(url);
+            else log.info(`Ignoring unhandled open request for URL ${url}`);
+        };
+
+        const showUpdateDialog = (update: AppUpdate) => {
+            if (update.autoUpdatable) {
+                showMiniDialog(updateReadyToInstallDialogAttributes(update));
+            } else {
+                showNotification({
+                    color: "secondary",
+                    title: t("update_available"),
+                    endIcon: <ArrowForwardIcon />,
+                    onClick: () =>
+                        showMiniDialog(
+                            updateAvailableForDownloadDialogAttributes(update),
+                        ),
                 });
             }
         };
 
-        const query = new URLSearchParams(window.location.search);
-        const redirectName = query.get("redirect");
-        if (redirectName) {
-            const user = getData(LS_KEYS.USER);
-            if (user?.token) {
-                redirectTo(redirectName);
-            } else {
-                setRedirectName(redirectName);
-            }
-        }
+        if (isMLSupported) initML();
 
-        router.events.on("routeChangeStart", (url: string) => {
-            const newPathname = url.split("?")[0] as PAGES;
-            if (window.location.pathname !== newPathname) {
-                setLoading(true);
-            }
-
-            if (redirectName) {
-                const user = getData(LS_KEYS.USER);
-                if (user?.token) {
-                    redirectTo(redirectName);
-
-                    // https://github.com/vercel/next.js/issues/2476#issuecomment-573460710
-                    // eslint-disable-next-line no-throw-literal
-                    throw "Aborting route change, redirection in process....";
-                }
-            }
-        });
-
-        router.events.on("routeChangeComplete", () => {
-            setLoading(false);
-        });
-
-        window.addEventListener("online", setUserOnline);
-        window.addEventListener("offline", setUserOffline);
+        electron.onOpenEnteURL(handleOpenEnteURL);
+        electron.onAppUpdateAvailable(showUpdateDialog);
 
         return () => {
-            window.removeEventListener("online", setUserOnline);
-            window.removeEventListener("offline", setUserOffline);
+            electron.onOpenEnteURL(undefined);
+            electron.onAppUpdateAvailable(undefined);
         };
-    }, [redirectName]);
+    }, []);
 
     useEffect(() => {
-        setMessageDialogView(true);
-    }, [dialogMessage]);
+        if (isDesktop) void resumeExportsIfNeeded();
+    }, []);
 
     useEffect(() => {
-        setDialogBoxV2View(true);
-    }, [dialogBoxAttributeV2]);
+        const query = new URLSearchParams(window.location.search);
+        const needsFamilyRedirect = query.get("redirect") == "families";
+        if (needsFamilyRedirect && getData(LS_KEYS.USER)?.token)
+            redirectToFamilyPortal();
 
-    useEffect(() => {
-        setNotificationView(true);
-    }, [notificationAttributes]);
+        router.events.on("routeChangeStart", () => {
+            if (needsFamilyRedirect && getData(LS_KEYS.USER)?.token) {
+                redirectToFamilyPortal();
 
-    const showNavBar = (show: boolean) => setShowNavBar(show);
-    const updateMlSearchEnabled = async (enabled: boolean) => {
-        try {
-            const mlSearchConfig = await getMLSearchConfig();
-            mlSearchConfig.enabled = enabled;
-            await updateMLSearchConfig(mlSearchConfig);
-            setMlSearchEnabled(enabled);
-            mlWorkManager.setMlSearchEnabled(enabled);
-        } catch (e) {
-            logError(e, "Error while updating mlSearchEnabled");
-        }
-    };
-
-    const updateMapEnabled = async (enabled: boolean) => {
-        try {
-            await updateMapEnabledStatus(enabled);
-            setLocalMapEnabled(enabled);
-            setMapEnabled(enabled);
-        } catch (e) {
-            logError(e, "Error while updating mapEnabled");
-        }
-    };
-
-    const startLoading = () => {
-        !isLoadingBarRunning.current && loadingBar.current?.continuousStart();
-        isLoadingBarRunning.current = true;
-    };
-    const finishLoading = () => {
-        setTimeout(() => {
-            isLoadingBarRunning.current && loadingBar.current?.complete();
-            isLoadingBarRunning.current = false;
-        }, 100);
-    };
-
-    const closeMessageDialog = () => setMessageDialogView(false);
-    const closeDialogBoxV2 = () => setDialogBoxV2View(false);
-
-    const somethingWentWrong = () =>
-        setDialogMessage({
-            title: t("ERROR"),
-            close: { variant: "critical" },
-            content: t("UNKNOWN_ERROR"),
+                // https://github.com/vercel/next.js/issues/2476#issuecomment-573460710
+                // eslint-disable-next-line @typescript-eslint/only-throw-error
+                throw "Aborting route change, redirection in process....";
+            }
         });
+    }, []);
+
+    const baseContext = useMemo(
+        () => deriveBaseContext({ logout, showMiniDialog }),
+        [logout, showMiniDialog],
+    );
+    const appContext = useMemo(
+        () => ({
+            showLoadingBar,
+            hideLoadingBar,
+            watchFolderView,
+            setWatchFolderView,
+            showNotification,
+        }),
+        [
+            showLoadingBar,
+            hideLoadingBar,
+            watchFolderView,
+            setWatchFolderView,
+            showNotification,
+        ],
+    );
+
+    const title = isI18nReady ? t("title_photos") : staticAppTitle;
 
     return (
-        <CacheProvider value={emotionCache}>
-            <Head>
-                <title>
-                    {isI18nReady
-                        ? t("TITLE", { context: APPS.PHOTOS })
-                        : APP_TITLES.get(APPS.PHOTOS)}
-                </title>
-                <meta
-                    name="viewport"
-                    content="initial-scale=1, width=device-width"
-                />
-            </Head>
+        <ThemeProvider theme={photosTheme}>
+            <CustomHead {...{ title }} />
+            <CssBaseline enableColorScheme />
 
-            <ThemeProvider theme={getTheme(themeColor, APPS.PHOTOS)}>
-                <CssBaseline enableColorScheme />
-                {showNavbar && <AppNavbar isMobile={isMobile} />}
-                <MessageContainer>
-                    {offline && t("OFFLINE_MSG")}
-                </MessageContainer>
-                {sharedFiles &&
-                    (router.pathname === "/gallery" ? (
-                        <MessageContainer>
-                            {t("files_to_be_uploaded", {
-                                count: sharedFiles.length,
-                            })}
-                        </MessageContainer>
+            <ThemedLoadingBar ref={loadingBarRef} />
+            <AttributedMiniDialog {...miniDialogProps} />
+            <Notification {...notificationProps} />
+
+            {isDesktop && <WindowTitlebar>{title}</WindowTitlebar>}
+            <BaseContext value={baseContext}>
+                <PhotosAppContext value={appContext}>
+                    {!isI18nReady ? (
+                        <LoadingIndicator />
                     ) : (
-                        <MessageContainer>
-                            {t("login_to_upload_files", {
-                                count: sharedFiles.length,
-                            })}
-                        </MessageContainer>
-                    ))}
-                <LoadingBar color="#51cd7c" ref={loadingBar} />
-
-                <DialogBox
-                    sx={{ zIndex: 1600 }}
-                    size="xs"
-                    open={messageDialogView}
-                    onClose={closeMessageDialog}
-                    attributes={dialogMessage}
-                />
-                <DialogBoxV2
-                    sx={{ zIndex: 1600 }}
-                    open={dialogBoxV2View}
-                    onClose={closeDialogBoxV2}
-                    attributes={dialogBoxAttributeV2}
-                />
-                <Notification
-                    open={notificationView}
-                    onClose={closeNotification}
-                    attributes={notificationAttributes}
-                />
-
-                <AppContext.Provider
-                    value={{
-                        showNavBar,
-                        mlSearchEnabled,
-                        updateMlSearchEnabled,
-                        sharedFiles,
-                        resetSharedFiles,
-                        startLoading,
-                        finishLoading,
-                        closeMessageDialog,
-                        setDialogMessage,
-                        isFolderSyncRunning,
-                        setIsFolderSyncRunning,
-                        watchFolderView,
-                        setWatchFolderView,
-                        watchFolderFiles,
-                        setWatchFolderFiles,
-                        isMobile,
-                        setNotificationAttributes,
-                        themeColor,
-                        setThemeColor,
-                        somethingWentWrong,
-                        setDialogBoxAttributesV2,
-                        mapEnabled,
-                        updateMapEnabled,
-                        isCFProxyDisabled,
-                        setIsCFProxyDisabled,
-                    }}
-                >
-                    {(loading || !isI18nReady) && (
-                        <Overlay
-                            sx={(theme) => ({
-                                display: "flex",
-                                justifyContent: "center",
-                                alignItems: "center",
-                                zIndex: 2000,
-                                backgroundColor: theme.colors.background.base,
-                            })}
-                        >
-                            <EnteSpinner />
-                        </Overlay>
+                        <>
+                            {isChangingRoute && <TranslucentLoadingOverlay />}
+                            <Component {...pageProps} />
+                        </>
                     )}
-                    <Component setLoading={setLoading} {...pageProps} />
-                </AppContext.Provider>
-            </ThemeProvider>
-        </CacheProvider>
+                </PhotosAppContext>
+            </BaseContext>
+        </ThemeProvider>
     );
-}
+};
+
+export default App;
+
+const redirectToFamilyPortal = () =>
+    void getFamilyPortalRedirectURL().then((url) => {
+        window.location.href = url;
+    });
+
+const WindowTitlebar: React.FC<React.PropsWithChildren> = ({ children }) => (
+    <WindowTitlebarArea>
+        <Typography variant="small" sx={{ mt: "2px", fontWeight: "bold" }}>
+            {children}
+        </Typography>
+    </WindowTitlebarArea>
+);
+
+// See: [Note: Customize the desktop title bar]
+const WindowTitlebarArea = styled(CenteredRow)`
+    width: 100%;
+    height: env(titlebar-area-height, 30px /* fallback */);
+    /* LoadingIndicator is 100vh, so resist shrinking when shown with it. */
+    flex-shrink: 0;
+    /* Allow using the titlebar to drag the window. */
+    app-region: drag;
+`;

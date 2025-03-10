@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+	"github.com/ente-io/museum/pkg/controller/collections"
 	"net/http"
 	"strconv"
 
@@ -18,7 +20,7 @@ import (
 type PublicCollectionHandler struct {
 	Controller             *controller.PublicCollectionController
 	FileCtrl               *controller.FileController
-	CollectionCtrl         *controller.CollectionController
+	CollectionCtrl         *collections.CollectionController
 	StorageBonusController *storagebonus.Controller
 }
 
@@ -57,7 +59,7 @@ func (h *PublicCollectionHandler) GetUploadUrls(c *gin.Context) {
 	}
 	userID := collection.Owner.ID
 	count, _ := strconv.Atoi(c.Query("count"))
-	urls, err := h.FileCtrl.GetUploadURLs(c, userID, count, enteApp)
+	urls, err := h.FileCtrl.GetUploadURLs(c, userID, count, enteApp, false)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -140,7 +142,8 @@ func (h *PublicCollectionHandler) ReportAbuse(c *gin.Context) {
 func (h *PublicCollectionHandler) GetDiff(c *gin.Context) {
 	sinceTime, err := strconv.ParseInt(c.Query("sinceTime"), 10, 64)
 	if err != nil {
-		handler.Error(c, stacktrace.Propagate(err, ""))
+		errorMessage := fmt.Sprintf("invalid sinceTime val: %s", c.Query("sinceTime"))
+		handler.Error(c, stacktrace.Propagate(ente.NewBadRequestWithMessage(errorMessage), err.Error()))
 		return
 	}
 	files, hasMore, err := h.CollectionCtrl.GetPublicDiff(c, sinceTime)

@@ -37,25 +37,30 @@ Future<File?> getFile(
   bool isOrigin = false,
 } // only relevant for live photos
     ) async {
-  if (file.isRemoteFile) {
-    return getFileFromServer(file, liveVideo: liveVideo);
-  } else {
-    final String key = file.tag + liveVideo.toString() + isOrigin.toString();
-    final cachedFile = FileLruCache.get(key);
-    if (cachedFile == null) {
-      final diskFile = await _getLocalDiskFile(
-        file,
-        liveVideo: liveVideo,
-        isOrigin: isOrigin,
-      );
-      // do not cache origin file for IOS as they are immediately deleted
-      // after usage
-      if (!(isOrigin && Platform.isIOS) && diskFile != null) {
-        FileLruCache.put(key, diskFile);
+  try {
+    if (file.isRemoteFile) {
+      return getFileFromServer(file, liveVideo: liveVideo);
+    } else {
+      final String key = file.tag + liveVideo.toString() + isOrigin.toString();
+      final cachedFile = FileLruCache.get(key);
+      if (cachedFile == null) {
+        final diskFile = await _getLocalDiskFile(
+          file,
+          liveVideo: liveVideo,
+          isOrigin: isOrigin,
+        );
+        // do not cache origin file for IOS as they are immediately deleted
+        // after usage
+        if (!(isOrigin && Platform.isIOS) && diskFile != null) {
+          FileLruCache.put(key, diskFile);
+        }
+        return diskFile;
       }
-      return diskFile;
+      return cachedFile;
     }
-    return cachedFile;
+  } catch (e, s) {
+    _logger.warning("Failed to get file", e, s);
+    return null;
   }
 }
 
@@ -249,7 +254,7 @@ Future<_LivePhoto?> _downloadLivePhoto(
             if (compressResult == null) {
               throw Exception("Failed to compress file");
             } else {
-              imageConvertedFile = compressResult;
+              imageConvertedFile = File(compressResult.path);
             }
           }
           imageFileCache = await DefaultCacheManager().putFile(
@@ -278,7 +283,9 @@ Future<_LivePhoto?> _downloadLivePhoto(
     if (imageFileCache != null && videoFileCache != null) {
       return _LivePhoto(imageFileCache, videoFileCache);
     } else {
-      debugPrint("Warning: Either image or video is missing from remoteLive");
+      debugPrint(
+        "Warning: ${file.tag} either image ${imageFileCache == null} or video ${videoFileCache == null} is missing from remoteLive",
+      );
       return null;
     }
   }).catchError((e) {
@@ -309,7 +316,7 @@ Future<File?> _downloadAndCache(
       if (compressResult == null) {
         throw Exception("Failed to convert heic to jpg");
       } else {
-        outputFile = compressResult;
+        outputFile = File(compressResult.path);
       }
       await decryptedFile.delete();
     }
@@ -369,4 +376,14 @@ class _LivePhoto {
   final File video;
 
   _LivePhoto(this.image, this.video);
+}
+
+Set<int> filesToUploadedFileIDs(List<EnteFile> files) {
+  final uploadedFileIDs = <int>{};
+  for (final file in files) {
+    if (file.isUploaded) {
+      uploadedFileIDs.add(file.uploadedFileID!);
+    }
+  }
+  return uploadedFileIDs;
 }

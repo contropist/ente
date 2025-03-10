@@ -1,10 +1,15 @@
 import "package:fade_indexed_stack/fade_indexed_stack.dart";
+import "package:flutter/foundation.dart";
 import "package:flutter/material.dart";
 import "package:flutter_animate/flutter_animate.dart";
+import "package:logging/logging.dart";
+import "package:photos/generated/l10n.dart";
 import "package:photos/models/search/album_search_result.dart";
 import "package:photos/models/search/generic_search_result.dart";
 import "package:photos/models/search/index_of_indexed_stack.dart";
+import "package:photos/models/search/search_result.dart";
 import "package:photos/models/search/search_types.dart";
+import "package:photos/service_locator.dart";
 import "package:photos/states/all_sections_examples_state.dart";
 import "package:photos/ui/common/loading_widget.dart";
 import "package:photos/ui/viewer/search/result/no_result_widget.dart";
@@ -12,13 +17,14 @@ import "package:photos/ui/viewer/search/search_suggestions.dart";
 import "package:photos/ui/viewer/search/tab_empty_state.dart";
 import 'package:photos/ui/viewer/search_tab/albums_section.dart';
 import "package:photos/ui/viewer/search_tab/contacts_section.dart";
-import "package:photos/ui/viewer/search_tab/descriptions_section.dart";
 import "package:photos/ui/viewer/search_tab/file_type_section.dart";
 import "package:photos/ui/viewer/search_tab/locations_section.dart";
+import "package:photos/ui/viewer/search_tab/magic_section.dart";
 import "package:photos/ui/viewer/search_tab/moments_section.dart";
+import "package:photos/ui/viewer/search_tab/people_section.dart";
 
 class SearchTab extends StatefulWidget {
-  const SearchTab({Key? key}) : super(key: key);
+  const SearchTab({super.key});
 
   @override
   State<SearchTab> createState() => _SearchTabState();
@@ -73,17 +79,16 @@ class AllSearchSections extends StatefulWidget {
 }
 
 class _AllSearchSectionsState extends State<AllSearchSections> {
+  final Logger _logger = Logger('_AllSearchSectionsState');
   @override
   Widget build(BuildContext context) {
     final searchTypes = SectionType.values.toList(growable: true);
-    // remove face and content sectionType
-    searchTypes.remove(SectionType.face);
-    searchTypes.remove(SectionType.content);
+
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Stack(
         children: [
-          FutureBuilder(
+          FutureBuilder<List<List<SearchResult>>>(
             future: InheritedAllSectionsExamples.of(context)
                 .allSectionsExamplesFuture,
             builder: (context, snapshot) {
@@ -94,6 +99,17 @@ class _AllSearchSectionsState extends State<AllSearchSections> {
                     child: SearchTabEmptyState(),
                   );
                 }
+                if (snapshot.data!.length != searchTypes.length) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 72),
+                    child: Text(
+                      S.of(context).searchSectionsLengthMismatch(
+                            snapshot.data!.length,
+                            searchTypes.length,
+                          ),
+                    ),
+                  );
+                }
                 return ListView.builder(
                   padding: const EdgeInsets.only(bottom: 180),
                   physics: const BouncingScrollPhysics(),
@@ -101,18 +117,22 @@ class _AllSearchSectionsState extends State<AllSearchSections> {
                   // ignore: body_might_complete_normally_nullable
                   itemBuilder: (context, index) {
                     switch (searchTypes[index]) {
+                      case SectionType.face:
+                        if (!flagService.hasGrantedMLConsent) {
+                          return const SizedBox.shrink();
+                        }
+                        return PeopleSection(
+                          examples: snapshot.data!.elementAt(index)
+                              as List<GenericSearchResult>,
+                        );
                       case SectionType.album:
+                        // return const SizedBox.shrink();
                         return AlbumsSection(
                           snapshot.data!.elementAt(index)
                               as List<AlbumSearchResult>,
                         );
                       case SectionType.moment:
                         return MomentsSection(
-                          snapshot.data!.elementAt(index)
-                              as List<GenericSearchResult>,
-                        );
-                      case SectionType.fileCaption:
-                        return DescriptionsSection(
                           snapshot.data!.elementAt(index)
                               as List<GenericSearchResult>,
                         );
@@ -131,8 +151,11 @@ class _AllSearchSectionsState extends State<AllSearchSections> {
                           snapshot.data!.elementAt(index)
                               as List<GenericSearchResult>,
                         );
-                      default:
-                        const SizedBox.shrink();
+                      case SectionType.magic:
+                        return MagicSection(
+                          snapshot.data!.elementAt(index)
+                              as List<GenericSearchResult>,
+                        );
                     }
                   },
                 )
@@ -150,6 +173,17 @@ class _AllSearchSectionsState extends State<AllSearchSections> {
                       curve: Curves.easeOut,
                     );
               } else if (snapshot.hasError) {
+                _logger.severe(
+                  'Failed to load sections: ',
+                  snapshot.error,
+                  snapshot.stackTrace,
+                );
+                if (kDebugMode) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 72),
+                    child: Text(S.of(context).error + ': ${snapshot.error}'),
+                  );
+                }
                 //Errors are handled and this else if condition will be false always
                 //is the understanding.
                 return const Padding(

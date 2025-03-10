@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:photos/core/constants.dart';
-import 'package:photos/utils/date_time_util.dart';
+import "package:photos/utils/standalone/date_time.dart";
 import 'package:test/test.dart';
 
 void main() {
@@ -18,6 +18,7 @@ void main() {
       "Screenshot_2022-06-21-16-51-29-164_newFormat.heic",
       "Screenshot 20221106 211633.com.google.android.apps.nbu.paisa.user.jpg",
       "signal-2022-12-17-15-16-04-718.jpg",
+      "signal-2022-12-17-15-16-04-718-2.jpg",
     ];
     for (String val in validParsing) {
       final parsedValue = parseDateTimeFromFileNameV2(val);

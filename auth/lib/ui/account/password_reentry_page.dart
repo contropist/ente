@@ -9,14 +9,14 @@ import 'package:ente_auth/ui/account/recovery_page.dart';
 import 'package:ente_auth/ui/common/dynamic_fab.dart';
 import 'package:ente_auth/ui/components/buttons/button_widget.dart';
 import 'package:ente_auth/ui/home_page.dart';
-import 'package:ente_auth/utils/crypto_util.dart';
 import 'package:ente_auth/utils/dialog_util.dart';
 import 'package:ente_auth/utils/email_util.dart';
+import 'package:ente_crypto_dart/ente_crypto_dart.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 
 class PasswordReentryPage extends StatefulWidget {
-  const PasswordReentryPage({Key? key}) : super(key: key);
+  const PasswordReentryPage({super.key});
 
   @override
   State<PasswordReentryPage> createState() => _PasswordReentryPageState();
@@ -116,6 +116,7 @@ class _PasswordReentryPageState extends State<PasswordReentryPage> {
         firstButtonLabel: context.l10n.useRecoveryKey,
       );
       if (dialogChoice!.action == ButtonAction.first) {
+        // ignore: unawaited_futures
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (BuildContext context) {
@@ -139,7 +140,6 @@ class _PasswordReentryPageState extends State<PasswordReentryPage> {
         await sendLogs(
           context,
           context.l10n.contactSupport,
-          "support@ente.io",
           postShare: () {},
         );
       }
@@ -260,8 +260,8 @@ class _PasswordReentryPageState extends State<PasswordReentryPage> {
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Wrap(
-                    alignment: WrapAlignment.spaceBetween,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       GestureDetector(
                         behavior: HitTestBehavior.opaque,
@@ -274,13 +274,17 @@ class _PasswordReentryPageState extends State<PasswordReentryPage> {
                             ),
                           );
                         },
-                        child: Text(
-                          context.l10n.forgotPassword,
-                          style:
-                              Theme.of(context).textTheme.titleMedium!.copyWith(
-                                    fontSize: 14,
-                                    decoration: TextDecoration.underline,
-                                  ),
+                        child: Center(
+                          child: Text(
+                            context.l10n.forgotPassword,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium!
+                                .copyWith(
+                                  fontSize: 14,
+                                  decoration: TextDecoration.underline,
+                                ),
+                          ),
                         ),
                       ),
                       GestureDetector(
@@ -296,13 +300,17 @@ class _PasswordReentryPageState extends State<PasswordReentryPage> {
                           Navigator.of(context)
                               .popUntil((route) => route.isFirst);
                         },
-                        child: Text(
-                          context.l10n.changeEmail,
-                          style:
-                              Theme.of(context).textTheme.titleMedium!.copyWith(
-                                    fontSize: 14,
-                                    decoration: TextDecoration.underline,
-                                  ),
+                        child: Center(
+                          child: Text(
+                            context.l10n.changeEmail,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium!
+                                .copyWith(
+                                  fontSize: 14,
+                                  decoration: TextDecoration.underline,
+                                ),
+                          ),
                         ),
                       ),
                     ],

@@ -9,10 +9,11 @@ import 'package:photos/core/constants.dart';
 import 'package:photos/models/file/file_type.dart';
 import 'package:photos/models/location/location.dart';
 import "package:photos/models/metadata/file_magic.dart";
-import 'package:photos/services/feature_flag_service.dart';
-import 'package:photos/utils/date_time_util.dart';
+import "package:photos/service_locator.dart";
 import 'package:photos/utils/exif_util.dart';
 import 'package:photos/utils/file_uploader_util.dart';
+import "package:photos/utils/panorama_util.dart";
+import 'package:photos/utils/standalone/date_time.dart';
 
 //Todo: files with no location data have lat and long set to 0.0. This should ideally be null.
 class EnteFile {
@@ -85,13 +86,24 @@ class EnteFile {
 
   static int parseFileCreationTime(String? fileTitle, AssetEntity asset) {
     int creationTime = asset.createDateTime.microsecondsSinceEpoch;
+    final int modificationTime = asset.modifiedDateTime.microsecondsSinceEpoch;
     if (creationTime >= jan011981Time) {
       // assuming that fileSystem is returning correct creationTime.
       // During upload, this might get overridden with exif Creation time
+      // When the assetModifiedTime is less than creationTime, than just use
+      // that as creationTime. This is to handle cases where file might be
+      // copied to the fileSystem from somewhere else See #https://superuser.com/a/1091147
+      if (modificationTime >= jan011981Time &&
+          modificationTime < creationTime) {
+        _logger.info(
+          'LocalID: ${asset.id} modification time is less than creation time. Using modification time as creation time',
+        );
+        creationTime = modificationTime;
+      }
       return creationTime;
     } else {
-      if (asset.modifiedDateTime.microsecondsSinceEpoch >= jan011981Time) {
-        creationTime = asset.modifiedDateTime.microsecondsSinceEpoch;
+      if (modificationTime >= jan011981Time) {
+        creationTime = modificationTime;
       } else {
         creationTime = DateTime.now().toUtc().microsecondsSinceEpoch;
       }
@@ -106,7 +118,6 @@ class EnteFile {
         // ignore
       }
     }
-
     return creationTime;
   }
 
@@ -149,6 +160,7 @@ class EnteFile {
 
   Future<Map<String, dynamic>> getMetadataForUpload(
     MediaUploadData mediaUploadData,
+    ParsedExifDateTime? exifTime,
   ) async {
     final asset = await getAsset;
     // asset can be null for files shared to app
@@ -159,26 +171,24 @@ class EnteFile {
       }
     }
     bool hasExifTime = false;
-    if ((fileType == FileType.image || fileType == FileType.video) &&
-        mediaUploadData.sourceFile != null) {
-      final exifData = await getExifFromSourceFile(mediaUploadData.sourceFile!);
-      if (exifData != null) {
-        if (fileType == FileType.image) {
-          final exifTime = await getCreationTimeFromEXIF(null, exifData);
-          if (exifTime != null) {
-            hasExifTime = true;
-            creationTime = exifTime.microsecondsSinceEpoch;
-          }
-        }
-        if (Platform.isAndroid) {
-          //Fix for missing location data in lower android versions.
-          final Location? exifLocation = locationFromExif(exifData);
-          if (Location.isValidLocation(exifLocation)) {
-            location = exifLocation;
-          }
-        }
-      }
+    if (exifTime != null && exifTime.time != null) {
+      hasExifTime = true;
+      creationTime = exifTime.time!.microsecondsSinceEpoch;
     }
+    if (mediaUploadData.exifData != null) {
+      mediaUploadData.isPanorama =
+          checkPanoramaFromEXIF(null, mediaUploadData.exifData);
+    }
+    if (mediaUploadData.isPanorama != true &&
+        fileType == FileType.image &&
+        mediaUploadData.sourceFile != null) {
+      try {
+        final xmpData = await getXmp(mediaUploadData.sourceFile!);
+        mediaUploadData.isPanorama = checkPanoramaFromXMP(xmpData);
+      } catch (_) {}
+      mediaUploadData.isPanorama ??= false;
+    }
+
     // Try to get the timestamp from fileName. In case of iOS, file names are
     // generic IMG_XXXX, so only parse it on Android devices
     if (!hasExifTime && Platform.isAndroid && title != null) {
@@ -233,12 +243,44 @@ class EnteFile {
   }
 
   String get downloadUrl {
+    if (localFileServer.isNotEmpty) {
+      return "$localFileServer/$uploadedFileID";
+    }
     final endpoint = Configuration.instance.getHttpEndpoint();
-    if (endpoint != kDefaultProductionEndpoint ||
-        FeatureFlagService.instance.disableCFWorker()) {
+    if (endpoint != kDefaultProductionEndpoint || flagService.disableCFWorker) {
       return endpoint + "/files/download/" + uploadedFileID.toString();
     } else {
       return "https://files.ente.io/?fileID=" + uploadedFileID.toString();
+    }
+  }
+
+  String get publicDownloadUrl {
+    if (localFileServer.isNotEmpty) {
+      return "$localFileServer/$uploadedFileID";
+    }
+    final endpoint = Configuration.instance.getHttpEndpoint();
+    if (endpoint != kDefaultProductionEndpoint || flagService.disableCFWorker) {
+      return endpoint +
+          "/public-collection/files/download/" +
+          uploadedFileID.toString();
+    } else {
+      return "https://public-albums.ente.io/download/?fileID=" +
+          uploadedFileID.toString();
+    }
+  }
+
+  String get pubPreviewUrl {
+    if (localFileServer.isNotEmpty) {
+      return "$localFileServer/thumb/$uploadedFileID";
+    }
+    final endpoint = Configuration.instance.getHttpEndpoint();
+    if (endpoint != kDefaultProductionEndpoint || flagService.disableCFWorker) {
+      return endpoint +
+          "/public-collection/files/preview/" +
+          uploadedFileID.toString();
+    } else {
+      return "https://public-albums.ente.io/preview/?fileID=" +
+          uploadedFileID.toString();
     }
   }
 
@@ -246,10 +288,14 @@ class EnteFile {
     return pubMagicMetadata?.caption;
   }
 
+  String? debugCaption;
+
   String get thumbnailUrl {
+    if (localFileServer.isNotEmpty) {
+      return "$localFileServer/thumb/$uploadedFileID";
+    }
     final endpoint = Configuration.instance.getHttpEndpoint();
-    if (endpoint != kDefaultProductionEndpoint ||
-        FeatureFlagService.instance.disableCFWorker()) {
+    if (endpoint != kDefaultProductionEndpoint || flagService.disableCFWorker) {
       return endpoint + "/files/preview/" + uploadedFileID.toString();
     } else {
       return "https://thumbnails.ente.io/?fileID=" + uploadedFileID.toString();
@@ -300,7 +346,7 @@ class EnteFile {
   @override
   String toString() {
     return '''File(generatedID: $generatedID, localID: $localID, title: $title, 
-      uploadedFileId: $uploadedFileID, modificationTime: $modificationTime, 
+      type: $fileType, uploadedFileId: $uploadedFileID, modificationTime: $modificationTime, 
       ownerID: $ownerID, collectionID: $collectionID, updationTime: $updationTime)''';
   }
 

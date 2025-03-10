@@ -7,7 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:photos/core/cache/video_cache_manager.dart';
 import 'package:photos/core/configuration.dart';
 import "package:photos/generated/l10n.dart";
-import 'package:photos/services/feature_flag_service.dart';
+import "package:photos/service_locator.dart";
 import 'package:photos/theme/ente_theme.dart';
 import 'package:photos/ui/components/buttons/icon_button_widget.dart';
 import 'package:photos/ui/components/captioned_text_widget.dart';
@@ -16,10 +16,10 @@ import 'package:photos/ui/components/menu_section_title.dart';
 import 'package:photos/ui/components/title_bar_title_widget.dart';
 import 'package:photos/ui/components/title_bar_widget.dart';
 import 'package:photos/ui/tools/debug/path_storage_viewer.dart';
-import 'package:photos/utils/directory_content.dart';
+import 'package:photos/utils/standalone/directory_content.dart';
 
 class AppStorageViewer extends StatefulWidget {
-  const AppStorageViewer({Key? key}) : super(key: key);
+  const AppStorageViewer({super.key});
 
   @override
   State<AppStorageViewer> createState() => _AppStorageViewerState();
@@ -34,9 +34,9 @@ class _AppStorageViewerState extends State<AppStorageViewer> {
 
   @override
   void initState() {
-    internalUser = FeatureFlagService.instance.isInternalUserOrDebugBuild();
-    addPath();
     super.initState();
+    internalUser = flagService.internalUser;
+    addPath();
   }
 
   void addPath() async {

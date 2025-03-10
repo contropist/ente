@@ -9,7 +9,7 @@ import 'package:photos/core/configuration.dart';
 import 'package:photos/ente_theme_data.dart';
 import "package:photos/generated/l10n.dart";
 import "package:photos/l10n/l10n.dart";
-import 'package:photos/services/update_service.dart';
+import "package:photos/service_locator.dart";
 import 'package:photos/ui/account/email_entry_page.dart';
 import 'package:photos/ui/account/login_page.dart';
 import 'package:photos/ui/account/password_entry_page.dart';
@@ -19,18 +19,24 @@ import 'package:photos/ui/components/buttons/button_widget.dart';
 import 'package:photos/ui/components/dialog_widget.dart';
 import 'package:photos/ui/components/models/button_type.dart';
 import 'package:photos/ui/payment/subscription.dart';
+import "package:photos/ui/settings/developer_settings_page.dart";
+import "package:photos/ui/settings/developer_settings_widget.dart";
 import "package:photos/ui/settings/language_picker.dart";
+import "package:photos/utils/dialog_util.dart";
 import "package:photos/utils/navigation_util.dart";
 
 class LandingPageWidget extends StatefulWidget {
-  const LandingPageWidget({Key? key}) : super(key: key);
+  const LandingPageWidget({super.key});
 
   @override
   State<LandingPageWidget> createState() => _LandingPageWidgetState();
 }
 
 class _LandingPageWidgetState extends State<LandingPageWidget> {
+  static const kDeveloperModeTapCountThreshold = 7;
+
   double _featureIndex = 0;
+  int _developerModeTapCount = 0;
 
   @override
   void initState() {
@@ -40,7 +46,35 @@ class _LandingPageWidgetState extends State<LandingPageWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(body: _getBody(), resizeToAvoidBottomInset: false);
+    return Scaffold(
+      body: GestureDetector(
+        onTap: () async {
+          _developerModeTapCount++;
+          if (_developerModeTapCount >= kDeveloperModeTapCountThreshold) {
+            _developerModeTapCount = 0;
+            final result = await showChoiceDialog(
+              context,
+              title: S.of(context).developerSettings,
+              firstButtonLabel: S.of(context).yes,
+              body: S.of(context).developerSettingsWarning,
+              isDismissible: false,
+            );
+            if (result?.action == ButtonAction.first) {
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (BuildContext context) {
+                    return const DeveloperSettingsPage();
+                  },
+                ),
+              );
+              setState(() {});
+            }
+          }
+        },
+        child: _getBody(),
+      ),
+      resizeToAvoidBottomInset: false,
+    );
   }
 
   Widget _getBody() {
@@ -55,7 +89,7 @@ class _LandingPageWidgetState extends State<LandingPageWidget> {
                       child: Text("Lang"),
                     ),
                     onTap: () async {
-                      final locale = await getLocale();
+                      final locale = (await getLocale())!;
                       // ignore: unawaited_futures
                       routeToPage(
                         context,
@@ -131,6 +165,9 @@ class _LandingPageWidgetState extends State<LandingPageWidget> {
                 ),
               ),
             ),
+            // const DeveloperSettingsWidget() does not refresh when the endpoint is changed
+            // ignore: prefer_const_constructors
+            DeveloperSettingsWidget(),
             const Padding(
               padding: EdgeInsets.all(20),
             ),
@@ -187,7 +224,7 @@ class _LandingPageWidgetState extends State<LandingPageWidget> {
   }
 
   Future<void> _navigateToSignUpPage() async {
-    UpdateService.instance.hideChangeLog().ignore();
+    updateService.hideChangeLog().ignore();
     Widget page;
     if (Configuration.instance.getEncryptedToken() == null) {
       page = const EmailEntryPage();
@@ -195,7 +232,9 @@ class _LandingPageWidgetState extends State<LandingPageWidget> {
       // No key
       if (Configuration.instance.getKeyAttributes() == null) {
         // Never had a key
-        page =  const PasswordEntryPage(mode: PasswordEntryMode.set,);
+        page = const PasswordEntryPage(
+          mode: PasswordEntryMode.set,
+        );
       } else if (Configuration.instance.getKey() == null) {
         // Yet to decrypt the key
         page = const PasswordReentryPage();
@@ -215,7 +254,7 @@ class _LandingPageWidgetState extends State<LandingPageWidget> {
   }
 
   void _navigateToSignInPage() {
-    UpdateService.instance.hideChangeLog().ignore();
+    updateService.hideChangeLog().ignore();
     Widget page;
     if (Configuration.instance.getEncryptedToken() == null) {
       page = const LoginPage();
@@ -223,7 +262,9 @@ class _LandingPageWidgetState extends State<LandingPageWidget> {
       // No key
       if (Configuration.instance.getKeyAttributes() == null) {
         // Never had a key
-        page =  const PasswordEntryPage(mode: PasswordEntryMode.set,);
+        page = const PasswordEntryPage(
+          mode: PasswordEntryMode.set,
+        );
       } else if (Configuration.instance.getKey() == null) {
         // Yet to decrypt the key
         page = const PasswordReentryPage();
@@ -247,12 +288,12 @@ class _LandingPageWidgetState extends State<LandingPageWidget> {
       final result = await showDialogWidget(
         context: context,
         title: S.of(context).pleaseLoginAgain,
-        body: S.of(context).devAccountChanged,
-        buttons: const [
+        body: S.of(context).autoLogoutMessage,
+        buttons: [
           ButtonWidget(
             buttonType: ButtonType.neutral,
             buttonAction: ButtonAction.first,
-            labelText: "OK",
+            labelText: S.of(context).ok,
             isInAlert: true,
           ),
         ],
@@ -276,8 +317,8 @@ class FeatureItemWidget extends StatelessWidget {
     this.featureTitleFirstLine,
     this.featureTitleSecondLine,
     this.subText, {
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {

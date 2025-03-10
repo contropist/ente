@@ -1,6 +1,8 @@
+import "dart:async";
 import "dart:math";
 
 import "package:flutter/cupertino.dart";
+import "package:flutter/material.dart";
 import "package:intl/intl.dart";
 import 'package:logging/logging.dart';
 import "package:photos/core/constants.dart";
@@ -9,9 +11,11 @@ import 'package:photos/data/holidays.dart';
 import 'package:photos/data/months.dart';
 import 'package:photos/data/years.dart';
 import 'package:photos/db/files_db.dart';
+import "package:photos/db/ml/db.dart";
 import 'package:photos/events/local_photos_updated_event.dart';
-import "package:photos/extensions/string_ext.dart";
+import "package:photos/extensions/user_extension.dart";
 import "package:photos/models/api/collection/user.dart";
+import "package:photos/models/base_location.dart";
 import 'package:photos/models/collection/collection.dart';
 import 'package:photos/models/collection/collection_items.dart';
 import "package:photos/models/file/extensions/file_props.dart";
@@ -20,24 +24,47 @@ import 'package:photos/models/file/file_type.dart';
 import "package:photos/models/local_entity_data.dart";
 import "package:photos/models/location/location.dart";
 import "package:photos/models/location_tag/location_tag.dart";
+import "package:photos/models/memories/memory.dart";
+import "package:photos/models/ml/face/person.dart";
 import 'package:photos/models/search/album_search_result.dart';
 import 'package:photos/models/search/generic_search_result.dart';
+import "package:photos/models/search/hierarchical/contacts_filter.dart";
+import "package:photos/models/search/hierarchical/face_filter.dart";
+import "package:photos/models/search/hierarchical/file_type_filter.dart";
+import "package:photos/models/search/hierarchical/hierarchical_search_filter.dart";
+import "package:photos/models/search/hierarchical/location_filter.dart";
+import "package:photos/models/search/hierarchical/magic_filter.dart";
+import "package:photos/models/search/hierarchical/top_level_generic_filter.dart";
+import "package:photos/models/search/search_constants.dart";
 import "package:photos/models/search/search_types.dart";
+import "package:photos/service_locator.dart";
+import "package:photos/services/account/user_service.dart";
 import 'package:photos/services/collections_service.dart';
+import "package:photos/services/filter/db_filters.dart";
 import "package:photos/services/location_service.dart";
+import "package:photos/services/machine_learning/face_ml/face_filtering/face_filtering_constants.dart";
+import "package:photos/services/machine_learning/face_ml/person/person_service.dart";
 import 'package:photos/services/machine_learning/semantic_search/semantic_search_service.dart';
 import "package:photos/states/location_screen_state.dart";
 import "package:photos/ui/viewer/location/add_location_sheet.dart";
 import "package:photos/ui/viewer/location/location_screen.dart";
-import 'package:photos/utils/date_time_util.dart';
+import "package:photos/ui/viewer/people/cluster_page.dart";
+import "package:photos/ui/viewer/people/people_page.dart";
+import "package:photos/ui/viewer/search/result/magic_result_screen.dart";
+import "package:photos/utils/file_util.dart";
 import "package:photos/utils/navigation_util.dart";
+import 'package:photos/utils/standalone/date_time.dart';
 import 'package:tuple/tuple.dart';
 
 class SearchService {
   Future<List<EnteFile>>? _cachedFilesFuture;
+  Future<List<EnteFile>>? _cachedFilesForSearch;
+  Future<List<EnteFile>>? _cachedFilesForHierarchicalSearch;
+  Future<List<EnteFile>>? _cachedHiddenFilesFuture;
   final _logger = Logger((SearchService).toString());
   final _collectionService = CollectionsService.instance;
   static const _maximumResultsLimit = 20;
+  late final mlDataDB = MLDataDB.instance;
 
   SearchService._privateConstructor();
 
@@ -47,6 +74,9 @@ class SearchService {
     Bus.instance.on<LocalPhotosUpdatedEvent>().listen((event) {
       // only invalidate, let the load happen on demand
       _cachedFilesFuture = null;
+      _cachedFilesForSearch = null;
+      _cachedFilesForHierarchicalSearch = null;
+      _cachedHiddenFilesFuture = null;
     });
   }
 
@@ -54,20 +84,76 @@ class SearchService {
     return CollectionsService.instance.getHiddenCollectionIds();
   }
 
-  Future<List<EnteFile>> getAllFiles() async {
-    if (_cachedFilesFuture != null) {
-      return _cachedFilesFuture!;
+  Future<List<EnteFile>> getAllFilesForSearch() async {
+    if (_cachedFilesFuture != null && _cachedFilesForSearch != null) {
+      return _cachedFilesForSearch!;
     }
-    _logger.fine("Reading all files from db");
-    _cachedFilesFuture = FilesDB.instance.getAllFilesFromDB(
-      ignoreCollections(),
-      dedupeByUploadId: true,
-    );
-    return _cachedFilesFuture!;
+
+    if (_cachedFilesFuture == null) {
+      _logger.fine("Reading all files from db");
+      _cachedFilesFuture = FilesDB.instance.getAllFilesFromDB(
+        ignoreCollections(),
+        dedupeByUploadId: false,
+      );
+    }
+
+    _cachedFilesForSearch = _cachedFilesFuture!.then((files) {
+      return applyDBFilters(
+        files,
+        DBFilterOptions(
+          dedupeUploadID: true,
+        ),
+      );
+    });
+
+    return _cachedFilesForSearch!;
+  }
+
+  Future<List<EnteFile>> getAllFilesForHierarchicalSearch() async {
+    if (_cachedFilesFuture != null &&
+        _cachedFilesForHierarchicalSearch != null) {
+      return _cachedFilesForHierarchicalSearch!;
+    }
+
+    if (_cachedFilesFuture == null) {
+      _logger.fine("Reading all files from db");
+      _cachedFilesFuture = FilesDB.instance.getAllFilesFromDB(
+        ignoreCollections(),
+        dedupeByUploadId: false,
+      );
+    }
+
+    _cachedFilesForHierarchicalSearch = _cachedFilesFuture!.then((files) {
+      return applyDBFilters(
+        files,
+        DBFilterOptions(
+          dedupeUploadID: false,
+          onlyUploadedFiles: true,
+        ),
+      );
+    });
+
+    return _cachedFilesForHierarchicalSearch!;
+  }
+
+  Future<List<EnteFile>> getHiddenFiles() async {
+    if (_cachedHiddenFilesFuture != null) {
+      return _cachedHiddenFilesFuture!;
+    }
+    _logger.fine("Reading hidden files from db");
+    final hiddenCollections =
+        CollectionsService.instance.getHiddenCollectionIds();
+    _cachedHiddenFilesFuture =
+        FilesDB.instance.getAllFilesFromCollections(hiddenCollections);
+    return _cachedHiddenFilesFuture!;
   }
 
   void clearCache() {
     _cachedFilesFuture = null;
+    _cachedFilesForSearch = null;
+    _cachedFilesForHierarchicalSearch = null;
+    _cachedHiddenFilesFuture = null;
+    unawaited(memoriesCacheService.clearMemoriesCache());
   }
 
   // getFilteredCollectionsWithThumbnail removes deleted or archived or
@@ -144,12 +230,29 @@ class SearchService {
               ResultType.year,
               yearData.year,
               filesInYear,
+              hierarchicalSearchFilter: TopLevelGenericFilter(
+                filterName: yearData.year,
+                occurrence: kMostRelevantFilter,
+                filterResultType: ResultType.year,
+                matchedUploadedIDs: filesToUploadedFileIDs(filesInYear),
+                filterIcon: Icons.calendar_month_outlined,
+              ),
             ),
           );
         }
       }
     }
     return searchResults;
+  }
+
+  Future<List<GenericSearchResult>> getMagicSectionResults(
+    BuildContext context,
+  ) async {
+    if (flagService.hasGrantedMLConsent) {
+      return magicCacheService.getMagicGenericSearchResult(context);
+    } else {
+      return <GenericSearchResult>[];
+    }
   }
 
   Future<List<GenericSearchResult>> getRandomMomentsSearchResults(
@@ -188,6 +291,13 @@ class SearchService {
           ResultType.year,
           yearData.year,
           filesInYear,
+          hierarchicalSearchFilter: TopLevelGenericFilter(
+            filterName: yearData.year,
+            occurrence: kMostRelevantFilter,
+            filterResultType: ResultType.year,
+            matchedUploadedIDs: filesToUploadedFileIDs(filesInYear),
+            filterIcon: Icons.calendar_month_outlined,
+          ),
         );
       }
     }
@@ -213,6 +323,13 @@ class SearchService {
             ResultType.month,
             month.name,
             matchedFiles,
+            hierarchicalSearchFilter: TopLevelGenericFilter(
+              filterName: month.name,
+              occurrence: kMostRelevantFilter,
+              filterResultType: ResultType.month,
+              matchedUploadedIDs: filesToUploadedFileIDs(matchedFiles),
+              filterIcon: Icons.calendar_month_outlined,
+            ),
           ),
         );
       }
@@ -236,6 +353,13 @@ class SearchService {
           ResultType.month,
           month.name,
           matchedFiles,
+          hierarchicalSearchFilter: TopLevelGenericFilter(
+            filterName: month.name,
+            occurrence: kMostRelevantFilter,
+            filterResultType: ResultType.month,
+            matchedUploadedIDs: filesToUploadedFileIDs(matchedFiles),
+            filterIcon: Icons.calendar_month_outlined,
+          ),
         );
       }
     }
@@ -262,7 +386,18 @@ class SearchService {
         );
         if (matchedFiles.isNotEmpty) {
           searchResults.add(
-            GenericSearchResult(ResultType.event, holiday.name, matchedFiles),
+            GenericSearchResult(
+              ResultType.event,
+              holiday.name,
+              matchedFiles,
+              hierarchicalSearchFilter: TopLevelGenericFilter(
+                filterName: holiday.name,
+                occurrence: kMostRelevantFilter,
+                filterResultType: ResultType.event,
+                matchedUploadedIDs: filesToUploadedFileIDs(matchedFiles),
+                filterIcon: Icons.event_outlined,
+              ),
+            ),
           );
         }
       }
@@ -286,6 +421,13 @@ class SearchService {
           ResultType.event,
           holiday.name,
           matchedFiles,
+          hierarchicalSearchFilter: TopLevelGenericFilter(
+            filterName: holiday.name,
+            occurrence: kMostRelevantFilter,
+            filterResultType: ResultType.event,
+            matchedUploadedIDs: filesToUploadedFileIDs(matchedFiles),
+            filterIcon: Icons.event_outlined,
+          ),
         );
       }
     }
@@ -297,7 +439,7 @@ class SearchService {
     String query,
   ) async {
     final List<GenericSearchResult> searchResults = [];
-    final List<EnteFile> allFiles = await getAllFiles();
+    final List<EnteFile> allFiles = await getAllFilesForSearch();
     for (var fileType in FileType.values) {
       final String fileTypeString = getHumanReadableString(context, fileType);
       if (fileTypeString.toLowerCase().startsWith(query.toLowerCase())) {
@@ -309,6 +451,12 @@ class SearchService {
               ResultType.fileType,
               fileTypeString,
               matchedFiles,
+              hierarchicalSearchFilter: FileTypeFilter(
+                fileType: fileType,
+                typeName: fileTypeString,
+                occurrence: kMostRelevantFilter,
+                matchedUploadedIDs: filesToUploadedFileIDs(matchedFiles),
+              ),
             ),
           );
         }
@@ -322,7 +470,7 @@ class SearchService {
     int? limit,
   ) async {
     final List<GenericSearchResult> searchResults = [];
-    final List<EnteFile> allFiles = await getAllFiles();
+    final List<EnteFile> allFiles = await getAllFilesForSearch();
     final fileTypesAndMatchingFiles = <FileType, List<EnteFile>>{};
     final extensionsAndMatchingFiles = <String, List<EnteFile>>{};
     try {
@@ -348,11 +496,18 @@ class SearchService {
       }
 
       fileTypesAndMatchingFiles.forEach((key, value) {
+        final name = getHumanReadableString(context, key);
         searchResults.add(
           GenericSearchResult(
             ResultType.fileType,
-            getHumanReadableString(context, key),
+            name,
             value,
+            hierarchicalSearchFilter: FileTypeFilter(
+              fileType: key,
+              typeName: name,
+              occurrence: kMostRelevantFilter,
+              matchedUploadedIDs: filesToUploadedFileIDs(value),
+            ),
           ),
         );
       });
@@ -363,6 +518,13 @@ class SearchService {
             ResultType.fileExtension,
             key + "s",
             value,
+            hierarchicalSearchFilter: TopLevelGenericFilter(
+              filterName: key + "s",
+              occurrence: kMostRelevantFilter,
+              filterResultType: ResultType.fileExtension,
+              matchedUploadedIDs: filesToUploadedFileIDs(value),
+              filterIcon: CupertinoIcons.doc_text,
+            ),
           ),
         );
       });
@@ -378,153 +540,6 @@ class SearchService {
     }
   }
 
-  ///Todo: Optimise + make this function more readable
-  //This can be furthur optimized by not just limiting keys to 0 and 1. Use key
-  //0 for single word, 1 for 2 word, 2 for 3 ..... and only check the substrings
-  //in higher key if there are matches in the lower key.
-  Future<List<GenericSearchResult>> getAllDescriptionSearchResults(
-    //todo: use limit
-    int? limit,
-  ) async {
-    try {
-      final List<GenericSearchResult> searchResults = [];
-      final List<EnteFile> allFiles = await getAllFiles();
-
-      //each list element will be substrings from a description mapped by
-      //word count = 1 and word count > 1
-      //New items will be added to [orderedSubDescriptions] list for every
-      //distinct description.
-      //[orderedSubDescriptions[x]] has two keys, 0 & 1. Value of key 0 will be single
-      //word substrings. Value of key 1 will be multi word subStrings. When
-      //iterating through [allFiles], we check for matching substrings from
-      //[orderedSubDescriptions[x]] with the file's description. Starts from value
-      //of key 0 (x=0). If there are no substring matches from key 0, there will
-      //be none from key 1 as well. So these two keys are for avoiding unnecessary
-      //checking of all subDescriptions with file description.
-      final orderedSubDescs = <Map<int, List<String>>>[];
-      final descAndMatchingFiles = <String, Set<EnteFile>>{};
-      int distinctFullDescCount = 0;
-      final allDistinctFullDescs = <String>[];
-
-      for (EnteFile file in allFiles) {
-        if (file.caption != null && file.caption!.isNotEmpty) {
-          //This limit doesn't necessarily have to be the limit parameter of the
-          //method. Using the same variable to avoid unwanted iterations when
-          //iterating over [orderedSubDescriptions] in case there is a limit
-          //passed. Using the limit passed here so that there will be almost
-          //always be more than 7 descriptionAndMatchingFiles and can shuffle
-          //and choose only limited elements from it. Without shuffling,
-          //result will be ["hello", "world", "hello world"] for the string
-          //"hello world"
-
-          if (limit == null || distinctFullDescCount < limit) {
-            final descAlreadyRecorded = allDistinctFullDescs
-                .any((element) => element.contains(file.caption!.trim()));
-
-            if (!descAlreadyRecorded) {
-              distinctFullDescCount++;
-              allDistinctFullDescs.add(file.caption!.trim());
-              final words = file.caption!.trim().split(" ");
-              orderedSubDescs.add({0: <String>[], 1: <String>[]});
-
-              for (int i = 1; i <= words.length; i++) {
-                for (int j = 0; j <= words.length - i; j++) {
-                  final subList = words.sublist(j, j + i);
-                  final substring = subList.join(" ").toLowerCase();
-                  if (i == 1) {
-                    orderedSubDescs.last[0]!.add(substring);
-                  } else {
-                    orderedSubDescs.last[1]!.add(substring);
-                  }
-                }
-              }
-            }
-          }
-
-          for (Map<int, List<String>> orderedSubDescription
-              in orderedSubDescs) {
-            bool matchesSingleWordSubString = false;
-            for (String subDescription in orderedSubDescription[0]!) {
-              if (file.caption!.toLowerCase().contains(subDescription)) {
-                matchesSingleWordSubString = true;
-
-                //continue only after setting [matchesSingleWordSubString] to true
-                if (subDescription.isAllConnectWords ||
-                    subDescription.isLastWordConnectWord) continue;
-
-                if (descAndMatchingFiles.containsKey(subDescription)) {
-                  descAndMatchingFiles[subDescription]!.add(file);
-                } else {
-                  descAndMatchingFiles[subDescription] = {file};
-                }
-              }
-            }
-            if (matchesSingleWordSubString) {
-              for (String subDescription in orderedSubDescription[1]!) {
-                if (subDescription.isAllConnectWords ||
-                    subDescription.isLastWordConnectWord) continue;
-
-                if (file.caption!.toLowerCase().contains(subDescription)) {
-                  if (descAndMatchingFiles.containsKey(subDescription)) {
-                    descAndMatchingFiles[subDescription]!.add(file);
-                  } else {
-                    descAndMatchingFiles[subDescription] = {file};
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-
-      ///[relevantDescAndFiles] will be a filterd version of [descriptionAndMatchingFiles]
-      ///In [descriptionAndMatchingFiles], there will be descriptions with the same
-      ///set of matching files. These descriptions will be substrings of a full
-      ///description. [relevantDescAndFiles] will keep only the entry which has the
-      ///longest description among enties with matching set of files.
-      final relevantDescAndFiles = <String, Set<EnteFile>>{};
-      while (descAndMatchingFiles.isNotEmpty) {
-        final baseEntry = descAndMatchingFiles.entries.first;
-        final descsWithSameFiles = <String, Set<EnteFile>>{};
-        final baseUploadedFileIDs =
-            baseEntry.value.map((e) => e.uploadedFileID).toSet();
-
-        descAndMatchingFiles.forEach((desc, files) {
-          final uploadedFileIDs = files.map((e) => e.uploadedFileID).toSet();
-
-          final hasSameFiles =
-              uploadedFileIDs.containsAll(baseUploadedFileIDs) &&
-                  baseUploadedFileIDs.containsAll(uploadedFileIDs);
-          if (hasSameFiles) {
-            descsWithSameFiles.addAll({desc: files});
-          }
-        });
-        descAndMatchingFiles
-            .removeWhere((desc, files) => descsWithSameFiles.containsKey(desc));
-        final longestDescription = descsWithSameFiles.keys.reduce(
-          (desc1, desc2) => desc1.length > desc2.length ? desc1 : desc2,
-        );
-        relevantDescAndFiles.addAll(
-          {longestDescription: descsWithSameFiles[longestDescription]!},
-        );
-      }
-
-      relevantDescAndFiles.forEach((key, value) {
-        searchResults.add(
-          GenericSearchResult(ResultType.fileCaption, key, value.toList()),
-        );
-      });
-      if (limit != null) {
-        return searchResults.sublist(0, min(limit, searchResults.length));
-      } else {
-        return searchResults;
-      }
-    } catch (e) {
-      _logger.severe("Error in getAllDescriptionSearchResults", e);
-      return [];
-    }
-  }
-
   Future<List<GenericSearchResult>> getCaptionAndNameResults(
     String query,
   ) async {
@@ -533,7 +548,7 @@ class SearchService {
       return searchResults;
     }
     final RegExp pattern = RegExp(query, caseSensitive: false);
-    final List<EnteFile> allFiles = await getAllFiles();
+    final List<EnteFile> allFiles = await getAllFilesForSearch();
     final List<EnteFile> captionMatch = <EnteFile>[];
     final List<EnteFile> displayNameMatch = <EnteFile>[];
     for (EnteFile eachFile in allFiles) {
@@ -550,6 +565,13 @@ class SearchService {
           ResultType.fileCaption,
           query,
           captionMatch,
+          hierarchicalSearchFilter: TopLevelGenericFilter(
+            filterName: query,
+            occurrence: kMostRelevantFilter,
+            filterResultType: ResultType.fileCaption,
+            matchedUploadedIDs: filesToUploadedFileIDs(captionMatch),
+            filterIcon: Icons.description_outlined,
+          ),
         ),
       );
     }
@@ -559,6 +581,12 @@ class SearchService {
           ResultType.file,
           query,
           displayNameMatch,
+          hierarchicalSearchFilter: TopLevelGenericFilter(
+            filterName: query,
+            occurrence: kMostRelevantFilter,
+            filterResultType: ResultType.file,
+            matchedUploadedIDs: filesToUploadedFileIDs(displayNameMatch),
+          ),
         ),
       );
     }
@@ -573,7 +601,7 @@ class SearchService {
       return searchResults;
     }
 
-    final List<EnteFile> allFiles = await getAllFiles();
+    final List<EnteFile> allFiles = await getAllFilesForSearch();
     final Map<String, List<EnteFile>> resultMap = <String, List<EnteFile>>{};
 
     for (EnteFile eachFile in allFiles) {
@@ -592,6 +620,13 @@ class SearchService {
           ResultType.fileExtension,
           entry.key.toUpperCase(),
           entry.value,
+          hierarchicalSearchFilter: TopLevelGenericFilter(
+            filterName: entry.key.toUpperCase(),
+            occurrence: kMostRelevantFilter,
+            filterResultType: ResultType.fileExtension,
+            matchedUploadedIDs: filesToUploadedFileIDs(entry.value),
+            filterIcon: CupertinoIcons.doc_text,
+          ),
         ),
       );
     }
@@ -599,8 +634,7 @@ class SearchService {
   }
 
   Future<List<GenericSearchResult>> getLocationResults(String query) async {
-    final locationTagEntities =
-        (await LocationService.instance.getLocationTags());
+    final locationTagEntities = (await locationService.getLocationTags());
     final Map<LocalEntity<LocationTag>, List<EnteFile>> result = {};
     final bool showNoLocationTag = query.length > 2 &&
         "No Location Tag".toLowerCase().startsWith(query.toLowerCase());
@@ -612,7 +646,7 @@ class SearchService {
         result[tag] = [];
       }
     }
-    final allFiles = await getAllFiles();
+    final allFiles = await getAllFilesForSearch();
     for (EnteFile file in allFiles) {
       if (file.hasLocation) {
         for (LocalEntity<LocationTag> tag in result.keys) {
@@ -651,6 +685,13 @@ class SearchService {
             ResultType.fileType,
             "No Location Tag",
             noLocationTagFiles,
+            hierarchicalSearchFilter: TopLevelGenericFilter(
+              filterName: "No Location Tag",
+              occurrence: kMostRelevantFilter,
+              filterResultType: ResultType.fileType,
+              matchedUploadedIDs: filesToUploadedFileIDs(noLocationTagFiles),
+              filterIcon: Icons.not_listed_location_outlined,
+            ),
           ),
         );
       }
@@ -675,6 +716,11 @@ class SearchService {
                 ),
               );
             },
+            hierarchicalSearchFilter: LocationFilter(
+              locationTag: entry.key.item,
+              occurrence: kMostRelevantFilter,
+              matchedUploadedIDs: filesToUploadedFileIDs(entry.value),
+            ),
           ),
         );
       }
@@ -685,18 +731,31 @@ class SearchService {
     if (allCitiesSearch) {
       query = '';
     }
-    final results =
-        await LocationService.instance.getFilesInCity(allFiles, query);
+    final results = await locationService.getFilesInCity(allFiles, query);
     final List<City> sortedByResultCount = results.keys.toList()
       ..sort((a, b) => results[b]!.length.compareTo(results[a]!.length));
     for (final city in sortedByResultCount) {
       // If the location tag already exists for a city, don't add it again
       if (!locationTagNames.contains(city.city)) {
+        final a =
+            (defaultCityRadius * scaleFactor(city.lat)) / kilometersPerDegree;
+        const b = defaultCityRadius / kilometersPerDegree;
         searchResults.add(
           GenericSearchResult(
             ResultType.location,
             city.city,
             results[city]!,
+            hierarchicalSearchFilter: LocationFilter(
+              locationTag: LocationTag(
+                name: city.city,
+                radius: defaultCityRadius,
+                centerPoint: Location(latitude: city.lat, longitude: city.lng),
+                aSquare: a * a,
+                bSquare: b * b,
+              ),
+              occurrence: kMostRelevantFilter,
+              matchedUploadedIDs: filesToUploadedFileIDs(results[city]!),
+            ),
           ),
         );
       }
@@ -704,13 +763,234 @@ class SearchService {
     return searchResults;
   }
 
+  Future<Map<String, List<EnteFile>>> getClusterFilesForPersonID(
+    String personID,
+  ) async {
+    _logger.info('getClusterFilesForPersonID $personID');
+    final Map<int, Set<String>> fileIdToClusterID =
+        await mlDataDB.getFileIdToClusterIDSet(personID);
+    _logger.info('faceDbDone getClusterFilesForPersonID $personID');
+    final Map<String, List<EnteFile>> clusterIDToFiles = {};
+    final allFiles = await getAllFilesForSearch();
+    for (final f in allFiles) {
+      if (!fileIdToClusterID.containsKey(f.uploadedFileID ?? -1)) {
+        continue;
+      }
+      final cluserIds = fileIdToClusterID[f.uploadedFileID ?? -1]!;
+      for (final cluster in cluserIds) {
+        if (clusterIDToFiles.containsKey(cluster)) {
+          clusterIDToFiles[cluster]!.add(f);
+        } else {
+          clusterIDToFiles[cluster] = [f];
+        }
+      }
+    }
+    _logger.info('done getClusterFilesForPersonID $personID');
+    return clusterIDToFiles;
+  }
+
+  Future<List<GenericSearchResult>> getAllFace(
+    int? limit, {
+    int minClusterSize = kMinimumClusterSizeSearchResult,
+  }) async {
+    try {
+      debugPrint("getting faces");
+      final Map<int, Set<String>> fileIdToClusterID =
+          await mlDataDB.getFileIdToClusterIds();
+      final Map<String, PersonEntity> personIdToPerson =
+          await PersonService.instance.getPersonsMap();
+      final clusterIDToPersonID = await mlDataDB.getClusterIDToPersonID();
+
+      final List<GenericSearchResult> facesResult = [];
+      final Map<String, List<EnteFile>> clusterIdToFiles = {};
+      final Map<String, List<EnteFile>> personIdToFiles = {};
+      final allFiles = await getAllFilesForSearch();
+      for (final f in allFiles) {
+        if (!fileIdToClusterID.containsKey(f.uploadedFileID ?? -1)) {
+          continue;
+        }
+        final clusterIds = fileIdToClusterID[f.uploadedFileID ?? -1]!;
+        for (final cluster in clusterIds) {
+          final PersonEntity? p =
+              personIdToPerson[clusterIDToPersonID[cluster] ?? ""];
+          if (p != null) {
+            if (personIdToFiles.containsKey(p.remoteID)) {
+              personIdToFiles[p.remoteID]!.add(f);
+            } else {
+              personIdToFiles[p.remoteID] = [f];
+            }
+          } else {
+            if (clusterIdToFiles.containsKey(cluster)) {
+              clusterIdToFiles[cluster]!.add(f);
+            } else {
+              clusterIdToFiles[cluster] = [f];
+            }
+          }
+        }
+      }
+      // get sorted personId by files count
+      final sortedPersonIds = personIdToFiles.keys.toList()
+        ..sort(
+          (a, b) => personIdToFiles[b]!.length.compareTo(
+                personIdToFiles[a]!.length,
+              ),
+        );
+      for (final personID in sortedPersonIds) {
+        final files = personIdToFiles[personID]!;
+        if (files.isEmpty) {
+          continue;
+        }
+        final PersonEntity p = personIdToPerson[personID]!;
+        if (p.data.isIgnored) continue;
+        facesResult.add(
+          GenericSearchResult(
+            ResultType.faces,
+            p.data.name,
+            files,
+            params: {
+              kPersonWidgetKey: p.data.avatarFaceID ?? p.hashCode.toString(),
+              kPersonParamID: personID,
+              kFileID: files.first.uploadedFileID,
+            },
+            onResultTap: (ctx) {
+              routeToPage(
+                ctx,
+                PeoplePage(
+                  tagPrefix: "${ResultType.faces.toString()}_${p.data.name}",
+                  person: p,
+                  searchResult: GenericSearchResult(
+                    ResultType.faces,
+                    p.data.name,
+                    files,
+                    params: {
+                      kPersonWidgetKey:
+                          p.data.avatarFaceID ?? p.hashCode.toString(),
+                      kPersonParamID: personID,
+                      kFileID: files.first.uploadedFileID,
+                    },
+                    hierarchicalSearchFilter: FaceFilter(
+                      personId: p.remoteID,
+                      clusterId: null,
+                      faceName: p.data.name,
+                      faceFile: files.first,
+                      occurrence: kMostRelevantFilter,
+                      matchedUploadedIDs: filesToUploadedFileIDs(files),
+                    ),
+                  ),
+                ),
+              );
+            },
+            hierarchicalSearchFilter: FaceFilter(
+              personId: p.remoteID,
+              clusterId: null,
+              faceName: p.data.name,
+              faceFile: files.first,
+              occurrence: kMostRelevantFilter,
+              matchedUploadedIDs: filesToUploadedFileIDs(files),
+            ),
+          ),
+        );
+      }
+      final sortedClusterIds = clusterIdToFiles.keys.toList()
+        ..sort(
+          (a, b) => clusterIdToFiles[b]!
+              .length
+              .compareTo(clusterIdToFiles[a]!.length),
+        );
+
+      for (final clusterId in sortedClusterIds) {
+        final files = clusterIdToFiles[clusterId]!;
+        // final String clusterName = "ID:$clusterId,  ${files.length}";
+        // final String clusterName = "${files.length}";
+        // const String clusterName = "";
+        final String clusterName = clusterId;
+
+        if (clusterIDToPersonID[clusterId] != null) {
+          final String personID = clusterIDToPersonID[clusterId]!;
+          final PersonEntity? p = personIdToPerson[personID];
+          if (p != null) {
+            // This should not be possible since it should be handled in the above loop, logging just in case
+            _logger.severe(
+              "`getAllFace`: Something unexpected happened, Cluster $clusterId should not have person id $personID",
+              Exception(
+                'Some unexpected error occurred in getAllFace wrt cluster to person mapping',
+              ),
+            );
+          } else {
+            // This should not happen, means a clusterID is still assigned to a personID of a person that no longer exists
+            // Logging the error and deleting the clusterID to personID mapping
+            _logger.severe(
+              "`getAllFace`: Cluster $clusterId should not have person id ${clusterIDToPersonID[clusterId]}, deleting the mapping",
+              Exception('ClusterID assigned to a person that no longer exists'),
+            );
+            await mlDataDB.removeClusterToPerson(
+              personID: personID,
+              clusterID: clusterId,
+            );
+          }
+        }
+        if (files.length < minClusterSize) continue;
+        facesResult.add(
+          GenericSearchResult(
+            ResultType.faces,
+            "",
+            files,
+            params: {
+              kClusterParamId: clusterId,
+              kFileID: files.first.uploadedFileID,
+            },
+            onResultTap: (ctx) {
+              routeToPage(
+                ctx,
+                ClusterPage(
+                  files,
+                  tagPrefix: "${ResultType.faces.toString()}_$clusterName",
+                  clusterID: clusterId,
+                ),
+              );
+            },
+            hierarchicalSearchFilter: FaceFilter(
+              personId: null,
+              clusterId: clusterId,
+              faceName: null,
+              faceFile: files.first,
+              occurrence: kMostRelevantFilter,
+              matchedUploadedIDs: filesToUploadedFileIDs(files),
+            ),
+          ),
+        );
+      }
+      if (facesResult.isEmpty) {
+        int newMinimum = minClusterSize;
+        for (final int minimum in kLowerMinimumClusterSizes) {
+          if (minimum < minClusterSize) {
+            newMinimum = minimum;
+            break;
+          }
+        }
+        if (newMinimum < minClusterSize) {
+          return getAllFace(limit, minClusterSize: newMinimum);
+        } else {
+          return [];
+        }
+      }
+      if (limit != null) {
+        return facesResult.sublist(0, min(limit, facesResult.length));
+      } else {
+        return facesResult;
+      }
+    } catch (e, s) {
+      _logger.severe("Error in getAllFace", e, s);
+      rethrow;
+    }
+  }
+
   Future<List<GenericSearchResult>> getAllLocationTags(int? limit) async {
     try {
       final Map<LocalEntity<LocationTag>, List<EnteFile>> tagToItemsMap = {};
       final List<GenericSearchResult> tagSearchResults = [];
-      final locationTagEntities =
-          (await LocationService.instance.getLocationTags());
-      final allFiles = await getAllFiles();
+      final locationTagEntities = (await locationService.getLocationTags());
+      final allFiles = await getAllFilesForSearch();
       final List<EnteFile> filesWithNoLocTag = [];
 
       for (int i = 0; i < locationTagEntities.length; i++) {
@@ -760,17 +1040,61 @@ class SearchService {
                   ),
                 );
               },
+              hierarchicalSearchFilter: LocationFilter(
+                locationTag: entry.key.item,
+                occurrence: kMostRelevantFilter,
+                matchedUploadedIDs: filesToUploadedFileIDs(entry.value),
+              ),
             ),
           );
         }
       }
+      // Add the found base locations from the location/memories service
+      // TODO: lau: Add base location names
       if (limit == null || tagSearchResults.length < limit) {
-        final results = await LocationService.instance
-            .getFilesInCity(filesWithNoLocTag, '');
+        for (final BaseLocation base in locationService.baseLocations) {
+          final a = (baseRadius * scaleFactor(base.location.latitude!)) /
+              kilometersPerDegree;
+          const b = baseRadius / kilometersPerDegree;
+          tagSearchResults.add(
+            GenericSearchResult(
+              ResultType.location,
+              "Base",
+              base.files,
+              onResultTap: (ctx) {
+                showAddLocationSheet(
+                  ctx,
+                  base.location,
+                  name: "Base",
+                  radius: baseRadius,
+                );
+              },
+              hierarchicalSearchFilter: LocationFilter(
+                locationTag: LocationTag(
+                  name: "Base",
+                  radius: baseRadius,
+                  centerPoint: base.location,
+                  aSquare: a * a,
+                  bSquare: b * b,
+                ),
+                occurrence: kMostRelevantFilter,
+                matchedUploadedIDs: filesToUploadedFileIDs(base.files),
+              ),
+            ),
+          );
+        }
+      }
+
+      if (limit == null || tagSearchResults.length < limit) {
+        final results =
+            await locationService.getFilesInCity(filesWithNoLocTag, '');
         final List<City> sortedByResultCount = results.keys.toList()
           ..sort((a, b) => results[b]!.length.compareTo(results[a]!.length));
         for (final city in sortedByResultCount) {
           if (results[city]!.length <= 1) continue;
+          final a =
+              (defaultCityRadius * scaleFactor(city.lat)) / kilometersPerDegree;
+          const b = defaultCityRadius / kilometersPerDegree;
           tagSearchResults.add(
             GenericSearchResult(
               ResultType.locationSuggestion,
@@ -784,6 +1108,18 @@ class SearchService {
                   radius: defaultCityRadius,
                 );
               },
+              hierarchicalSearchFilter: LocationFilter(
+                locationTag: LocationTag(
+                  name: city.city,
+                  radius: defaultCityRadius,
+                  centerPoint:
+                      Location(latitude: city.lat, longitude: city.lng),
+                  aSquare: a * a,
+                  bSquare: b * b,
+                ),
+                occurrence: kMostRelevantFilter,
+                matchedUploadedIDs: filesToUploadedFileIDs(results[city]!),
+              ),
             ),
           );
         }
@@ -813,11 +1149,19 @@ class SearchService {
         order: 'DESC',
       );
       if (matchedFiles.isNotEmpty) {
+        final name = '$day ${potentialDate.item2.name} ${year ?? ''}';
         searchResults.add(
           GenericSearchResult(
             ResultType.event,
-            '$day ${potentialDate.item2.name} ${year ?? ''}',
+            name,
             matchedFiles,
+            hierarchicalSearchFilter: TopLevelGenericFilter(
+              filterName: name,
+              occurrence: kMostRelevantFilter,
+              filterResultType: ResultType.event,
+              matchedUploadedIDs: filesToUploadedFileIDs(matchedFiles),
+              filterIcon: Icons.event_outlined,
+            ),
           ),
         );
       }
@@ -830,9 +1174,95 @@ class SearchService {
     String query,
   ) async {
     final List<GenericSearchResult> searchResults = [];
-    final files = await SemanticSearchService.instance.search(query);
-    if (files.isNotEmpty) {
-      searchResults.add(GenericSearchResult(ResultType.magic, query, files));
+    late List<EnteFile> files;
+    late String resultForQuery;
+    try {
+      (resultForQuery, files) =
+          await SemanticSearchService.instance.searchScreenQuery(query);
+    } catch (e, s) {
+      _logger.severe("Error occurred during magic search", e, s);
+      return searchResults;
+    }
+    if (files.isNotEmpty && resultForQuery == query) {
+      searchResults.add(
+        GenericSearchResult(
+          ResultType.magic,
+          query,
+          files,
+          onResultTap: (context) {
+            routeToPage(
+              context,
+              MagicResultScreen(
+                files,
+                name: query,
+                enableGrouping: false,
+                heroTag: GenericSearchResult(
+                  ResultType.magic,
+                  query,
+                  files,
+                  hierarchicalSearchFilter: MagicFilter(
+                    filterName: query,
+                    occurrence: kMostRelevantFilter,
+                    matchedUploadedIDs: filesToUploadedFileIDs(files),
+                  ),
+                ).heroTag(),
+                magicFilter: MagicFilter(
+                  filterName: query,
+                  occurrence: kMostRelevantFilter,
+                  matchedUploadedIDs: filesToUploadedFileIDs(files),
+                ),
+              ),
+            );
+          },
+          hierarchicalSearchFilter: MagicFilter(
+            filterName: query,
+            occurrence: kMostRelevantFilter,
+            matchedUploadedIDs: filesToUploadedFileIDs(files),
+          ),
+        ),
+      );
+    }
+    return searchResults;
+  }
+
+  /// For debug purposes only, don't use this in production!
+  Future<List<GenericSearchResult>> smartMemories(
+    BuildContext context,
+    int? limit,
+  ) async {
+    DateTime calcTime = DateTime.now();
+    // await two seconds to let new page load first
+    await Future.delayed(const Duration(seconds: 1));
+    if (limit == null) {
+      final DateTime? pickedTime = await showDatePicker(
+        context: context,
+        initialDate: DateTime.now(),
+        firstDate: DateTime(1900),
+        lastDate: DateTime(2100),
+      );
+      if (pickedTime != null) calcTime = pickedTime;
+    }
+    final cache = await memoriesCacheService.debugCacheForTesting();
+    final memoriesResult = await smartMemoriesService
+        .calcMemories(calcTime, cache, debugSurfaceAll: true);
+    locationService.baseLocations = memoriesResult.baseLocations;
+    final searchResults = <GenericSearchResult>[];
+    for (final memory in memoriesResult.memories) {
+      final files = Memory.filesFromMemories(memory.memories);
+      searchResults.add(
+        GenericSearchResult(
+          ResultType.event,
+          memory.title,
+          files,
+          hierarchicalSearchFilter: TopLevelGenericFilter(
+            filterName: memory.title,
+            occurrence: kMostRelevantFilter,
+            filterResultType: ResultType.event,
+            matchedUploadedIDs: filesToUploadedFileIDs(files),
+            filterIcon: Icons.event_outlined,
+          ),
+        ),
+      );
     }
     return searchResults;
   }
@@ -840,7 +1270,7 @@ class SearchService {
   Future<GenericSearchResult?> getRandomDateResults(
     BuildContext context,
   ) async {
-    final allFiles = await getAllFiles();
+    final allFiles = await getAllFilesForSearch();
     if (allFiles.isEmpty) return null;
 
     final length = allFiles.length;
@@ -871,12 +1301,19 @@ class SearchService {
       order: 'DESC',
     );
 
+    final name = DateFormat.yMMMd(Localizations.localeOf(context).languageCode)
+        .format(originalDateTime.toLocal());
     return GenericSearchResult(
       ResultType.event,
-      DateFormat.yMMMd(Localizations.localeOf(context).languageCode).format(
-        DateTime.fromMicrosecondsSinceEpoch(creationTime).toLocal(),
-      ),
+      name,
       matchedFiles,
+      hierarchicalSearchFilter: TopLevelGenericFilter(
+        filterName: name,
+        occurrence: kMostRelevantFilter,
+        filterResultType: ResultType.event,
+        matchedUploadedIDs: filesToUploadedFileIDs(matchedFiles),
+        filterIcon: Icons.event_outlined,
+      ),
     );
   }
 
@@ -885,8 +1322,9 @@ class SearchService {
   ) async {
     final lowerCaseQuery = query.toLowerCase();
     final searchResults = <GenericSearchResult>[];
-    final allFiles = await getAllFiles();
+    final allFiles = await getAllFilesForSearch();
     final peopleToSharedFiles = <User, List<EnteFile>>{};
+    final existingEmails = <String>{};
     for (EnteFile file in allFiles) {
       if (file.isOwner) continue;
 
@@ -894,12 +1332,26 @@ class SearchService {
           .getFileOwner(file.ownerID!, file.collectionID);
 
       if (fileOwner.email.toLowerCase().contains(lowerCaseQuery) ||
-          ((fileOwner.name?.toLowerCase().contains(lowerCaseQuery)) ?? false)) {
+          ((fileOwner.displayName?.toLowerCase().contains(lowerCaseQuery)) ??
+              false)) {
         if (peopleToSharedFiles.containsKey(fileOwner)) {
           peopleToSharedFiles[fileOwner]!.add(file);
         } else {
           peopleToSharedFiles[fileOwner] = [file];
+          existingEmails.add(fileOwner.email);
         }
+      }
+    }
+
+    final relevantContactEmails =
+        UserService.instance.getEmailIDsOfRelevantContacts();
+
+    for (final email in relevantContactEmails.difference(existingEmails)) {
+      final user = User(email: email);
+      if (user.email.toLowerCase().contains(lowerCaseQuery) ||
+          ((user.displayName?.toLowerCase().contains(lowerCaseQuery)) ??
+              false)) {
+        peopleToSharedFiles[user] = [];
       }
     }
 
@@ -907,8 +1359,19 @@ class SearchService {
       searchResults.add(
         GenericSearchResult(
           ResultType.shared,
-          key.name != null && key.name!.isNotEmpty ? key.name! : key.email,
+          key.displayName != null && key.displayName!.isNotEmpty
+              ? key.displayName!
+              : key.email,
           value,
+          hierarchicalSearchFilter: ContactsFilter(
+            user: key,
+            occurrence: kMostRelevantFilter,
+            matchedUploadedIDs: filesToUploadedFileIDs(value),
+          ),
+          params: {
+            kPersonParamID: key.linkedPersonID,
+            kContactEmail: key.email,
+          },
         ),
       );
     });
@@ -921,8 +1384,10 @@ class SearchService {
   ) async {
     try {
       final searchResults = <GenericSearchResult>[];
-      final allFiles = await getAllFiles();
+      final allFiles = await getAllFilesForSearch();
       final peopleToSharedFiles = <User, List<EnteFile>>{};
+      final existingEmails = <String>{};
+
       int peopleCount = 0;
       for (EnteFile file in allFiles) {
         if (file.isOwner) continue;
@@ -934,18 +1399,55 @@ class SearchService {
         } else {
           if (limit != null && limit <= peopleCount) continue;
           peopleToSharedFiles[fileOwner] = [file];
+          existingEmails.add(fileOwner.email);
           peopleCount++;
         }
       }
 
+      final allRelevantEmails =
+          UserService.instance.getEmailIDsOfRelevantContacts();
+
+      int? remainingLimit = limit != null ? limit - peopleCount : null;
+      if (remainingLimit != null) {
+        // limit - peopleCount will never be negative as of writing this.
+        // Just in case if something changes in future, we are handling it here.
+        remainingLimit = max(remainingLimit, 0);
+      }
+      final emailsWithNoSharedFiles =
+          allRelevantEmails.difference(existingEmails);
+
+      if (remainingLimit == null) {
+        for (final email in emailsWithNoSharedFiles) {
+          final user = User(email: email);
+          peopleToSharedFiles[user] = [];
+        }
+      } else {
+        for (final email in emailsWithNoSharedFiles) {
+          if (remainingLimit == 0) break;
+          final user = User(email: email);
+          peopleToSharedFiles[user] = [];
+          remainingLimit = remainingLimit! - 1;
+        }
+      }
+
       peopleToSharedFiles.forEach((key, value) {
+        final name = key.displayName != null && key.displayName!.isNotEmpty
+            ? key.displayName!
+            : key.email;
         searchResults.add(
           GenericSearchResult(
             ResultType.shared,
-            key.name != null && key.name!.isNotEmpty
-                ? key.name!
-                : key.email.split("@")[0],
+            name,
             value,
+            hierarchicalSearchFilter: ContactsFilter(
+              user: key,
+              occurrence: kMostRelevantFilter,
+              matchedUploadedIDs: filesToUploadedFileIDs(value),
+            ),
+            params: {
+              kPersonParamID: key.linkedPersonID,
+              kContactEmail: key.email,
+            },
           ),
         );
       });

@@ -1,16 +1,10 @@
-import { addLogLine } from "@ente/shared/logging";
-import { logError } from "@ente/shared/sentry";
-import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
+import log from "@/base/log";
+import axios, { type AxiosRequestConfig, type AxiosResponse } from "axios";
+import { ApiError, isApiErrorResponse } from "../error";
 
-import { ApiError, CustomError, isApiErrorResponse } from "../error";
+type IHTTPHeaders = Record<string, any>;
 
-interface IHTTPHeaders {
-    [headerKey: string]: any;
-}
-
-interface IQueryPrams {
-    [paramName: string]: any;
-}
+type IQueryPrams = Record<string, any>;
 
 /**
  * Service to manage all HTTP calls.
@@ -28,14 +22,17 @@ class HTTPService {
                     // that falls out of the range of 2xx
                     if (isApiErrorResponse(response.data)) {
                         const responseData = response.data;
-                        logError(error, "HTTP Service Error", {
-                            url: config.url,
-                            method: config.method,
-                            xRequestId: response.headers["x-request-id"],
-                            httpStatus: response.status,
-                            errMessage: responseData.message,
-                            errCode: responseData.code,
-                        });
+                        log.error(
+                            `HTTP Service Error - ${JSON.stringify({
+                                url: config?.url,
+                                method: config?.method,
+                                xRequestId: response.headers["x-request-id"],
+                                httpStatus: response.status,
+                                errMessage: responseData.message,
+                                errCode: responseData.code,
+                            })}`,
+                            error,
+                        );
                         apiError = new ApiError(
                             responseData.message,
                             responseData.code,
@@ -44,42 +41,42 @@ class HTTPService {
                     } else {
                         if (response.status >= 400 && response.status < 500) {
                             apiError = new ApiError(
-                                CustomError.CLIENT_ERROR,
+                                "client error",
                                 "",
                                 response.status,
                             );
                         } else {
                             apiError = new ApiError(
-                                CustomError.ServerError,
+                                "server error",
                                 "",
                                 response.status,
                             );
                         }
                     }
-                    logError(apiError, "HTTP Service Error", {
-                        url: config.url,
-                        method: config.method,
-                        cfRay: response.headers["cf-ray"],
-                        xRequestId: response.headers["x-request-id"],
-                        httpStatus: response.status,
-                    });
+                    log.error(
+                        `HTTP Service Error - ${JSON.stringify({
+                            url: config.url,
+                            method: config.method,
+                            cfRay: response.headers["cf-ray"],
+                            xRequestId: response.headers["x-request-id"],
+                            httpStatus: response.status,
+                        })}`,
+                        apiError,
+                    );
                     throw apiError;
                 } else if (error.request) {
                     // The request was made but no response was received
                     // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
                     // http.ClientRequest in node.js
-                    addLogLine(
-                        "request failed- no response",
-                        `url: ${config.url}`,
-                        `method: ${config.method}`,
+                    log.info(
+                        `request failed - no response (${config.method} ${config.url}`,
                     );
                     return Promise.reject(error);
                 } else {
-                    // Something happened in setting up the request that triggered an Error
-                    addLogLine(
-                        "request failed- axios error",
-                        `url: ${config.url}`,
-                        `method: ${config.method}`,
+                    // Something happened in setting up the request that
+                    // triggered an Error
+                    log.info(
+                        `request failed - axios error (${config.method} ${config.url}`,
                     );
                     return Promise.reject(error);
                 }
@@ -90,28 +87,20 @@ class HTTPService {
     /**
      * header object to be append to all api calls.
      */
-    private headers: IHTTPHeaders = {
-        "content-type": "application/json",
-    };
+    private headers: IHTTPHeaders = { "content-type": "application/json" };
 
     /**
      * Sets the headers to the given object.
      */
     public setHeaders(headers: IHTTPHeaders) {
-        this.headers = {
-            ...this.headers,
-            ...headers,
-        };
+        this.headers = { ...this.headers, ...headers };
     }
 
     /**
      * Adds a header to list of headers.
      */
     public appendHeader(key: string, value: string) {
-        this.headers = {
-            ...this.headers,
-            [key]: value,
-        };
+        this.headers = { ...this.headers, [key]: value };
     }
 
     /**
@@ -124,7 +113,6 @@ class HTTPService {
     /**
      * Returns axios interceptors.
      */
-    // eslint-disable-next-line class-methods-use-this
     public getInterceptors() {
         return axios.interceptors;
     }
@@ -136,9 +124,9 @@ class HTTPService {
      * over what was sent in config.
      */
     public async request(config: AxiosRequestConfig, customConfig?: any) {
-        // eslint-disable-next-line no-param-reassign
         config.headers = {
             ...this.headers,
+            // eslint-disable-next-line @typescript-eslint/no-misused-spread
             ...config.headers,
         };
         if (customConfig?.cancel) {
@@ -159,12 +147,7 @@ class HTTPService {
         customConfig?: any,
     ) {
         return this.request(
-            {
-                headers,
-                method: "GET",
-                params,
-                url,
-            },
+            { headers, method: "GET", params, url },
             customConfig,
         );
     }
@@ -180,13 +163,7 @@ class HTTPService {
         customConfig?: any,
     ) {
         return this.request(
-            {
-                data,
-                headers,
-                method: "POST",
-                params,
-                url,
-            },
+            { data, headers, method: "POST", params, url },
             customConfig,
         );
     }
@@ -202,13 +179,7 @@ class HTTPService {
         customConfig?: any,
     ) {
         return this.request(
-            {
-                data,
-                headers,
-                method: "PATCH",
-                params,
-                url,
-            },
+            { data, headers, method: "PATCH", params, url },
             customConfig,
         );
     }
@@ -224,13 +195,7 @@ class HTTPService {
         customConfig?: any,
     ) {
         return this.request(
-            {
-                data,
-                headers,
-                method: "PUT",
-                params,
-                url,
-            },
+            { data, headers, method: "PUT", params, url },
             customConfig,
         );
     }
@@ -246,13 +211,7 @@ class HTTPService {
         customConfig?: any,
     ) {
         return this.request(
-            {
-                data,
-                headers,
-                method: "DELETE",
-                params,
-                url,
-            },
+            { data, headers, method: "DELETE", params, url },
             customConfig,
         );
     }

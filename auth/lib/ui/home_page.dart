@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:app_links/app_links.dart';
+import 'package:collection/collection.dart';
 import 'package:ente_auth/core/configuration.dart';
 import 'package:ente_auth/core/event_bus.dart';
 import 'package:ente_auth/ente_theme_data.dart';
@@ -9,54 +11,86 @@ import 'package:ente_auth/events/icons_changed_event.dart';
 import 'package:ente_auth/events/trigger_logout_event.dart';
 import "package:ente_auth/l10n/l10n.dart";
 import 'package:ente_auth/models/code.dart';
+import 'package:ente_auth/onboarding/model/tag_enums.dart';
+import 'package:ente_auth/onboarding/view/common/tag_chip.dart';
 import 'package:ente_auth/onboarding/view/setup_enter_secret_key_page.dart';
 import 'package:ente_auth/services/preference_service.dart';
 import 'package:ente_auth/services/user_service.dart';
+import 'package:ente_auth/store/code_display_store.dart';
 import 'package:ente_auth/store/code_store.dart';
+import 'package:ente_auth/theme/ente_theme.dart';
+import 'package:ente_auth/theme/text_style.dart';
 import 'package:ente_auth/ui/account/logout_dialog.dart';
+import 'package:ente_auth/ui/code_error_widget.dart';
 import 'package:ente_auth/ui/code_widget.dart';
 import 'package:ente_auth/ui/common/loading_widget.dart';
+import 'package:ente_auth/ui/components/buttons/button_widget.dart';
+import 'package:ente_auth/ui/components/dialog_widget.dart';
+import 'package:ente_auth/ui/components/models/button_type.dart';
 import 'package:ente_auth/ui/home/coach_mark_widget.dart';
 import 'package:ente_auth/ui/home/home_empty_state.dart';
 import 'package:ente_auth/ui/home/speed_dial_label_widget.dart';
+import 'package:ente_auth/ui/reorder_codes_page.dart';
 import 'package:ente_auth/ui/scanner_page.dart';
 import 'package:ente_auth/ui/settings_page.dart';
+import 'package:ente_auth/ui/sort_option_menu.dart';
+import 'package:ente_auth/ui/tools/app_lock.dart';
 import 'package:ente_auth/utils/dialog_util.dart';
+import 'package:ente_auth/utils/lock_screen_settings.dart';
+import 'package:ente_auth/utils/platform_util.dart';
 import 'package:ente_auth/utils/totp_util.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:logging/logging.dart';
 import 'package:move_to_background/move_to_background.dart';
-import 'package:uni_links/uni_links.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  const HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  static final _settingsPage = SettingsPage(
+  late final _settingsPage = SettingsPage(
     emailNotifier: UserService.instance.emailValueNotifier,
+    scaffoldKey: scaffoldKey,
   );
   bool _hasLoaded = false;
   bool _isSettingsOpen = false;
   final Logger _logger = Logger("HomePage");
+  final scaffoldKey = GlobalKey<ScaffoldState>();
+
+  // Used to request focus on the search box when clicked the search icon
+  late FocusNode searchBoxFocusNode;
 
   final TextEditingController _textController = TextEditingController();
+  final bool _autoFocusSearch =
+      PreferenceService.instance.shouldAutoFocusOnSearchBar();
   bool _showSearchBox = false;
   String _searchText = "";
-  List<Code> _codes = [];
+  List<Code>? _allCodes;
+  List<String> tags = [];
   List<Code> _filteredCodes = [];
   StreamSubscription<CodesUpdatedEvent>? _streamSubscription;
   StreamSubscription<TriggerLogoutEvent>? _triggerLogoutEvent;
   StreamSubscription<IconsChangedEvent>? _iconsChangedEvent;
+  String selectedTag = "";
+  bool _isTrashOpen = false;
+  bool hasTrashedCodes = false;
+  bool hasNonTrashedCodes = false;
+  bool isCompactMode = false;
+
+  late CodeSortKey _codeSortKey;
+  final Set<LogicalKeyboardKey> _pressedKeys = <LogicalKeyboardKey>{};
 
   @override
   void initState() {
     super.initState();
+    _codeSortKey = PreferenceService.instance.codeSortKey();
     _textController.addListener(_applyFilteringAndRefresh);
     _loadCodes();
     _streamSubscription = Bus.instance.on<CodesUpdatedEvent>().listen((event) {
@@ -66,6 +100,7 @@ class _HomePageState extends State<HomePage> {
         Bus.instance.on<TriggerLogoutEvent>().listen((event) async {
       await autoLogoutAlert(context);
     });
+
     _initDeepLinks();
     Future.delayed(
       const Duration(seconds: 1),
@@ -74,29 +109,132 @@ class _HomePageState extends State<HomePage> {
     _iconsChangedEvent = Bus.instance.on<IconsChangedEvent>().listen((event) {
       setState(() {});
     });
-    _showSearchBox = PreferenceService.instance.shouldAutoFocusOnSearchBar();
+    _showSearchBox = _autoFocusSearch;
+
+    searchBoxFocusNode = FocusNode();
+    ServicesBinding.instance.keyboard.addHandler(_handleKeyEvent);
+  }
+
+  bool _handleKeyEvent(KeyEvent event) {
+    if (event is KeyDownEvent) {
+      _pressedKeys.add(event.logicalKey);
+      bool isMetaKeyPressed = Platform.isMacOS || Platform.isIOS
+          ? (_pressedKeys.contains(LogicalKeyboardKey.metaLeft) ||
+              _pressedKeys.contains(LogicalKeyboardKey.meta) ||
+              _pressedKeys.contains(LogicalKeyboardKey.metaRight))
+          : (_pressedKeys.contains(LogicalKeyboardKey.controlLeft) ||
+              _pressedKeys.contains(LogicalKeyboardKey.control) ||
+              _pressedKeys.contains(LogicalKeyboardKey.controlRight));
+
+      if (isMetaKeyPressed && event.logicalKey == LogicalKeyboardKey.keyF) {
+        setState(() {
+          _showSearchBox = true;
+          searchBoxFocusNode.requestFocus();
+        });
+        return true;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.escape) {
+        setState(() {
+          _textController.clear();
+          _searchText = "";
+          _showSearchBox = false;
+          _applyFilteringAndRefresh();
+        });
+        return true;
+      }
+    } else if (event is KeyUpEvent) {
+      _pressedKeys.remove(event.logicalKey);
+    }
+    return false;
   }
 
   void _loadCodes() {
     CodeStore.instance.getAllCodes().then((codes) {
-      _codes = codes;
-      _hasLoaded = true;
-      _applyFilteringAndRefresh();
+      _allCodes = codes;
+      hasTrashedCodes = false;
+      hasNonTrashedCodes = false;
+
+      for (final c in _allCodes ?? []) {
+        if (c.isTrashed) {
+          hasTrashedCodes = true;
+        } else {
+          hasNonTrashedCodes = true;
+        }
+
+        if (hasTrashedCodes && hasNonTrashedCodes) {
+          break;
+        }
+      }
+      if (!hasTrashedCodes) {
+        _isTrashOpen = false;
+      }
+      if (!hasNonTrashedCodes && hasTrashedCodes) {
+        _isTrashOpen = true;
+      }
+
+      CodeDisplayStore.instance.getAllTags(allCodes: _allCodes).then((value) {
+        tags = value;
+        if (mounted) {
+          if (!tags.contains(selectedTag)) {
+            selectedTag = "";
+          }
+          _hasLoaded = true;
+          _applyFilteringAndRefresh();
+        }
+      });
+    }).onError((error, stackTrace) {
+      _logger.severe('Error while loading codes', error, stackTrace);
     });
   }
 
   void _applyFilteringAndRefresh() {
-    if (_searchText.isNotEmpty && _showSearchBox) {
+    if (_searchText.isNotEmpty && _showSearchBox && _allCodes != null) {
       final String val = _searchText.toLowerCase();
-      _filteredCodes = _codes
-          .where(
-            (element) => (element.account.toLowerCase().contains(val) ||
-                element.issuer.toLowerCase().contains(val)),
-          )
-          .toList();
+      // Prioritize issuer match above account for better UX while searching
+      // for a specific TOTP for email providers. Searching for "emailProvider" like (gmail, proton) should
+      // show the email provider first instead of other accounts where protonmail
+      // is the account name.
+      final List<Code> issuerMatch = [];
+      final List<Code> accountMatch = [];
+
+      for (final Code codeState in _allCodes!) {
+        if (codeState.hasError ||
+            selectedTag != "" &&
+                !codeState.display.tags.contains(selectedTag) ||
+            (codeState.isTrashed != _isTrashOpen)) {
+          continue;
+        }
+
+        if (codeState.issuer.toLowerCase().contains(val)) {
+          issuerMatch.add(codeState);
+        } else if (codeState.account.toLowerCase().contains(val)) {
+          accountMatch.add(codeState);
+        }
+      }
+      _filteredCodes = issuerMatch;
+      _filteredCodes.addAll(accountMatch);
+    } else if (_isTrashOpen) {
+      _filteredCodes = _allCodes
+              ?.where(
+                (element) => !element.hasError && element.isTrashed,
+              )
+              .toList() ??
+          [];
     } else {
-      _filteredCodes = _codes;
+      _filteredCodes = _allCodes
+              ?.where(
+                (element) =>
+                    !element.hasError &&
+                    !element.isTrashed &&
+                    (selectedTag == "" ||
+                        element.display.tags.contains(selectedTag)),
+              )
+              .toList() ??
+          [];
     }
+
+    sortFilteredCodes(_filteredCodes, _codeSortKey);
+
     if (mounted) {
       setState(() {});
     }
@@ -107,8 +245,46 @@ class _HomePageState extends State<HomePage> {
     _streamSubscription?.cancel();
     _triggerLogoutEvent?.cancel();
     _iconsChangedEvent?.cancel();
+    _textController.dispose();
     _textController.removeListener(_applyFilteringAndRefresh);
+    ServicesBinding.instance.keyboard.removeHandler(_handleKeyEvent);
+    searchBoxFocusNode.dispose();
+
     super.dispose();
+  }
+
+  void sortFilteredCodes(List<Code> codes, CodeSortKey sortKey) {
+    switch (sortKey) {
+      case CodeSortKey.issuerName:
+        codes.sort((a, b) => compareAsciiLowerCaseNatural(a.issuer, b.issuer));
+        break;
+      case CodeSortKey.accountName:
+        codes
+            .sort((a, b) => compareAsciiLowerCaseNatural(a.account, b.account));
+        break;
+      case CodeSortKey.mostFrequentlyUsed:
+        codes.sort((a, b) => b.display.tapCount.compareTo(a.display.tapCount));
+        break;
+      case CodeSortKey.recentlyUsed:
+        codes.sort(
+          (a, b) => b.display.lastUsedAt.compareTo(a.display.lastUsedAt),
+        );
+        break;
+      case CodeSortKey.manual:
+        codes.sort((a, b) => a.display.position.compareTo(b.display.position));
+        break;
+    }
+    if (sortKey != CodeSortKey.manual) {
+      // move pinned codes to the using
+      int insertIndex = 0;
+      for (int i = 0; i < codes.length; i++) {
+        if (codes[i].isPinned) {
+          final code = codes.removeAt(i);
+          codes.insert(insertIndex, code);
+          insertIndex++;
+        }
+      }
+    }
   }
 
   Future<void> _redirectToScannerPage() async {
@@ -120,9 +296,9 @@ class _HomePageState extends State<HomePage> {
       ),
     );
     if (code != null) {
-      CodeStore.instance.addCode(code);
+      await CodeStore.instance.addCode(code);
       // Focus the new code by searching
-      if (_codes.length > 2) {
+      if ((_allCodes?.where((e) => !e.hasError).length ?? 0) > 2) {
         _focusNewCode(code);
       }
     }
@@ -137,34 +313,74 @@ class _HomePageState extends State<HomePage> {
       ),
     );
     if (code != null) {
-      CodeStore.instance.addCode(code);
+      await CodeStore.instance.addCode(code);
     }
+  }
+
+  Future<void> navigateToLockScreen() async {
+    final bool shouldShowLockScreen =
+        await Configuration.instance.shouldShowLockScreen();
+    if (shouldShowLockScreen) {
+      await AppLock.of(context)!.showLockScreen();
+    } else {
+      await showDialogWidget(
+        context: context,
+        title: context.l10n.appLockNotEnabled,
+        body: context.l10n.appLockNotEnabledDescription,
+        isDismissible: true,
+        buttons: const [
+          ButtonWidget(
+            buttonType: ButtonType.secondary,
+            labelText: "OK",
+            isInAlert: true,
+          ),
+        ],
+      );
+    }
+  }
+
+  Future<void> navigateToReorderPage(List<Code> allCodes) async {
+    List<Code> sortCandidate = allCodes
+        .where((element) => !element.hasError && !element.isTrashed)
+        .toList();
+    sortCandidate
+        .sort((a, b) => a.display.position.compareTo(b.display.position));
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (BuildContext context) {
+          return ReorderCodesPage(codes: sortCandidate);
+        },
+      ),
+    ).then((value) {
+      setState(() {});
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    LockScreenSettings.instance
+        .setLightMode(getEnteColorScheme(context).isLightTheme);
     final l10n = context.l10n;
-    return WillPopScope(
-      onWillPop: () async {
+    isCompactMode = PreferenceService.instance.isCompactMode();
+
+    return PopScope(
+      onPopInvokedWithResult: (_, result) async {
         if (_isSettingsOpen) {
-          Navigator.pop(context);
-          return false;
+          scaffoldKey.currentState!.closeDrawer();
+          return;
+        } else if (!Platform.isAndroid) {
+          Navigator.of(context).pop();
+          return;
         }
-        if (Platform.isAndroid) {
-          MoveToBackground.moveTaskToBack();
-          return false;
-        } else {
-          return true;
-        }
+        await MoveToBackground.moveTaskToBack();
       },
+      canPop: false,
       child: Scaffold(
+        key: scaffoldKey,
         drawerEnableOpenDragGesture: !Platform.isAndroid,
-        drawer: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 428),
-          child: Drawer(
-            width: double.infinity,
-            child: _settingsPage,
-          ),
+        drawer: Drawer(
+          width: 428,
+          child: _settingsPage,
         ),
         onDrawerChanged: (isOpened) => _isSettingsOpen = isOpened,
         body: SafeArea(
@@ -178,9 +394,11 @@ class _HomePageState extends State<HomePage> {
         resizeToAvoidBottomInset: false,
         appBar: AppBar(
           title: !_showSearchBox
-              ? const Text('ente Auth')
+              ? const Text('Ente Auth', style: brandStyleMedium)
               : TextField(
-                  autofocus: _searchText.isEmpty,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  autofocus: _autoFocusSearch,
                   controller: _textController,
                   onChanged: (val) {
                     _searchText = val;
@@ -191,31 +409,62 @@ class _HomePageState extends State<HomePage> {
                     border: InputBorder.none,
                     focusedBorder: InputBorder.none,
                   ),
+                  focusNode: searchBoxFocusNode,
                 ),
+          centerTitle: PlatformUtil.isDesktop() ? false : true,
           actions: <Widget>[
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: SortCodeMenuWidget(
+                currentKey: PreferenceService.instance.codeSortKey(),
+                onSelected: (newOrder) async {
+                  await PreferenceService.instance.setCodeSortKey(newOrder);
+                  if (newOrder == CodeSortKey.manual &&
+                      newOrder == _codeSortKey) {
+                    await navigateToReorderPage(_allCodes!);
+                  }
+                  setState(() {
+                    _codeSortKey = newOrder;
+                  });
+                  if (mounted) {
+                    _applyFilteringAndRefresh();
+                  }
+                },
+              ),
+            ),
+            if (PlatformUtil.isDesktop())
+              IconButton(
+                icon: const Icon(Icons.lock),
+                tooltip: l10n.appLock,
+                padding: const EdgeInsets.all(8.0),
+                onPressed: () async {
+                  await navigateToLockScreen();
+                },
+              ),
             IconButton(
               icon: _showSearchBox
                   ? const Icon(Icons.clear)
                   : const Icon(Icons.search),
               tooltip: l10n.search,
+              padding: const EdgeInsets.all(8.0),
               onPressed: () {
-                setState(
-                  () {
-                    _showSearchBox = !_showSearchBox;
-                    if (!_showSearchBox) {
-                      _textController.clear();
-                    } else {
-                      _searchText = _textController.text;
-                    }
-                    _applyFilteringAndRefresh();
-                  },
-                );
+                setState(() {
+                  _showSearchBox = !_showSearchBox;
+                  if (!_showSearchBox) {
+                    _textController.clear();
+                    _searchText = "";
+                  } else {
+                    _searchText = _textController.text;
+                    searchBoxFocusNode.requestFocus();
+                  }
+                  _applyFilteringAndRefresh();
+                });
               },
             ),
           ],
         ),
         floatingActionButton: !_hasLoaded ||
-                _codes.isEmpty ||
+                (_allCodes?.isEmpty ?? true) ||
                 !PreferenceService.instance.hasShownCoachMark()
             ? null
             : _getFab(),
@@ -232,15 +481,116 @@ class _HomePageState extends State<HomePage> {
           onManuallySetupTap: _redirectToManualEntryPage,
         );
       } else {
-        final list = ListView.builder(
-          itemBuilder: ((context, index) {
-            try {
-              return CodeWidget(_filteredCodes[index]);
-            } catch (e) {
-              return const Text("Failed");
-            }
-          }),
-          itemCount: _filteredCodes.length,
+        final anyCodeHasError =
+            _allCodes?.firstWhereOrNull((element) => element.hasError) != null;
+        final indexOffset = anyCodeHasError ? 1 : 0;
+        final itemCount = (hasNonTrashedCodes ? tags.length + 1 : 0) +
+            (hasTrashedCodes ? 1 : 0);
+
+        final list = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!anyCodeHasError)
+              SizedBox(
+                height: 48,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 8),
+                  itemCount: itemCount,
+                  itemBuilder: (context, index) {
+                    if (index == 0 && hasNonTrashedCodes) {
+                      return TagChip(
+                        label: l10n.all,
+                        state: selectedTag == "" && _isTrashOpen == false
+                            ? TagChipState.selected
+                            : TagChipState.unselected,
+                        onTap: () {
+                          selectedTag = "";
+                          _isTrashOpen = false;
+
+                          setState(() {});
+                          _applyFilteringAndRefresh();
+                        },
+                      );
+                    }
+
+                    if (index == itemCount - 1 && hasTrashedCodes) {
+                      return TagChip(
+                        label: l10n.trash,
+                        state: _isTrashOpen
+                            ? TagChipState.selected
+                            : TagChipState.unselected,
+                        onTap: () {
+                          selectedTag = "";
+                          _isTrashOpen = !_isTrashOpen;
+                          setState(() {});
+                          _applyFilteringAndRefresh();
+                        },
+                        iconData: Icons.delete,
+                      );
+                    }
+                    final customTagIndex = index - 1;
+                    if (customTagIndex >= 0 && customTagIndex < tags.length) {
+                      return TagChip(
+                        label: tags[customTagIndex],
+                        action: TagChipAction.menu,
+                        state: selectedTag == tags[customTagIndex]
+                            ? TagChipState.selected
+                            : TagChipState.unselected,
+                        onTap: () {
+                          _isTrashOpen = false;
+                          if (selectedTag == tags[customTagIndex]) {
+                            selectedTag = "";
+                            setState(() {});
+                            _applyFilteringAndRefresh();
+                            return;
+                          }
+                          selectedTag = tags[customTagIndex];
+                          setState(() {});
+                          _applyFilteringAndRefresh();
+                        },
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ),
+            Expanded(
+              child: AlignedGridView.count(
+                crossAxisCount: (MediaQuery.sizeOf(context).width ~/ 400)
+                    .clamp(1, double.infinity)
+                    .toInt(),
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 80),
+                itemBuilder: ((context, index) {
+                  if (index == 0 && anyCodeHasError) {
+                    return CodeErrorWidget(
+                      errors: _allCodes
+                              ?.where((element) => element.hasError)
+                              .toList() ??
+                          [],
+                    );
+                  }
+                  final newIndex = index - indexOffset;
+
+                  final code = _filteredCodes[newIndex];
+
+                  return ClipRect(
+                    child: CodeWidget(
+                      key: ValueKey('${code.hashCode}_${newIndex}_$_codeSortKey'),
+                      code,
+                      isCompactMode: isCompactMode,
+                      sortKey: _codeSortKey,
+                    ),
+                  );
+                }),
+                itemCount: _filteredCodes.length + indexOffset,
+              ),
+            ),
+          ],
         );
         if (!PreferenceService.instance.hasShownCoachMark()) {
           return Stack(
@@ -254,23 +604,20 @@ class _HomePageState extends State<HomePage> {
             children: [
               Expanded(
                 child: _filteredCodes.isNotEmpty
-                    ? ListView.builder(
+                    ? AlignedGridView.count(
+                        crossAxisCount:
+                            (MediaQuery.sizeOf(context).width ~/ 400)
+                                .clamp(1, double.infinity)
+                                .toInt(),
+                        padding: const EdgeInsets.only(bottom: 80),
                         itemBuilder: ((context, index) {
-                          Code? code;
-                          try {
-                            code = _filteredCodes[index];
-                            return CodeWidget(code);
-                          } catch (e, s) {
-                            _logger.severe("code widget error", e, s);
-                            return Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: Text(
-                                  l10n.sorryUnableToGenCode(code?.issuer ?? ""),
-                                ),
-                              ),
-                            );
-                          }
+                          final codeState = _filteredCodes[index];
+                          return CodeWidget(
+                            key: ValueKey('${codeState.hashCode}_$index'),
+                            codeState,
+                            isCompactMode: isCompactMode,
+                            sortKey: _codeSortKey,
+                          );
                         }),
                         itemCount: _filteredCodes.length,
                       )
@@ -289,8 +636,10 @@ class _HomePageState extends State<HomePage> {
 
   Future<bool> _initDeepLinks() async {
     // Platform messages may fail, so we use a try/catch PlatformException.
+    final appLinks = AppLinks();
     try {
-      final String? initialLink = await getInitialLink();
+      String? initialLink;
+      initialLink = await appLinks.getInitialLinkString();
       // Parse the link and warn the user, if it is not correct,
       // but keep in mind it could be `null`.
       if (initialLink != null) {
@@ -306,29 +655,42 @@ class _HomePageState extends State<HomePage> {
     }
 
     // Attach a listener to the stream
-    linkStream.listen(
-      (String? link) {
-        _handleDeeplink(context, link);
-      },
-      onError: (err) {
-        _logger.severe(err);
-      },
-    );
+    if (!kIsWeb && !Platform.isLinux) {
+      appLinks.stringLinkStream.listen(
+        (link) {
+          _handleDeeplink(context, link);
+        },
+        onError: (err) {
+          _logger.severe(err);
+        },
+      );
+    }
     return false;
   }
-
+  int lastScanTime = DateTime.now().millisecondsSinceEpoch - 1000;
   void _handleDeeplink(BuildContext context, String? link) {
-    if (!Configuration.instance.hasConfiguredAccount() || link == null) {
+    bool isAccountConfigured = Configuration.instance.hasConfiguredAccount();
+    bool isOfflineModeEnabled = Configuration.instance.hasOptedForOfflineMode() &&
+        Configuration.instance.getOfflineSecretKey() != null;
+    if (!(isAccountConfigured || isOfflineModeEnabled) || link == null) {
       return;
     }
+    if (DateTime.now().millisecondsSinceEpoch - lastScanTime < 1000) {
+      _logger.info("Ignoring potential event for same deeplink");
+      return;
+    }
+    lastScanTime = DateTime.now().millisecondsSinceEpoch;
     if (mounted && link.toLowerCase().startsWith("otpauth://")) {
       try {
-        final newCode = Code.fromRawData(link);
+        final newCode = Code.fromOTPAuthUrl(link);
         getNextTotp(newCode);
-        CodeStore.instance.addCode(newCode);
+        CodeStore.instance.addCode(newCode, shouldSync: false);
         _focusNewCode(newCode);
       } catch (e, s) {
-        showGenericErrorDialog(context: context);
+        showGenericErrorDialog(
+          context: context,
+          error: e,
+        );
         _logger.severe("error while handling deeplink", e, s);
       }
     }
@@ -342,6 +704,14 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _getFab() {
+    if (PlatformUtil.isDesktop()) {
+      return FloatingActionButton(
+        onPressed: () => _redirectToManualEntryPage(),
+        child: const Icon(Icons.add),
+        elevation: 8.0,
+        shape: const CircleBorder(),
+      );
+    }
     return SpeedDial(
       icon: Icons.add,
       activeIcon: Icons.close,
@@ -352,7 +722,7 @@ class _HomePageState extends State<HomePage> {
       foregroundColor: Theme.of(context).colorScheme.fabForegroundColor,
       backgroundColor: Theme.of(context).colorScheme.fabBackgroundColor,
       overlayOpacity: 0.5,
-      overlayColor: Theme.of(context).colorScheme.background,
+      overlayColor: Theme.of(context).colorScheme.surface,
       elevation: 8.0,
       animationCurve: Curves.elasticInOut,
       children: [

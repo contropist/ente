@@ -1,9 +1,10 @@
 import "dart:async";
 import 'dart:convert';
 import "dart:io";
-import 'dart:typed_data';
 
 import 'package:bip39/bip39.dart' as bip39;
+import "package:ente_crypto/ente_crypto.dart";
+import "package:flutter/services.dart";
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
@@ -11,33 +12,32 @@ import 'package:photos/core/constants.dart';
 import 'package:photos/core/error-reporting/super_logging.dart';
 import 'package:photos/core/event_bus.dart';
 import 'package:photos/db/collections_db.dart';
-import "package:photos/db/embeddings_db.dart";
 import 'package:photos/db/files_db.dart';
-import 'package:photos/db/memories_db.dart';
-import 'package:photos/db/public_keys_db.dart';
+import "package:photos/db/memories_db.dart";
+import "package:photos/db/ml/db.dart";
 import 'package:photos/db/trash_db.dart';
 import 'package:photos/db/upload_locks_db.dart';
+import "package:photos/events/endpoint_updated_event.dart";
 import 'package:photos/events/signed_in_event.dart';
 import 'package:photos/events/user_logged_out_event.dart';
-import 'package:photos/models/key_attributes.dart';
-import 'package:photos/models/key_gen_result.dart';
-import 'package:photos/models/private_key_attributes.dart';
-import 'package:photos/services/billing_service.dart';
+import 'package:photos/models/api/user/key_attributes.dart';
+import 'package:photos/models/api/user/key_gen_result.dart';
+import 'package:photos/models/api/user/private_key_attributes.dart';
 import 'package:photos/services/collections_service.dart';
 import 'package:photos/services/favorites_service.dart';
+import "package:photos/services/home_widget_service.dart";
 import 'package:photos/services/ignored_files_service.dart';
-import 'package:photos/services/machine_learning/semantic_search/semantic_search_service.dart';
+import "package:photos/services/machine_learning/face_ml/person/person_service.dart";
 import 'package:photos/services/memories_service.dart';
 import 'package:photos/services/search_service.dart';
-import 'package:photos/services/sync_service.dart';
-import 'package:photos/utils/crypto_util.dart';
+import 'package:photos/services/sync/sync_service.dart';
 import 'package:photos/utils/file_uploader.dart';
-import "package:photos/utils/home_widget_util.dart";
+import "package:photos/utils/lock_screen_settings.dart";
 import 'package:photos/utils/validator_util.dart';
+import "package:photos/utils/wakelock_util.dart";
 import 'package:shared_preferences/shared_preferences.dart';
 import "package:tuple/tuple.dart";
 import 'package:uuid/uuid.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 
 class Configuration {
   Configuration._privateConstructor();
@@ -58,7 +58,7 @@ class Configuration {
   // keyShouldKeepDeviceAwake is used to determine whether the device screen
   // should be kept on while the app is in foreground.
   static const keyShouldKeepDeviceAwake = "should_keep_device_awake";
-  static const keyShouldShowLockScreen = "should_show_lock_screen";
+  static const keyShowSystemLockScreen = "should_show_lock_screen";
   static const keyHasSelectedAnyBackupFolder =
       "has_selected_any_folder_for_backup";
   static const lastTempFolderClearTimeKey = "last_temp_folder_clear_time";
@@ -70,9 +70,7 @@ class Configuration {
   static const hasSelectedAllFoldersForBackupKey =
       "has_selected_all_folders_for_backup";
   static const anonymousUserIDKey = "anonymous_user_id";
-
-  final kTempFolderDeletionTimeBuffer = const Duration(hours: 6).inMicroseconds;
-
+  static const endPointKey = "endpoint";
   static final _logger = Logger("Configuration");
 
   String? _cachedToken;
@@ -83,7 +81,6 @@ class Configuration {
   late FlutterSecureStorage _secureStorage;
   late String _tempDocumentsDirPath;
   late String _thumbnailCacheDirectory;
-
   // 6th July 22: Remove this after 3 months. Hopefully, active users
   // will migrate to newer version of the app, where shared media is stored
   // on appSupport directory which OS won't clean up automatically
@@ -97,61 +94,107 @@ class Configuration {
   );
 
   Future<void> init() async {
-    _preferences = await SharedPreferences.getInstance();
-    _secureStorage = const FlutterSecureStorage();
-    _documentsDirectory = (await getApplicationDocumentsDirectory()).path;
-    _tempDocumentsDirPath = _documentsDirectory + "/temp/";
-    final tempDocumentsDir = Directory(_tempDocumentsDirPath);
+    try {
+      _preferences = await SharedPreferences.getInstance();
+      _secureStorage = const FlutterSecureStorage();
+      _documentsDirectory = (await getApplicationDocumentsDirectory()).path;
+      _tempDocumentsDirPath = _documentsDirectory + "/temp/";
+      final tempDocumentsDir = Directory(_tempDocumentsDirPath);
+      await _cleanUpStaleFiles(tempDocumentsDir);
+      tempDocumentsDir.createSync(recursive: true);
+      final tempDirectoryPath = (await getTemporaryDirectory()).path;
+      _thumbnailCacheDirectory = tempDirectoryPath + "/thumbnail-cache";
+      Directory(_thumbnailCacheDirectory).createSync(recursive: true);
+      _sharedTempMediaDirectory = tempDirectoryPath + "/ente-shared-media";
+      Directory(_sharedTempMediaDirectory).createSync(recursive: true);
+      _sharedDocumentsMediaDirectory =
+          _documentsDirectory + "/ente-shared-media";
+      Directory(_sharedDocumentsMediaDirectory).createSync(recursive: true);
+      if (!_preferences.containsKey(tokenKey)) {
+        await _secureStorage.deleteAll(iOptions: _secureStorageOptionsIOS);
+      } else {
+        _key = await _secureStorage.read(
+          key: keyKey,
+          iOptions: _secureStorageOptionsIOS,
+        );
+        _secretKey = await _secureStorage.read(
+          key: secretKeyKey,
+          iOptions: _secureStorageOptionsIOS,
+        );
+        if (_key == null) {
+          await logout(autoLogout: true);
+        }
+        await _migrateSecurityStorageToFirstUnlock();
+      }
+      SuperLogging.setUserID(await _getOrCreateAnonymousUserID()).ignore();
+    } catch (e, s) {
+      _logger.severe("Configuration init failed", e, s);
+      /*
+      Check if it's a known is related to reading secret from secure storage
+      on android https://github.com/mogol/flutter_secure_storage/issues/541
+       */
+      if (e is PlatformException) {
+        final PlatformException error = e;
+        final bool isBadPaddingError =
+            error.toString().contains('BadPaddingException') ||
+                (error.message ?? '').contains('BadPaddingException');
+        if (isBadPaddingError) {
+          await logout(autoLogout: true);
+          return;
+        }
+      } else {
+        rethrow;
+      }
+    }
+  }
+
+  // _cleanUpStaleFiles deletes all files in the temp directory that are older
+  // than kTempFolderDeletionTimeBuffer except the the temp encrypted files for upload.
+  // Those file are deleted by file uploader after the upload is complete or those
+  // files are not being used / tracked.
+  Future<void> _cleanUpStaleFiles(Directory tempDocumentsDir) async {
     try {
       final currentTime = DateTime.now().microsecondsSinceEpoch;
       if (tempDocumentsDir.existsSync() &&
           (_preferences.getInt(lastTempFolderClearTimeKey) ?? 0) <
-              (currentTime - kTempFolderDeletionTimeBuffer)) {
-        await tempDocumentsDir.delete(recursive: true);
+              (currentTime - tempDirCleanUpInterval)) {
+        int skippedTempUploadFiles = 0;
+        final files = tempDocumentsDir.listSync();
+        for (final file in files) {
+          if (file is File) {
+            if (file.path.contains(uploadTempFilePrefix)) {
+              skippedTempUploadFiles++;
+              continue;
+            }
+            _logger.info("Deleting file: ${file.path}");
+            await file.delete();
+          } else if (file is Directory) {
+            await file.delete(recursive: true);
+          }
+        }
         await _preferences.setInt(lastTempFolderClearTimeKey, currentTime);
-        _logger.info("Cleared temp folder");
+        _logger.info(
+          "Cleared temp folder except $skippedTempUploadFiles upload files",
+        );
       } else {
         _logger.info("Skipping temp folder clear");
       }
     } catch (e) {
       _logger.warning(e);
     }
-    tempDocumentsDir.createSync(recursive: true);
-    final tempDirectoryPath = (await getTemporaryDirectory()).path;
-    _thumbnailCacheDirectory = tempDirectoryPath + "/thumbnail-cache";
-    Directory(_thumbnailCacheDirectory).createSync(recursive: true);
-    _sharedTempMediaDirectory = tempDirectoryPath + "/ente-shared-media";
-    Directory(_sharedTempMediaDirectory).createSync(recursive: true);
-    _sharedDocumentsMediaDirectory = _documentsDirectory + "/ente-shared-media";
-    Directory(_sharedDocumentsMediaDirectory).createSync(recursive: true);
-    if (!_preferences.containsKey(tokenKey)) {
-      await _secureStorage.deleteAll(iOptions: _secureStorageOptionsIOS);
-    } else {
-      _key = await _secureStorage.read(
-        key: keyKey,
-        iOptions: _secureStorageOptionsIOS,
-      );
-      _secretKey = await _secureStorage.read(
-        key: secretKeyKey,
-        iOptions: _secureStorageOptionsIOS,
-      );
-      if (_key == null) {
-        await logout(autoLogout: true);
-      }
-      await _migrateSecurityStorageToFirstUnlock();
-    }
-    SuperLogging.setUserID(await _getOrCreateAnonymousUserID()).ignore();
   }
 
   Future<void> logout({bool autoLogout = false}) async {
-    if (SyncService.instance.isSyncInProgress()) {
-      SyncService.instance.stopSync();
-      try {
-        await SyncService.instance
-            .existingSync()
-            .timeout(const Duration(seconds: 5));
-      } catch (e) {
-        // ignore
+    if (!autoLogout) {
+      if (SyncService.instance.isSyncInProgress()) {
+        SyncService.instance.stopSync();
+        try {
+          await SyncService.instance
+              .existingSync()
+              .timeout(const Duration(seconds: 5));
+        } catch (e) {
+          // ignore
+        }
       }
     }
     await _preferences.clear();
@@ -160,23 +203,22 @@ class Configuration {
     _cachedToken = null;
     _secretKey = null;
     await FilesDB.instance.clearTable();
-    SemanticSearchService.instance.hasInitialized
-        ? await EmbeddingsDB.instance.clearTable()
-        : null;
     await CollectionsDB.instance.clearTable();
     await MemoriesDB.instance.clearTable();
-    await PublicKeysDB.instance.clearTable();
+    await MLDataDB.instance.clearTable();
+
     await UploadLocksDB.instance.clearTable();
     await IgnoredFilesService.instance.reset();
     await TrashDB.instance.clearTable();
-    FileUploader.instance.clearCachedUploadURLs();
     if (!autoLogout) {
+      // Following services won't be initialized if it's the case of autoLogout
+      FileUploader.instance.clearCachedUploadURLs();
       CollectionsService.instance.clearCache();
       FavoritesService.instance.clearCache();
       MemoriesService.instance.clearCache();
-      BillingService.instance.clearCache();
       SearchService.instance.clearCache();
-      unawaited(clearHomeWidget());
+      PersonService.instance.clearCache();
+      unawaited(HomeWidgetService.instance.clearHomeWidget());
       Bus.instance.fire(UserLoggedOutEvent());
     } else {
       await _preferences.setBool("auto_logout", true);
@@ -206,7 +248,7 @@ class Configuration {
     // decrypt the master key
     final kekSalt = CryptoUtil.getSaltToDeriveKey();
     final derivedKeyResult = await CryptoUtil.deriveSensitiveKey(
-      utf8.encode(password) as Uint8List,
+      utf8.encode(password),
       kekSalt,
     );
     final loginKey = await CryptoUtil.deriveLoginKey(derivedKeyResult.key);
@@ -252,7 +294,7 @@ class Configuration {
     // decrypt the master key
     final kekSalt = CryptoUtil.getSaltToDeriveKey();
     final derivedKeyResult = await CryptoUtil.deriveSensitiveKey(
-      utf8.encode(password) as Uint8List,
+      utf8.encode(password),
       kekSalt,
     );
     final loginKey = await CryptoUtil.deriveLoginKey(derivedKeyResult.key);
@@ -290,7 +332,7 @@ class Configuration {
     // Derive key-encryption-key from the entered password and existing
     // mem and ops limits
     keyEncryptionKey ??= await CryptoUtil.deriveKey(
-      utf8.encode(password) as Uint8List,
+      utf8.encode(password),
       CryptoUtil.base642bin(attributes.kekSalt),
       attributes.memLimit!,
       attributes.opsLimit!,
@@ -391,7 +433,12 @@ class Configuration {
   }
 
   String getHttpEndpoint() {
-    return endpoint;
+    return _preferences.getString(endPointKey) ?? endpoint;
+  }
+
+  Future<void> setHttpEndpoint(String endpoint) async {
+    await _preferences.setString(endPointKey, endpoint);
+    Bus.instance.fire(EndpointUpdatedEvent());
   }
 
   String? getToken() {
@@ -556,7 +603,7 @@ class Configuration {
 
   Future<void> setShouldKeepDeviceAwake(bool value) async {
     await _preferences.setBool(keyShouldKeepDeviceAwake, value);
-    await WakelockPlus.toggle(enable: value);
+    await EnteWakeLock.toggle(enable: value);
   }
 
   Future<void> setShouldBackupVideos(bool value) async {
@@ -568,20 +615,30 @@ class Configuration {
     }
   }
 
-  bool shouldShowLockScreen() {
-    if (_preferences.containsKey(keyShouldShowLockScreen)) {
-      return _preferences.getBool(keyShouldShowLockScreen)!;
+  Future<bool> shouldShowLockScreen() async {
+    final bool isPin = await LockScreenSettings.instance.isPinSet();
+    final bool isPass = await LockScreenSettings.instance.isPasswordSet();
+    return isPin || isPass || shouldShowSystemLockScreen();
+  }
+
+  bool shouldShowSystemLockScreen() {
+    if (_preferences.containsKey(keyShowSystemLockScreen)) {
+      return _preferences.getBool(keyShowSystemLockScreen)!;
     } else {
       return false;
     }
   }
 
-  Future<void> setShouldShowLockScreen(bool value) {
-    return _preferences.setBool(keyShouldShowLockScreen, value);
+  Future<void> setSystemLockScreen(bool value) {
+    return _preferences.setBool(keyShowSystemLockScreen, value);
   }
 
-  void setVolatilePassword(String? volatilePassword) {
+  void setVolatilePassword(String volatilePassword) {
     _volatilePassword = volatilePassword;
+  }
+
+  void resetVolatilePassword() {
+    _volatilePassword = null;
   }
 
   String? getVolatilePassword() {

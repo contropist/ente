@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:photos/core/configuration.dart';
 import 'package:photos/extensions/list.dart';
+import "package:photos/extensions/user_extension.dart";
 import "package:photos/generated/l10n.dart";
 import "package:photos/models/api/collection/user.dart";
 import 'package:photos/models/collection/collection.dart';
@@ -11,7 +12,7 @@ import 'package:photos/ui/components/menu_item_widget/menu_item_widget.dart';
 import 'package:photos/ui/components/menu_section_title.dart';
 import 'package:photos/ui/components/title_bar_title_widget.dart';
 import 'package:photos/ui/components/title_bar_widget.dart';
-import 'package:photos/ui/sharing/add_partipant_page.dart';
+import "package:photos/ui/sharing/add_participant_page.dart";
 import 'package:photos/ui/sharing/manage_album_participant.dart';
 import 'package:photos/ui/sharing/user_avator_widget.dart';
 import 'package:photos/utils/navigation_util.dart';
@@ -63,11 +64,11 @@ class _AlbumParticipantsPageState extends State<AlbumParticipantsPage> {
   @override
   Widget build(BuildContext context) {
     final isOwner =
-        widget.collection.owner?.id == Configuration.instance.getUserID();
+        widget.collection.owner.id == Configuration.instance.getUserID();
     final colorScheme = getEnteColorScheme(context);
     final currentUserID = Configuration.instance.getUserID()!;
     final int participants = 1 + widget.collection.getSharees().length;
-    final User owner = widget.collection.owner!;
+    final User owner = widget.collection.owner;
     if (owner.id == currentUserID && owner.email == "") {
       owner.email = Configuration.instance.getEmail()!;
     }
@@ -106,7 +107,9 @@ class _AlbumParticipantsPageState extends State<AlbumParticipantsPage> {
                             captionedTextWidget: CaptionedTextWidget(
                               title: isOwner
                                   ? S.of(context).you
-                                  : widget.collection.owner?.email ?? '',
+                                  : _nameIfAvailableElseEmail(
+                                      widget.collection.owner,
+                                    ),
                               makeTextBold: isOwner,
                             ),
                             leadingIconWidget: UserAvatarWidget(
@@ -150,7 +153,7 @@ class _AlbumParticipantsPageState extends State<AlbumParticipantsPage> {
                           captionedTextWidget: CaptionedTextWidget(
                             title: isSameAsLoggedInUser
                                 ? S.of(context).you
-                                : currentUser.email,
+                                : _nameIfAvailableElseEmail(currentUser),
                             makeTextBold: isSameAsLoggedInUser,
                           ),
                           leadingIconSize: 24.0,
@@ -228,7 +231,7 @@ class _AlbumParticipantsPageState extends State<AlbumParticipantsPage> {
                           captionedTextWidget: CaptionedTextWidget(
                             title: isSameAsLoggedInUser
                                 ? S.of(context).you
-                                : currentUser.email,
+                                : _nameIfAvailableElseEmail(currentUser),
                             makeTextBold: isSameAsLoggedInUser,
                           ),
                           leadingIconSize: 24.0,
@@ -284,8 +287,17 @@ class _AlbumParticipantsPageState extends State<AlbumParticipantsPage> {
               ),
             ),
           ),
+          const SliverToBoxAdapter(child: SizedBox(height: 72)),
         ],
       ),
     );
+  }
+
+  String _nameIfAvailableElseEmail(User user) {
+    final name = user.displayName;
+    if (name != null && name.isNotEmpty) {
+      return name;
+    }
+    return user.email;
   }
 }

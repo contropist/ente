@@ -1,23 +1,28 @@
 import 'dart:async';
 
+import 'package:ente_crypto/ente_crypto.dart';
+import "package:flutter/foundation.dart";
 import 'package:flutter/material.dart';
+import "package:photos/emergency/emergency_page.dart";
 import "package:photos/generated/l10n.dart";
+import 'package:photos/services/account/user_service.dart';
 import 'package:photos/services/local_authentication_service.dart';
-import 'package:photos/services/user_service.dart';
 import 'package:photos/theme/ente_theme.dart';
 import 'package:photos/ui/account/change_email_dialog.dart';
 import 'package:photos/ui/account/delete_account_page.dart';
 import 'package:photos/ui/account/password_entry_page.dart';
+import "package:photos/ui/account/recovery_key_page.dart";
 import 'package:photos/ui/components/captioned_text_widget.dart';
 import 'package:photos/ui/components/expandable_menu_item_widget.dart';
 import 'package:photos/ui/components/menu_item_widget/menu_item_widget.dart';
 import "package:photos/ui/payment/subscription.dart";
 import 'package:photos/ui/settings/common_settings.dart';
 import 'package:photos/utils/dialog_util.dart';
+import "package:photos/utils/navigation_util.dart";
 import "package:url_launcher/url_launcher_string.dart";
 
 class AccountSectionWidget extends StatelessWidget {
-  const AccountSectionWidget({Key? key}) : super(key: key);
+  const AccountSectionWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +66,7 @@ class AccountSectionWidget extends StatelessWidget {
             if (hasAuthenticated) {
               // ignore: unawaited_futures
               showDialog(
+                useRootNavigator: false,
                 context: context,
                 builder: (BuildContext context) {
                   return const ChangeEmailDialog();
@@ -103,6 +109,70 @@ class AccountSectionWidget extends StatelessWidget {
         sectionOptionSpacing,
         MenuItemWidget(
           captionedTextWidget: CaptionedTextWidget(
+            title: S.of(context).recoveryKey,
+          ),
+          pressedColor: getEnteColorScheme(context).fillFaint,
+          trailingIcon: Icons.chevron_right_outlined,
+          trailingIconIsMuted: true,
+          showOnlyLoadingState: true,
+          onTap: () async {
+            final hasAuthenticated = await LocalAuthenticationService.instance
+                .requestLocalAuthentication(
+              context,
+              S.of(context).authToViewYourRecoveryKey,
+            );
+            if (hasAuthenticated) {
+              String recoveryKey;
+              try {
+                recoveryKey = await _getOrCreateRecoveryKey(context);
+              } catch (e) {
+                await showGenericErrorDialog(context: context, error: e);
+                return;
+              }
+              unawaited(
+                routeToPage(
+                  context,
+                  RecoveryKeyPage(
+                    recoveryKey,
+                    S.of(context).ok,
+                    showAppBar: true,
+                    onDone: () {},
+                  ),
+                ),
+              );
+            }
+          },
+        ),
+        sectionOptionSpacing,
+        MenuItemWidget(
+          captionedTextWidget: CaptionedTextWidget(
+            title: S.of(context).legacy,
+          ),
+          pressedColor: getEnteColorScheme(context).fillFaint,
+          trailingIcon: Icons.chevron_right_outlined,
+          trailingIconIsMuted: true,
+          showOnlyLoadingState: true,
+          onTap: () async {
+            final hasAuthenticated = kDebugMode ||
+                await LocalAuthenticationService.instance
+                    .requestLocalAuthentication(
+                  context,
+                  S.of(context).authToManageLegacy,
+                );
+            if (hasAuthenticated) {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (BuildContext context) {
+                    return const EmergencyPage();
+                  },
+                ),
+              ).ignore();
+            }
+          },
+        ),
+        sectionOptionSpacing,
+        MenuItemWidget(
+          captionedTextWidget: CaptionedTextWidget(
             title: S.of(context).exportYourData,
           ),
           pressedColor: getEnteColorScheme(context).fillFaint,
@@ -110,7 +180,7 @@ class AccountSectionWidget extends StatelessWidget {
           trailingIconIsMuted: true,
           onTap: () async {
             // ignore: unawaited_futures
-            launchUrlString("https://ente.io/faq/migration/out-of-ente/");
+            launchUrlString("https://help.ente.io/photos/migration/export/");
           },
         ),
         sectionOptionSpacing,
@@ -154,6 +224,12 @@ class AccountSectionWidget extends StatelessWidget {
         ),
         sectionOptionSpacing,
       ],
+    );
+  }
+
+  Future<String> _getOrCreateRecoveryKey(BuildContext context) async {
+    return CryptoUtil.bin2hex(
+      await UserService.instance.getOrCreateRecoveryKey(context),
     );
   }
 

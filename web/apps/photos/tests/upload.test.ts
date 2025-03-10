@@ -1,15 +1,16 @@
-import { tryToParseDateTime } from "@ente/shared/time";
-import { FILE_TYPE } from "constants/file";
-import { getLocalCollections } from "services/collectionService";
-import { getLocalFiles } from "services/fileService";
+/* eslint-disable @typescript-eslint/dot-notation */
+import { FileType } from "@/media/file-type";
+import { getLocalCollections } from "@/new/photos/services/collections";
 import {
-    MAX_FILE_NAME_LENGTH_GOOGLE_EXPORT,
-    getClippedMetadataJSONMapKeyForFile,
-    getMetadataJSONMapKeyForFile,
-    getMetadataJSONMapKeyForJSON,
-} from "services/upload/metadataService";
+    getLocalFiles,
+    groupFilesByCollectionID,
+} from "@/new/photos/services/files";
+import { parseDateFromDigitGroups } from "services/upload/date";
+import {
+    matchTakeoutMetadata,
+    metadataJSONMapKeyForJSON,
+} from "services/upload/takeout";
 import { getUserDetailsV2 } from "services/userService";
-import { groupFilesBasedOnCollectionID } from "utils/file";
 
 const DATE_TIME_PARSING_TEST_FILE_NAMES = [
     {
@@ -24,10 +25,7 @@ const DATE_TIME_PARSING_TEST_FILE_NAMES = [
         fileName: "2022-02-18 16.00.12-DCMX.png",
         expectedDateTime: "2022-02-18 16:00:12",
     },
-    {
-        fileName: "20221107_231730",
-        expectedDateTime: "2022-11-07 23:17:30",
-    },
+    { fileName: "20221107_231730", expectedDateTime: "2022-11-07 23:17:30" },
     {
         fileName: "2020-11-01 02.31.02",
         expectedDateTime: "2020-11-01 02:31:02",
@@ -68,7 +66,7 @@ const DATE_TIME_PARSING_TEST_FILE_NAMES_MUST_FAIL = [
     "Snapchat-100-10-20-19-15-12",
 ];
 
-const FILE_NAME_TO_JSON_NAME = [
+const fileNameToJSONMappingCases = [
     {
         filename: "IMG20210211125718-edited.jpg",
         jsonFilename: "IMG20210211125718.jpg.json",
@@ -97,19 +95,50 @@ const FILE_NAME_TO_JSON_NAME = [
         filename: "IMG2021021(1)74722(1).jpg",
         jsonFilename: "IMG2021021(1)74722.jpg(1).json",
     },
+    {
+        filename: "IMG_1159.HEIC",
+        jsonFilename: "IMG_1159.HEIC.supplemental-metadata.json",
+    },
+    {
+        filename: "PXL_20241231_151646544.MP.jpg",
+        jsonFilename: "PXL_20241231_151646544.MP.jpg.supplemental-met.json",
+    },
+    {
+        filename: "PXL_20240827_094331806.PORTRAIT(1).jpg",
+        jsonFilename: "PXL_20240827_094331806.PORTRAIT.jpg.supplement(1).json",
+    },
+    {
+        filename: "PXL_20240506_142610305.LONG_EXPOSURE-01.COVER.jpg",
+        jsonFilename: "PXL_20240506_142610305.LONG_EXPOSURE-01.COVER..json",
+    },
+    {
+        filename: "PXL_20211120_223243932.MOTION-02.ORIGINAL.jpg",
+        jsonFilename: "PXL_20211120_223243932.MOTION-02.ORIGINAL.jpg..json",
+    },
+    {
+        filename: "20220322_205147-edited(1).jpg",
+        jsonFilename: "20220322_205147.jpg.supplemental-metadata(1).json",
+    },
 ];
 
 export async function testUpload() {
-    const jsonPath = process.env.NEXT_PUBLIC_ENTE_TEST_EXPECTED_JSON_PATH;
-    if (!jsonPath) {
-        throw Error(
-            "Please specify the NEXT_PUBLIC_ENTE_TEST_EXPECTED_JSON_PATH to run the upload tests",
+    try {
+        parseDateTimeFromFileNameTest();
+        fileNameToJSONMappingTests();
+    } catch (e) {
+        console.log(e);
+    }
+
+    const jsonString = process.env.NEXT_PUBLIC_ENTE_TEST_EXPECTED_JSON;
+    if (!jsonString) {
+        console.warn(
+            "Not running upload tests. Please specify the NEXT_PUBLIC_ENTE_TEST_EXPECTED_JSON to run the upload tests",
         );
+        return;
     }
-    const expectedState = await import(jsonPath);
-    if (!expectedState) {
-        throw Error("upload test failed expectedState missing");
-    }
+
+    const expectedState = JSON.parse(jsonString);
+    if (!expectedState) throw Error("Invalid JSON");
 
     try {
         await totalCollectionCountCheck(expectedState);
@@ -120,8 +149,6 @@ export async function testUpload() {
         await fileDimensionExtractionCheck(expectedState);
         await googleMetadataReadingCheck(expectedState);
         await totalFileCountCheck(expectedState);
-        parseDateTimeFromFileNameTest();
-        mappingFileAndJSONFileCheck();
     } catch (e) {
         console.log(e);
     }
@@ -129,30 +156,23 @@ export async function testUpload() {
 
 async function totalFileCountCheck(expectedState) {
     const userDetails = await getUserDetailsV2();
-    if (expectedState["total_file_count"] === userDetails.fileCount) {
+    if (expectedState.total_file_count === userDetails.fileCount) {
         console.log("file count check passed ✅");
     } else {
         throw Error(
-            `total file count check failed ❌, expected: ${expectedState["total_file_count"]},  got: ${userDetails.fileCount}`,
+            `total file count check failed ❌, expected: ${expectedState.total_file_count},  got: ${userDetails.fileCount}`,
         );
     }
 }
 
 async function totalCollectionCountCheck(expectedState) {
     const collections = await getLocalCollections();
-    const files = await getLocalFiles();
-    const nonEmptyCollectionIds = new Set(
-        files.map((file) => file.collectionID),
-    );
-    const nonEmptyCollections = collections.filter((collection) =>
-        nonEmptyCollectionIds.has(collection.id),
-    );
-    if (expectedState["collection_count"] === nonEmptyCollections.length) {
+    if (expectedState.collection_count === collections.length) {
         console.log("collection count check passed ✅");
     } else {
         throw Error(
             `total Collection count check failed ❌
-                expected : ${expectedState["collection_count"]},  got: ${nonEmptyCollections.length}`,
+                expected : ${expectedState.collection_count},  got: ${collections.length}`,
         );
     }
 }
@@ -160,7 +180,7 @@ async function totalCollectionCountCheck(expectedState) {
 async function collectionWiseFileCount(expectedState) {
     const files = await getLocalFiles();
     const collections = await getLocalCollections();
-    const collectionToFilesMap = groupFilesBasedOnCollectionID(files);
+    const collectionToFilesMap = groupFilesByCollectionID(files);
     const collectionIDToNameMap = new Map(
         collections.map((collection) => [collection.id, collection.name]),
     );
@@ -170,7 +190,7 @@ async function collectionWiseFileCount(expectedState) {
             files.length,
         ]),
     );
-    Object.entries(expectedState["collection_files_count"]).forEach(
+    Object.entries(expectedState.collection_files_count).forEach(
         ([collectionName, fileCount]) => {
             if (fileCount !== collectionNameToFileCount.get(collectionName)) {
                 throw Error(
@@ -208,23 +228,21 @@ async function thumbnailGenerationFailedFilesCheck(expectedState) {
     );
 
     if (
-        expectedState["thumbnail_generation_failure"]["count"] <
+        expectedState.thumbnail_generation_failure.count <
         uniqueFilesWithStaticThumbnail.length
     ) {
         throw Error(
             `thumbnailGenerationFailedFiles Count Check failed ❌
-                expected: ${expectedState["thumbnail_generation_failure"]["count"]},  got: ${uniqueFilesWithStaticThumbnail.length}`,
+                expected: ${expectedState.thumbnail_generation_failure.count},  got: ${uniqueFilesWithStaticThumbnail.length}`,
         );
     }
     fileNamesWithStaticThumbnail.forEach((fileName) => {
         if (
-            !expectedState["thumbnail_generation_failure"]["files"].includes(
-                fileName,
-            )
+            !expectedState.thumbnail_generation_failure.files.includes(fileName)
         ) {
             throw Error(
                 `thumbnailGenerationFailedFiles Check failed ❌
-                    expected: ${expectedState["thumbnail_generation_failure"]["files"]},  got: ${fileNamesWithStaticThumbnail}`,
+                    expected: ${expectedState.thumbnail_generation_failure.files},  got: ${fileNamesWithStaticThumbnail}`,
             );
         }
     });
@@ -234,7 +252,7 @@ async function thumbnailGenerationFailedFilesCheck(expectedState) {
 async function livePhotoClubbingCheck(expectedState) {
     const files = await getLocalFiles();
     const livePhotos = files.filter(
-        (file) => file.metadata.fileType === FILE_TYPE.LIVE_PHOTO,
+        (file) => file.metadata.fileType === FileType.livePhoto,
     );
 
     const fileIDSet = new Set();
@@ -251,17 +269,17 @@ async function livePhotoClubbingCheck(expectedState) {
         (file) => file.metadata.title,
     );
 
-    if (expectedState["live_photo"]["count"] !== livePhotoFileNames.length) {
+    if (expectedState.live_photo.count !== livePhotoFileNames.length) {
         throw Error(
             `livePhotoClubbing Check failed ❌
-                expected: ${expectedState["live_photo"]["count"]},  got: ${livePhotoFileNames.length}`,
+                expected: ${expectedState.live_photo.count},  got: ${livePhotoFileNames.length}`,
         );
     }
-    expectedState["live_photo"]["files"].forEach((fileName) => {
+    expectedState.live_photo.files.forEach((fileName) => {
         if (!livePhotoFileNames.includes(fileName)) {
             throw Error(
                 `livePhotoClubbing Check failed ❌
-                        expected: ${expectedState["live_photo"]["files"]},  got: ${livePhotoFileNames}`,
+                        expected: ${expectedState.live_photo.files},  got: ${livePhotoFileNames}`,
             );
         }
     });
@@ -270,7 +288,7 @@ async function livePhotoClubbingCheck(expectedState) {
 
 async function exifDataParsingCheck(expectedState) {
     const files = await getLocalFiles();
-    Object.entries(expectedState["exif"]).map(([fileName, exifValues]) => {
+    Object.entries(expectedState.exif).map(([fileName, exifValues]) => {
         const matchingFile = files.find(
             (file) => file.metadata.title === fileName,
         );
@@ -288,11 +306,11 @@ async function exifDataParsingCheck(expectedState) {
         if (
             exifValues["location"] &&
             (Math.abs(
-                exifValues["location"]["latitude"] -
+                exifValues["location"].latitude -
                     matchingFile.metadata.latitude,
             ) > 1 ||
                 Math.abs(
-                    exifValues["location"]["longitude"] -
+                    exifValues["location"].longitude -
                         matchingFile.metadata.longitude,
                 ) > 1)
         ) {
@@ -309,7 +327,7 @@ async function exifDataParsingCheck(expectedState) {
 
 async function fileDimensionExtractionCheck(expectedState) {
     const files = await getLocalFiles();
-    Object.entries(expectedState["file_dimensions"]).map(
+    Object.entries(expectedState.file_dimensions).map(
         ([fileName, dimensions]) => {
             const matchingFile = files.find(
                 (file) => file.metadata.title === fileName,
@@ -336,36 +354,32 @@ async function fileDimensionExtractionCheck(expectedState) {
 
 async function googleMetadataReadingCheck(expectedState) {
     const files = await getLocalFiles();
-    Object.entries(expectedState["google_import"]).map(
-        ([fileName, metadata]) => {
-            const matchingFile = files.find(
-                (file) => file.metadata.title === fileName,
-            );
-            if (!matchingFile) {
-                throw Error(
-                    `exifDataParsingCheck failed , ${fileName} missing`,
-                );
-            }
-            if (
-                metadata["creation_time"] &&
-                metadata["creation_time"] !== matchingFile.metadata.creationTime
-            ) {
-                throw Error(`googleMetadataJSON reading check failed ❌ ,
+    Object.entries(expectedState.google_import).map(([fileName, metadata]) => {
+        const matchingFile = files.find(
+            (file) => file.metadata.title === fileName,
+        );
+        if (!matchingFile) {
+            throw Error(`exifDataParsingCheck failed , ${fileName} missing`);
+        }
+        if (
+            metadata["creation_time"] &&
+            metadata["creation_time"] !== matchingFile.metadata.creationTime
+        ) {
+            throw Error(`googleMetadataJSON reading check failed ❌ ,
                 for ${fileName}
                 expected: ${metadata["creation_time"]} got: ${matchingFile.metadata.creationTime}`);
-            }
-            if (
-                metadata["location"] &&
-                (Math.abs(
-                    metadata["location"]["latitude"] -
-                        matchingFile.metadata.latitude,
-                ) > 1 ||
-                    Math.abs(
-                        metadata["location"]["longitude"] -
-                            matchingFile.metadata.longitude,
-                    ) > 1)
-            ) {
-                throw Error(`googleMetadataJSON reading check failed ❌  ,
+        }
+        if (
+            metadata["location"] &&
+            (Math.abs(
+                metadata["location"].latitude - matchingFile.metadata.latitude,
+            ) > 1 ||
+                Math.abs(
+                    metadata["location"].longitude -
+                        matchingFile.metadata.longitude,
+                ) > 1)
+        ) {
+            throw Error(`googleMetadataJSON reading check failed ❌  ,
                                 for ${fileName}
                                 expected: ${JSON.stringify(
                                     metadata["location"],
@@ -373,16 +387,15 @@ async function googleMetadataReadingCheck(expectedState) {
                                 got: [${matchingFile.metadata.latitude},${
                                     matchingFile.metadata.longitude
                                 }]`);
-            }
-        },
-    );
+        }
+    });
     console.log("googleMetadataJSON reading check passed ✅");
 }
 
 function parseDateTimeFromFileNameTest() {
     DATE_TIME_PARSING_TEST_FILE_NAMES.forEach(
         ({ fileName, expectedDateTime }) => {
-            const dateTime = tryToParseDateTime(fileName);
+            const dateTime = parseDateFromDigitGroups(fileName);
             const formattedDateTime = getFormattedDateTime(dateTime);
             if (formattedDateTime !== expectedDateTime) {
                 throw Error(
@@ -394,7 +407,7 @@ function parseDateTimeFromFileNameTest() {
         },
     );
     DATE_TIME_PARSING_TEST_FILE_NAMES_MUST_FAIL.forEach((fileName) => {
-        const dateTime = tryToParseDateTime(fileName);
+        const dateTime = parseDateFromDigitGroups(fileName);
         if (dateTime) {
             throw Error(
                 `parseDateTimeFromFileNameTest failed ❌ ,
@@ -406,33 +419,23 @@ function parseDateTimeFromFileNameTest() {
     console.log("parseDateTimeFromFileNameTest passed ✅");
 }
 
-function mappingFileAndJSONFileCheck() {
-    FILE_NAME_TO_JSON_NAME.forEach(({ filename, jsonFilename }) => {
-        const jsonFileNameGeneratedKey = getMetadataJSONMapKeyForJSON(
-            0,
-            jsonFilename,
-        );
-        let fileNameGeneratedKey = getMetadataJSONMapKeyForFile(0, filename);
-        if (
-            fileNameGeneratedKey !== jsonFileNameGeneratedKey &&
-            filename.length > MAX_FILE_NAME_LENGTH_GOOGLE_EXPORT
-        ) {
-            fileNameGeneratedKey = getClippedMetadataJSONMapKeyForFile(
-                0,
-                filename,
-            );
-        }
+const fileNameToJSONMappingTests = () => {
+    for (const { filename, jsonFilename } of fileNameToJSONMappingCases) {
+        const jsonKey = metadataJSONMapKeyForJSON(0, jsonFilename);
 
-        if (fileNameGeneratedKey !== jsonFileNameGeneratedKey) {
+        // See the docs for the file name matcher as to why it doesn't return
+        // the key but instead indexes into the map for us. To test it, we
+        // construct a placeholder map with a dummy entry for the expected key.
+
+        const map = new Map([[jsonKey, {}]]);
+        if (!matchTakeoutMetadata(filename, 0, map)) {
             throw Error(
-                `mappingFileAndJSONFileCheck failed ❌ ,
-                    for ${filename}
-                    expected: ${jsonFileNameGeneratedKey} got: ${fileNameGeneratedKey}`,
+                `fileNameToJSONMappingTests failed ❌ for ${filename} and ${jsonFilename}`,
             );
         }
-    });
-    console.log("mappingFileAndJSONFileCheck passed ✅");
-}
+    }
+    console.log("fileNameToJSONMappingTests passed ✅");
+};
 
 // format: YYYY-MM-DD HH:MM:SS
 function getFormattedDateTime(date: Date) {

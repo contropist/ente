@@ -1,6 +1,5 @@
 import 'package:ente_auth/l10n/l10n.dart';
 import 'package:ente_auth/theme/ente_theme.dart';
-import 'package:ente_auth/ui/components/buttons/icon_button_widget.dart';
 import 'package:ente_auth/ui/components/captioned_text_widget.dart';
 import 'package:ente_auth/ui/components/divider_widget.dart';
 import 'package:ente_auth/ui/components/menu_item_widget.dart';
@@ -21,7 +20,9 @@ enum ImportType {
 }
 
 class ImportCodePage extends StatelessWidget {
-  final List<ImportType> importOptions = [
+  const ImportCodePage({super.key});
+
+  static const List<ImportType> importOptions = [
     ImportType.plainText,
     ImportType.encrypted,
     ImportType.twoFas,
@@ -31,8 +32,6 @@ class ImportCodePage extends StatelessWidget {
     ImportType.ravio,
     ImportType.lastpass,
   ];
-
-  ImportCodePage({super.key});
 
   String getTitle(BuildContext context, ImportType type) {
     switch (type) {
@@ -68,18 +67,7 @@ class ImportCodePage extends StatelessWidget {
                 title: context.l10n.importCodes,
               ),
               flexibleSpaceCaption: "Import source",
-              actionIcons: [
-                IconButtonWidget(
-                  icon: Icons.close_outlined,
-                  iconButtonType: IconButtonType.secondary,
-                  onTap: () {
-                    Navigator.pop(context);
-                    if (Navigator.canPop(context)) {
-                      Navigator.pop(context);
-                    }
-                  },
-                ),
-              ],
+              actionIcons: const [],
             ),
             SliverList(
               delegate: SliverChildBuilderDelegate(
@@ -105,7 +93,7 @@ class ImportCodePage extends StatelessWidget {
                               index != importOptions.length - 1,
                           isTopBorderRadiusRemoved: index != 0,
                           onTap: () async {
-                            ImportService().initiateImport(context, type);
+                            await ImportService().initiateImport(context, type);
                             // routeToPage(context, ImportCodePage());
                             // _showImportInstructionDialog(context);
                           },

@@ -194,8 +194,8 @@ func (repo *UserRepository) UpdateEmail(userID int64, encryptedEmail ente.Encryp
 
 // GetUserIDWithEmail returns the userID associated with a provided email
 func (repo *UserRepository) GetUserIDWithEmail(email string) (int64, error) {
-	trimmedEmail := strings.TrimSpace(email)
-	emailHash, err := crypto.GetHash(trimmedEmail, repo.HashingKey)
+	sanitizedEmail := strings.ToLower(strings.TrimSpace(email))
+	emailHash, err := crypto.GetHash(sanitizedEmail, repo.HashingKey)
 	if err != nil {
 		return -1, stacktrace.Propagate(err, "")
 	}
@@ -262,13 +262,6 @@ func (repo *UserRepository) SetKeyAttributes(userID int64, keyAttributes ente.Ke
 		keyAttributes.SecretKeyDecryptionNonce, keyAttributes.MemLimit, keyAttributes.OpsLimit,
 		keyAttributes.MasterKeyEncryptedWithRecoveryKey, keyAttributes.MasterKeyDecryptionNonce,
 		keyAttributes.RecoveryKeyEncryptedWithMasterKey, keyAttributes.RecoveryKeyDecryptionNonce)
-	return stacktrace.Propagate(err, "")
-}
-
-// UpdateKeys sets the keys of a user
-func (repo *UserRepository) UpdateKeys(userID int64, keys ente.UpdateKeysRequest) error {
-	_, err := repo.DB.Exec(`UPDATE key_attributes SET kek_salt = $1, encrypted_key = $2, key_decryption_nonce = $3, mem_limit = $4, ops_limit = $5 WHERE user_id = $6`,
-		keys.KEKSalt, keys.EncryptedKey, keys.KeyDecryptionNonce, keys.MemLimit, keys.OpsLimit, userID)
 	return stacktrace.Propagate(err, "")
 }
 
@@ -395,4 +388,30 @@ func (repo *UserRepository) GetEmailsFromHashes(hashes []string) ([]string, erro
 		emails = append(emails, email)
 	}
 	return emails, nil
+}
+
+// GetActiveUsersForIds  returns a map of users by their IDs, similar to GetUserByID
+func (repo *UserRepository) GetActiveUsersForIds(id []int64) (map[int64]*ente.User, error) {
+	result := make(map[int64]*ente.User)
+	rows, err := repo.DB.Query(`SELECT user_id, encrypted_email, email_decryption_nonce, email_hash, creation_time FROM users WHERE  encrypted_email IS NOT NULL and user_id = ANY($1)`, pq.Array(id))
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "")
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var user ente.User
+		var encryptedEmail, nonce []byte
+		err := rows.Scan(&user.ID, &encryptedEmail, &nonce, &user.Hash, &user.CreationTime)
+		if err != nil {
+			return nil, stacktrace.Propagate(err, "")
+		}
+		email, err := crypto.Decrypt(encryptedEmail, repo.SecretEncryptionKey, nonce)
+		if err != nil {
+			return nil, stacktrace.Propagate(err, "")
+		}
+		user.Email = email
+		result[user.ID] = &user
+	}
+	return result, nil
+
 }

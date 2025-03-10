@@ -5,11 +5,14 @@ import 'package:logging/logging.dart';
 import "package:photos/core/configuration.dart";
 import 'package:photos/core/event_bus.dart';
 import 'package:photos/events/collection_updated_event.dart';
+import "package:photos/events/favorites_service_init_complete_event.dart";
 import 'package:photos/events/local_photos_updated_event.dart';
 import 'package:photos/events/user_logged_out_event.dart';
 import "package:photos/generated/l10n.dart";
 import 'package:photos/models/collection/collection.dart';
+import "package:photos/service_locator.dart";
 import 'package:photos/services/collections_service.dart';
+import "package:photos/theme/ente_theme.dart";
 import "package:photos/ui/collections/button/archived_button.dart";
 import "package:photos/ui/collections/button/hidden_button.dart";
 import "package:photos/ui/collections/button/trash_button.dart";
@@ -24,12 +27,12 @@ import 'package:photos/ui/components/buttons/icon_button_widget.dart';
 import "package:photos/ui/tabs/section_title.dart";
 import "package:photos/ui/viewer/actions/delete_empty_albums.dart";
 import "package:photos/ui/viewer/gallery/empty_state.dart";
-import "package:photos/utils/debouncer.dart";
 import 'package:photos/utils/local_settings.dart';
 import "package:photos/utils/navigation_util.dart";
+import "package:photos/utils/standalone/debouncer.dart";
 
 class UserCollectionsTab extends StatefulWidget {
-  const UserCollectionsTab({Key? key}) : super(key: key);
+  const UserCollectionsTab({super.key});
 
   @override
   State<UserCollectionsTab> createState() => _UserCollectionsTabState();
@@ -42,17 +45,22 @@ class _UserCollectionsTabState extends State<UserCollectionsTab>
   late StreamSubscription<CollectionUpdatedEvent>
       _collectionUpdatesSubscription;
   late StreamSubscription<UserLoggedOutEvent> _loggedOutEvent;
+  late StreamSubscription<FavoritesServiceInitCompleteEvent>
+      _favoritesServiceInitCompleteEvent;
+
   AlbumSortKey? sortKey;
   String _loadReason = "init";
   final _scrollController = ScrollController();
   final _debouncer = Debouncer(
     const Duration(seconds: 2),
     executionInterval: const Duration(seconds: 5),
+    leading: true,
   );
 
   static const int _kOnEnteItemLimitCount = 10;
   @override
   void initState() {
+    super.initState();
     _localFilesSubscription =
         Bus.instance.on<LocalPhotosUpdatedEvent>().listen((event) {
       _debouncer.run(() async {
@@ -75,8 +83,14 @@ class _UserCollectionsTabState extends State<UserCollectionsTab>
       _loadReason = event.reason;
       setState(() {});
     });
-    sortKey = LocalSettings.instance.albumSortKey();
-    super.initState();
+    _favoritesServiceInitCompleteEvent =
+        Bus.instance.on<FavoritesServiceInitCompleteEvent>().listen((event) {
+      _debouncer.run(() async {
+        _loadReason = event.reason;
+        setState(() {});
+      });
+    });
+    sortKey = localSettings.albumSortKey();
   }
 
   @override
@@ -184,7 +198,11 @@ class _UserCollectionsTabState extends State<UserCollectionsTab>
                 ),
               )
             : const SliverToBoxAdapter(child: SizedBox.shrink()),
-        const SliverToBoxAdapter(child: Divider()),
+        SliverToBoxAdapter(
+          child: Divider(
+            color: getEnteColorScheme(context).strokeFaint,
+          ),
+        ),
         const SliverToBoxAdapter(child: SizedBox(height: 12)),
         SliverToBoxAdapter(
           child: Padding(
@@ -261,7 +279,7 @@ class _UserCollectionsTabState extends State<UserCollectionsTab>
               );
               if (selectedValue != null) {
                 sortKey = AlbumSortKey.values[selectedValue];
-                await LocalSettings.instance.setAlbumSortKey(sortKey!);
+                await localSettings.setAlbumSortKey(sortKey!);
                 setState(() {});
               }
             },
@@ -280,8 +298,9 @@ class _UserCollectionsTabState extends State<UserCollectionsTab>
     _localFilesSubscription.cancel();
     _collectionUpdatesSubscription.cancel();
     _loggedOutEvent.cancel();
+    _favoritesServiceInitCompleteEvent.cancel();
     _scrollController.dispose();
-    _debouncer.cancelDebounce();
+    _debouncer.cancelDebounceTimer();
     super.dispose();
   }
 

@@ -1,6 +1,9 @@
 package api
 
 import (
+	"fmt"
+	"github.com/ente-io/museum/pkg/controller/file_copy"
+	"github.com/ente-io/museum/pkg/controller/filedata"
 	"net/http"
 	"os"
 	"strconv"
@@ -20,11 +23,14 @@ import (
 
 // FileHandler exposes request handlers for all encrypted file related requests
 type FileHandler struct {
-	Controller *controller.FileController
+	Controller   *controller.FileController
+	FileCopyCtrl *file_copy.FileCopyController
+	FileDataCtrl *filedata.Controller
 }
 
 // DefaultMaxBatchSize is the default maximum API batch size unless specified otherwise
 const DefaultMaxBatchSize = 1000
+const DefaultCopyBatchSize = 100
 
 // CreateOrUpdate creates an entry for a file
 func (h *FileHandler) CreateOrUpdate(c *gin.Context) {
@@ -51,6 +57,25 @@ func (h *FileHandler) CreateOrUpdate(c *gin.Context) {
 		return
 	}
 	response, err := h.Controller.Update(c, userID, file, enteApp)
+	if err != nil {
+		handler.Error(c, stacktrace.Propagate(err, ""))
+		return
+	}
+	c.JSON(http.StatusOK, response)
+}
+
+// CopyFiles copies files that are owned by another user
+func (h *FileHandler) CopyFiles(c *gin.Context) {
+	var req ente.CopyFileSyncRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		handler.Error(c, stacktrace.Propagate(err, ""))
+		return
+	}
+	if len(req.CollectionFileItems) > DefaultCopyBatchSize {
+		handler.Error(c, stacktrace.Propagate(ente.NewBadRequestWithMessage(fmt.Sprintf("more than %d items", DefaultCopyBatchSize)), ""))
+		return
+	}
+	response, err := h.FileCopyCtrl.CopyFiles(c, req)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -87,7 +112,7 @@ func (h *FileHandler) GetUploadURLs(c *gin.Context) {
 
 	userID := auth.GetUserID(c.Request.Header)
 	count, _ := strconv.Atoi(c.Query("count"))
-	urls, err := h.Controller.GetUploadURLs(c, userID, count, enteApp)
+	urls, err := h.Controller.GetUploadURLs(c, userID, count, enteApp, false)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -116,7 +141,7 @@ func (h *FileHandler) GetMultipartUploadURLs(c *gin.Context) {
 // Get redirects the request to the file location
 func (h *FileHandler) Get(c *gin.Context) {
 	userID, fileID := getUserAndFileIDs(c)
-	url, err := h.Controller.GetFileURL(userID, fileID)
+	url, err := h.Controller.GetFileURL(c, userID, fileID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -128,7 +153,7 @@ func (h *FileHandler) Get(c *gin.Context) {
 // GetV2 returns the URL of the file to client
 func (h *FileHandler) GetV2(c *gin.Context) {
 	userID, fileID := getUserAndFileIDs(c)
-	url, err := h.Controller.GetFileURL(userID, fileID)
+	url, err := h.Controller.GetFileURL(c, userID, fileID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -141,7 +166,7 @@ func (h *FileHandler) GetV2(c *gin.Context) {
 // GetThumbnail redirects the request to the file's thumbnail location
 func (h *FileHandler) GetThumbnail(c *gin.Context) {
 	userID, fileID := getUserAndFileIDs(c)
-	url, err := h.Controller.GetThumbnailURL(userID, fileID)
+	url, err := h.Controller.GetThumbnailURL(c, userID, fileID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -153,7 +178,7 @@ func (h *FileHandler) GetThumbnail(c *gin.Context) {
 // GetThumbnailV2 returns the URL of the thumbnail to the client
 func (h *FileHandler) GetThumbnailV2(c *gin.Context) {
 	userID, fileID := getUserAndFileIDs(c)
-	url, err := h.Controller.GetThumbnailURL(userID, fileID)
+	url, err := h.Controller.GetThumbnailURL(c, userID, fileID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return

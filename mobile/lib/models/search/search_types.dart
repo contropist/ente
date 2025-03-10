@@ -6,12 +6,14 @@ import "package:photos/core/event_bus.dart";
 import "package:photos/events/collection_updated_event.dart";
 import "package:photos/events/event.dart";
 import "package:photos/events/location_tag_updated_event.dart";
+import "package:photos/events/magic_cache_updated_event.dart";
+import "package:photos/events/people_changed_event.dart";
 import "package:photos/generated/l10n.dart";
 import "package:photos/models/collection/collection.dart";
 import "package:photos/models/collection/collection_items.dart";
-import "package:photos/models/search/generic_search_result.dart";
 import "package:photos/models/search/search_result.dart";
 import "package:photos/models/typedefs.dart";
+import "package:photos/service_locator.dart";
 import "package:photos/services/collections_service.dart";
 import "package:photos/services/search_service.dart";
 import "package:photos/ui/viewer/gallery/collection_page.dart";
@@ -33,19 +35,18 @@ enum ResultType {
   fileCaption,
   event,
   shared,
+  faces,
   magic,
 }
 
 enum SectionType {
   face,
+  magic,
   location,
-  // Grouping based on ML or manual tagging
-  content,
   // includes year, month , day, event ResultType
   moment,
   album,
   // People section shows the files shared by other persons
-  fileCaption,
   contacts,
   fileTypesAndExtension,
 }
@@ -55,30 +56,28 @@ extension SectionTypeExtensions on SectionType {
   String sectionTitle(BuildContext context) {
     switch (this) {
       case SectionType.face:
-        return S.of(context).faces;
-      case SectionType.content:
-        return S.of(context).contents;
+        return S.of(context).people;
+      case SectionType.magic:
+        return S.of(context).discover;
       case SectionType.moment:
         return S.of(context).moments;
       case SectionType.location:
-        return S.of(context).location;
+        return S.of(context).locations;
       case SectionType.contacts:
         return S.of(context).contacts;
       case SectionType.album:
         return S.of(context).albums;
       case SectionType.fileTypesAndExtension:
         return S.of(context).fileTypes;
-      case SectionType.fileCaption:
-        return S.of(context).photoDescriptions;
     }
   }
 
   String getEmptyStateText(BuildContext context) {
     switch (this) {
       case SectionType.face:
-        return S.of(context).searchFaceEmptySection;
-      case SectionType.content:
-        return "Contents";
+        return S.of(context).searchPersonsEmptySection;
+      case SectionType.magic:
+        return S.of(context).searchDiscoverEmptySection;
       case SectionType.moment:
         return S.of(context).searchDatesEmptySection;
       case SectionType.location:
@@ -89,8 +88,6 @@ extension SectionTypeExtensions on SectionType {
         return S.of(context).searchAlbumsEmptySection;
       case SectionType.fileTypesAndExtension:
         return S.of(context).searchFileTypesAndNamesEmptySection;
-      case SectionType.fileCaption:
-        return S.of(context).searchCaptionEmptySection;
     }
   }
 
@@ -100,7 +97,7 @@ extension SectionTypeExtensions on SectionType {
     switch (this) {
       case SectionType.face:
         return false;
-      case SectionType.content:
+      case SectionType.magic:
         return false;
       case SectionType.moment:
         return false;
@@ -111,17 +108,21 @@ extension SectionTypeExtensions on SectionType {
       case SectionType.album:
         return true;
       case SectionType.fileTypesAndExtension:
-        return false;
-      case SectionType.fileCaption:
         return false;
     }
   }
 
+  // TODO: lau: check if we should sort moment again
+  bool get sortByName =>
+      this != SectionType.face &&
+      this != SectionType.magic &&
+      this != SectionType.moment;
+
   bool get isEmptyCTAVisible {
     switch (this) {
       case SectionType.face:
-        return true;
-      case SectionType.content:
+        return false;
+      case SectionType.magic:
         return false;
       case SectionType.moment:
         return false;
@@ -132,8 +133,6 @@ extension SectionTypeExtensions on SectionType {
       case SectionType.album:
         return true;
       case SectionType.fileTypesAndExtension:
-        return false;
-      case SectionType.fileCaption:
         return false;
     }
   }
@@ -143,9 +142,9 @@ extension SectionTypeExtensions on SectionType {
       case SectionType.face:
         // todo: later
         return "Setup";
-      case SectionType.content:
+      case SectionType.magic:
         // todo: later
-        return "Add tags";
+        return "temp";
       case SectionType.moment:
         return S.of(context).addNew;
       case SectionType.location:
@@ -156,8 +155,6 @@ extension SectionTypeExtensions on SectionType {
         return S.of(context).addNew;
       case SectionType.fileTypesAndExtension:
         return "";
-      case SectionType.fileCaption:
-        return S.of(context).addNew;
     }
   }
 
@@ -165,7 +162,7 @@ extension SectionTypeExtensions on SectionType {
     switch (this) {
       case SectionType.face:
         return Icons.adaptive.arrow_forward_outlined;
-      case SectionType.content:
+      case SectionType.magic:
         return null;
       case SectionType.moment:
         return null;
@@ -176,8 +173,6 @@ extension SectionTypeExtensions on SectionType {
       case SectionType.album:
         return Icons.add;
       case SectionType.fileTypesAndExtension:
-        return null;
-      case SectionType.fileCaption:
         return null;
     }
   }
@@ -245,12 +240,15 @@ extension SectionTypeExtensions on SectionType {
   }) {
     switch (this) {
       case SectionType.face:
-        return Future.value(List<GenericSearchResult>.empty());
-
-      case SectionType.content:
-        return Future.value(List<GenericSearchResult>.empty());
+        return SearchService.instance.getAllFace(limit);
+      case SectionType.magic:
+        return SearchService.instance.getMagicSectionResults(context);
 
       case SectionType.moment:
+        if (flagService.internalUser) {
+          // TODO: lau: remove this whole smart memories and moment altogether
+          return SearchService.instance.smartMemories(context, limit);
+        }
         return SearchService.instance.getRandomMomentsSearchResults(context);
 
       case SectionType.location:
@@ -265,9 +263,6 @@ extension SectionTypeExtensions on SectionType {
       case SectionType.fileTypesAndExtension:
         return SearchService.instance
             .getAllFileTypesAndExtensionsResults(context, limit);
-
-      case SectionType.fileCaption:
-        return SearchService.instance.getAllDescriptionSearchResults(limit);
     }
   }
 
@@ -277,6 +272,8 @@ extension SectionTypeExtensions on SectionType {
         return [Bus.instance.on<LocationTagUpdatedEvent>()];
       case SectionType.album:
         return [Bus.instance.on<CollectionUpdatedEvent>()];
+      case SectionType.face:
+        return [Bus.instance.on<PeopleChangedEvent>()];
       default:
         return [];
     }
@@ -288,6 +285,8 @@ extension SectionTypeExtensions on SectionType {
     switch (this) {
       case SectionType.location:
         return [Bus.instance.on<LocationTagUpdatedEvent>()];
+      case SectionType.magic:
+        return [Bus.instance.on<MagicCacheUpdatedEvent>()];
       default:
         return [];
     }

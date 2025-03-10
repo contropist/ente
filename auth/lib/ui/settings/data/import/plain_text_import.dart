@@ -1,6 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:ente_auth/ente_theme_data.dart';
 import 'package:ente_auth/l10n/l10n.dart';
@@ -13,12 +13,15 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 
+final _logger = Logger('PlainText');
+
 class PlainTextImport extends StatelessWidget {
   const PlainTextImport({super.key});
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+
     return Column(
       children: [
         Text(
@@ -48,9 +51,7 @@ class PlainTextImport extends StatelessWidget {
       ],
     );
   }
-
 }
-
 
 Future<void> showImportInstructionDialog(BuildContext context) async {
   final l10n = context.l10n;
@@ -94,7 +95,6 @@ Future<void> showImportInstructionDialog(BuildContext context) async {
   );
 }
 
-
 Future<void> _pickImportFile(BuildContext context) async {
   final l10n = context.l10n;
   FilePickerResult? result = await FilePicker.platform.pickFiles();
@@ -104,20 +104,35 @@ Future<void> _pickImportFile(BuildContext context) async {
   final progressDialog = createProgressDialog(context, l10n.pleaseWait);
   await progressDialog.show();
   try {
+    final parsedCodes = [];
     File file = File(result.files.single.path!);
     final codes = await file.readAsString();
-    List<String> splitCodes = codes.split(",");
-    if (splitCodes.length == 1) {
-      splitCodes = codes.split("\n");
-    }
-    final parsedCodes = [];
-    for (final code in splitCodes) {
-      try {
-        parsedCodes.add(Code.fromRawData(code));
-      } catch (e) {
-        Logger('PlainText').severe("Could not parse code", e);
+
+    if (codes.startsWith('otpauth://')) {
+      List<String> splitCodes = codes.split(",");
+      if (splitCodes.length == 1) {
+        splitCodes = const LineSplitter().convert(codes);
+      }
+      for (final code in splitCodes) {
+        try {
+          parsedCodes.add(Code.fromOTPAuthUrl(code));
+        } catch (e) {
+          Logger('PlainText').severe("Could not parse code", e);
+        }
+      }
+    } else {
+      final decodedCodes = jsonDecode(codes);
+      List<Map> splitCodes = List.from(decodedCodes["items"]);
+
+      for (final code in splitCodes) {
+        try {
+          parsedCodes.add(Code.fromExportJson(code));
+        } catch (e) {
+          _logger.severe("Could not parse code", e);
+        }
       }
     }
+
     for (final code in parsedCodes) {
       await CodeStore.instance.addCode(code, shouldSync: false);
     }
@@ -129,7 +144,7 @@ Future<void> _pickImportFile(BuildContext context) async {
     await showErrorDialog(
       context,
       context.l10n.sorry,
-      context.l10n.importFailureDesc,
+      context.l10n.importFailureDescNew,
     );
   }
 }

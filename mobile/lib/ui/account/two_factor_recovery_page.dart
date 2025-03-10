@@ -1,21 +1,23 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import "package:photos/generated/l10n.dart";
-import 'package:photos/services/user_service.dart';
+import "package:photos/models/account/two_factor.dart";
+import 'package:photos/services/account/user_service.dart';
+import "package:photos/theme/ente_theme.dart";
 import 'package:photos/utils/dialog_util.dart';
 
 class TwoFactorRecoveryPage extends StatefulWidget {
   final String sessionID;
   final String encryptedSecret;
   final String secretDecryptionNonce;
+  final TwoFactorType type;
 
   const TwoFactorRecoveryPage(
+    this.type,
     this.sessionID,
     this.encryptedSecret,
     this.secretDecryptionNonce, {
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<TwoFactorRecoveryPage> createState() => _TwoFactorRecoveryPageState();
@@ -71,6 +73,7 @@ class _TwoFactorRecoveryPageState extends State<TwoFactorRecoveryPage> {
                   ? () async {
                       await UserService.instance.removeTwoFactor(
                         context,
+                        widget.type,
                         widget.sessionID,
                         _recoveryKey.text,
                         widget.encryptedSecret,
@@ -98,7 +101,8 @@ class _TwoFactorRecoveryPageState extends State<TwoFactorRecoveryPage> {
                   style: TextStyle(
                     decoration: TextDecoration.underline,
                     fontSize: 12,
-                    color: Colors.white.withOpacity(0.9),
+                    color:
+                        getEnteColorScheme(context).textBase.withOpacity(0.9),
                   ),
                 ),
               ),

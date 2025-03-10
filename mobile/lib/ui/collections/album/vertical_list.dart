@@ -11,18 +11,18 @@ import 'package:photos/models/collection/collection_items.dart';
 import 'package:photos/models/selected_files.dart';
 import 'package:photos/services/collections_service.dart';
 import "package:photos/services/hidden_service.dart";
-import 'package:photos/services/remote_sync_service.dart';
+import 'package:photos/services/sync/remote_sync_service.dart';
 import "package:photos/ui/actions/collection/collection_file_actions.dart";
 import "package:photos/ui/actions/collection/collection_sharing_actions.dart";
 import "package:photos/ui/collections/album/column_item.dart";
 import "package:photos/ui/collections/album/new_list_item.dart";
 import 'package:photos/ui/collections/collection_action_sheet.dart';
+import 'package:photos/ui/notification/toast.dart';
 import "package:photos/ui/sharing/share_collection_page.dart";
 import 'package:photos/ui/viewer/gallery/collection_page.dart';
 import "package:photos/ui/viewer/gallery/empty_state.dart";
 import 'package:photos/utils/dialog_util.dart';
 import 'package:photos/utils/navigation_util.dart';
-import 'package:photos/utils/toast_util.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
 class AlbumVerticalListWidget extends StatelessWidget {
@@ -40,8 +40,8 @@ class AlbumVerticalListWidget extends StatelessWidget {
     this.sharedFiles,
     this.searchQuery,
     this.shouldShowCreateAlbum, {
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   final _logger = Logger("CollectionsListWidgetState");
   final CollectionActions _collectionActions =
@@ -102,11 +102,12 @@ class AlbumVerticalListWidget extends StatelessWidget {
         title: S.of(context).albumTitle,
         submitButtonLabel: S.of(context).ok,
         hintText: S.of(context).enterAlbumName,
-        onSubmit: (name) {
-          return _nameAlbum(context, name);
+        onSubmit: (name) async {
+          return await _nameAlbum(context, name);
         },
         showOnlyLoadingState: true,
         textCapitalization: TextCapitalization.words,
+        popnavAfterSubmission: false,
       );
       if (result is Exception) {
         await showGenericErrorDialog(
@@ -138,7 +139,8 @@ class AlbumVerticalListWidget extends StatelessWidget {
       bool hasVerifiedLock = false;
       late final Collection? collection;
 
-      if (actionType == CollectionActionType.moveToHiddenCollection) {
+      if (actionType == CollectionActionType.moveToHiddenCollection ||
+          actionType == CollectionActionType.addToHiddenAlbum) {
         collection =
             await CollectionsService.instance.createHiddenAlbum(albumName);
         hasVerifiedLock = true;
@@ -163,7 +165,11 @@ class AlbumVerticalListWidget extends StatelessWidget {
               "Album '" + albumName + "' created.",
             );
           }
-          _navigateToCollection(
+
+          Navigator.pop(context);
+          Navigator.pop(context);
+
+          await _navigateToCollection(
             context,
             collection,
             hasVerifiedLock: hasVerifiedLock,
@@ -219,7 +225,9 @@ class AlbumVerticalListWidget extends StatelessWidget {
         );
       }
       if (shouldNavigateToCollection) {
-        _navigateToCollection(
+        Navigator.pop(context);
+
+        await _navigateToCollection(
           context,
           item,
           hasVerifiedLock: hasVerifiedLock,
@@ -257,13 +265,12 @@ class AlbumVerticalListWidget extends StatelessWidget {
     }
   }
 
-  void _navigateToCollection(
+  Future<void> _navigateToCollection(
     BuildContext context,
     Collection collection, {
     bool hasVerifiedLock = false,
-  }) {
-    Navigator.pop(context);
-    routeToPage(
+  }) async {
+    await routeToPage(
       context,
       CollectionPage(
         CollectionWithThumbnail(collection, null),
@@ -280,8 +287,8 @@ class AlbumVerticalListWidget extends StatelessWidget {
         CollectionActions(CollectionsService.instance);
 
     if (collection.hasLink) {
-      if (collection.publicURLs!.first!.enableCollect) {
-        if (Configuration.instance.getUserID() == collection.owner!.id) {
+      if (collection.publicURLs.first.enableCollect) {
+        if (Configuration.instance.getUserID() == collection.owner.id) {
           unawaited(
             routeToPage(
               context,
@@ -327,7 +334,7 @@ class AlbumVerticalListWidget extends StatelessWidget {
         context,
         S.of(context).collaborativeLinkCreatedFor(collection.displayName),
       );
-      if (Configuration.instance.getUserID() == collection.owner!.id) {
+      if (Configuration.instance.getUserID() == collection.owner.id) {
         unawaited(
           routeToPage(
             context,
@@ -346,7 +353,7 @@ class AlbumVerticalListWidget extends StatelessWidget {
     BuildContext context,
     Collection collection,
   ) {
-    if (Configuration.instance.getUserID() == collection.owner!.id) {
+    if (Configuration.instance.getUserID() == collection.owner.id) {
       unawaited(
         routeToPage(
           context,

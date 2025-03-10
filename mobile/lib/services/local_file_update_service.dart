@@ -3,16 +3,14 @@ import 'dart:core';
 import 'dart:io';
 
 import 'package:logging/logging.dart';
+import "package:photo_manager/photo_manager.dart";
 import "package:photos/core/configuration.dart";
 import 'package:photos/core/errors.dart';
 import 'package:photos/db/file_updation_db.dart';
 import 'package:photos/db/files_db.dart';
 import "package:photos/extensions/list.dart";
-import "package:photos/extensions/stop_watch.dart";
-import "package:photos/models/file/extensions/file_props.dart";
 import 'package:photos/models/file/file.dart';
 import 'package:photos/models/file/file_type.dart';
-import "package:photos/services/files_service.dart";
 import 'package:photos/utils/file_uploader_util.dart';
 import 'package:photos/utils/file_util.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,9 +21,11 @@ class LocalFileUpdateService {
   late FileUpdationDB _fileUpdationDB;
   late SharedPreferences _prefs;
   late Logger _logger;
-  final String _iosLivePhotoSizeMigrationDone = 'fm_ios_live_photo_check';
-  final String _doneLivePhotoImport = 'fm_import_ios_live_photo_check';
-  static int twoHundredKb = 200 * 1024;
+  final String _androidMissingGPSImportDone =
+      'fm_android_missing_gps_import_done';
+  final String _androidMissingGPSCheckDone =
+      'fm_android_missing_gps_check_done';
+
   final List<String> _oldMigrationKeys = [
     'fm_badCreationTime',
     'fm_badCreationTimeCompleted',
@@ -35,6 +35,8 @@ class LocalFileUpdateService {
     'fm_badLocationMigrationDone',
     'fm_ios_live_photo_size',
     'fm_import_ios_live_photo_size',
+    'fm_ios_live_photo_check',
+    'fm_import_ios_live_photo_check',
   ];
 
   Completer<void>? _existingMigration;
@@ -60,8 +62,8 @@ class LocalFileUpdateService {
     try {
       await _markFilesWhichAreActuallyUpdated();
       _cleanUpOlderMigration().ignore();
-      if (!Platform.isAndroid) {
-        await _handleLivePhotosSizedCheck();
+      if (Platform.isAndroid) {
+        await _androidMissingGPSCheck();
       }
     } catch (e, s) {
       _logger.severe('failed to perform migration', e, s);
@@ -87,6 +89,7 @@ class LocalFileUpdateService {
         'missingLocationV2',
         'badLocationCord',
         'livePhotoSize',
+        'livePhotoCheck',
       ]);
       for (var element in _oldMigrationKeys) {
         await _prefs.remove(element);
@@ -185,7 +188,7 @@ class LocalFileUpdateService {
           } else if (e.reason == InvalidReason.imageToLivePhotoTypeChanged) {
             fileType = FileType.livePhoto;
           }
-          final int count = await FilesDB.instance.markFilesForReUpload(
+          await FilesDB.instance.markFilesForReUpload(
             userID,
             file.localID!,
             file.title,
@@ -194,8 +197,7 @@ class LocalFileUpdateService {
             file.modificationTime!,
             fileType,
           );
-          _logger.fine('fileType changed for ${file.tag} to ${e.reason} for '
-              '$count files');
+          _logger.fine('fileType changed for ${file.tag} to ${e.reason} for ');
         } else {
           _logger.severe("failed to check hash: invalid file ${file.tag}", e);
         }
@@ -210,180 +212,130 @@ class LocalFileUpdateService {
     );
   }
 
-  Future<void> checkLivePhoto(EnteFile file) async {
-    if (file.localID == null ||
-        file.localID!.isEmpty ||
-        !file.isUploaded ||
-        file.fileType != FileType.livePhoto ||
-        !file.isOwner) {
+  //#region Android Missing GPS specific methods ###
+
+  Future<void> _androidMissingGPSCheck() async {
+    if (_prefs.containsKey(_androidMissingGPSCheckDone)) {
       return;
     }
-    if (_prefs.containsKey(_iosLivePhotoSizeMigrationDone)) {
-      return;
-    }
-    final hasEntry = await _fileUpdationDB.isExisting(
-      file.localID!,
-      FileUpdationDB.livePhotoCheck,
+    await _importAndroidBadGPSCandidate();
+    // singleRunLimit indicates number of files to check during single
+    // invocation of this method. The limit act as a crude way to limit the
+    // resource consumed by the method
+    const int singleRunLimit = 500;
+    final localIDsToProcess =
+        await _fileUpdationDB.getLocalIDsForPotentialReUpload(
+      singleRunLimit,
+      FileUpdationDB.androidMissingGPS,
     );
-    if (hasEntry) {
-      _logger.info('eager checkLivePhoto ${file.tag}');
-      await _checkLivePhotoWithLowOrUnknownSize([file.localID!]);
+    if (localIDsToProcess.isNotEmpty) {
+      final chunksOf50 = localIDsToProcess.chunks(50);
+      for (final chunk in chunksOf50) {
+        final sTime = DateTime.now().microsecondsSinceEpoch;
+        final List<Future> futures = [];
+        final chunkOf10 = chunk.chunks(10);
+        for (final smallChunk in chunkOf10) {
+          futures.add(_checkForMissingGPS(smallChunk));
+        }
+        await Future.wait(futures);
+        final eTime = DateTime.now().microsecondsSinceEpoch;
+        final d = Duration(microseconds: eTime - sTime);
+        _logger.info(
+          'Performed missing GPS Location check for ${chunk.length} files '
+          'completed in ${d.inSeconds.toString()} secs',
+        );
+      }
+    } else {
+      _logger.info('Completed android missing GPS check');
+      await _prefs.setBool(_androidMissingGPSCheckDone, true);
     }
   }
 
-  Future<void> _handleLivePhotosSizedCheck() async {
+  Future<void> _checkForMissingGPS(List<String> localIDs) async {
     try {
-      if (_prefs.containsKey(_iosLivePhotoSizeMigrationDone)) {
-        return;
-      }
-      await _importLivePhotoReUploadCandidates();
-
-      // singleRunLimit indicates number of files to check during single
-      // invocation of this method. The limit act as a crude way to limit the
-      // resource consumed by the method
-      const int singleRunLimit = 500;
-      final localIDsToProcess =
-          await _fileUpdationDB.getLocalIDsForPotentialReUpload(
-        singleRunLimit,
-        FileUpdationDB.livePhotoCheck,
-      );
-      if (localIDsToProcess.isNotEmpty) {
-        final chunksOf50 = localIDsToProcess.chunks(50);
-        for (final chunk in chunksOf50) {
-          final sTime = DateTime.now().microsecondsSinceEpoch;
-          final List<Future> futures = [];
-          final chunkOf10 = chunk.chunks(10);
-          for (final smallChunk in chunkOf10) {
-            futures.add(_checkLivePhotoWithLowOrUnknownSize(smallChunk));
-          }
-          await Future.wait(futures);
-          final eTime = DateTime.now().microsecondsSinceEpoch;
-          final d = Duration(microseconds: eTime - sTime);
-          _logger.info(
-            'Performed hashCheck for ${chunk.length} livePhoto files '
-            'completed in ${d.inSeconds.toString()} secs',
-          );
+      final List<EnteFile> localFiles =
+          await FilesDB.instance.getLocalFiles(localIDs);
+      final ownerID = Configuration.instance.getUserID()!;
+      final Set<String> localIDsWithFile = {};
+      final Set<String> reuploadCandidate = {};
+      final Set<String> processedIDs = {};
+      for (EnteFile file in localFiles) {
+        if (file.localID == null) continue;
+        // ignore files that are not uploaded or have different owner
+        if (!file.isUploaded || file.ownerID! != ownerID) {
+          processedIDs.add(file.localID!);
         }
-      } else {
-        await _prefs.setBool(_iosLivePhotoSizeMigrationDone, true);
-      }
-    } catch (e, s) {
-      _logger.severe('error while checking livePhotoSize check', e, s);
-    }
-  }
-
-  Future<void> _checkLivePhotoWithLowOrUnknownSize(
-    List<String> localIDsToProcess,
-  ) async {
-    final int userID = Configuration.instance.getUserID()!;
-    final List<EnteFile> result =
-        await FilesDB.instance.getLocalFiles(localIDsToProcess);
-    final List<EnteFile> localFilesForUser = [];
-    final Set<String> localIDsWithFile = {};
-    final Set<int> missingSizeIDs = {};
-    final Set<String> processedIDs = {};
-    for (EnteFile file in result) {
-      if (file.ownerID == null || file.ownerID == userID) {
-        localFilesForUser.add(file);
-        localIDsWithFile.add(file.localID!);
-        if (file.isUploaded && file.fileSize == null) {
-          missingSizeIDs.add(file.uploadedFileID!);
-        }
-        if (file.isUploaded && file.updationTime == null) {
-          // file already queued for re-upload
+        if (file.hasLocation) {
           processedIDs.add(file.localID!);
         }
       }
-    }
-    if (missingSizeIDs.isNotEmpty) {
-      await FilesService.instance.backFillSizes(missingSizeIDs.toList());
-      _logger.info('sizes back fill for ${missingSizeIDs.length} files');
-      // return early, let the check run in the next batch
-      return;
-    }
+      for (EnteFile enteFile in localFiles) {
+        try {
+          if (enteFile.localID == null ||
+              processedIDs.contains(enteFile.localID!)) {
+            continue;
+          }
 
-    // if a file for localID doesn't exist, then mark it as processed
-    // otherwise the app will be stuck in retrying same set of ids
-
-    for (String localID in localIDsToProcess) {
-      if (!localIDsWithFile.contains(localID)) {
-        processedIDs.add(localID);
-      }
-    }
-    _logger.info(" check ${localIDsToProcess.length} files for livePhotoSize, "
-        "missing file cnt ${processedIDs.length}");
-
-    for (EnteFile file in localFilesForUser) {
-      if (file.fileSize == null) {
-        _logger.info('fileSize still null, skip this file');
-        continue;
-      } else if (file.fileType != FileType.livePhoto) {
-        _logger.severe('fileType is not livePhoto, skip this file');
-        processedIDs.add(file.localID!);
-        continue;
-      }
-      if (processedIDs.contains(file.localID)) {
-        continue;
-      }
-      try {
-        late MediaUploadData uploadData;
-        late int mediaUploadSize;
-        (uploadData, mediaUploadSize) = await getUploadDataWithSizeSize(file);
-        if ((file.fileSize! - mediaUploadSize).abs() > twoHundredKb) {
-          _logger.info(
-            'Re-upload livePhoto localHash ${uploadData.hashData?.fileHash ?? "null"} & localSize: $mediaUploadSize'
-            ' and remoteHash ${file.hash ?? "null"} & removeSize: ${file.fileSize!}',
-          );
-          await FilesDB.instance.markFilesForReUpload(
-            userID,
-            file.localID!,
-            file.title,
-            file.location,
-            file.creationTime!,
-            file.modificationTime!,
-            file.fileType,
-          );
+          final localID = enteFile.localID!;
+          localIDsWithFile.add(localID);
+          final AssetEntity? entity = await AssetEntity.fromId(localID);
+          if (entity == null) {
+            processedIDs.add(localID);
+          } else {
+            final latLng = await entity.latlngAsync();
+            if ((latLng.longitude ?? 0) == 0 || (latLng.latitude ?? 0) == 0) {
+              processedIDs.add(localID);
+            } else {
+              reuploadCandidate.add(localID);
+              processedIDs.add(localID);
+            }
+          }
+        } catch (e, s) {
+          processedIDs.add(enteFile.localID!);
+          _logger.severe('lat/long check file ${enteFile.toString()}', e, s);
         }
-        processedIDs.add(file.localID!);
-      } on InvalidFileError catch (e) {
-        if (e.reason == InvalidReason.livePhotoToImageTypeChanged ||
-            e.reason == InvalidReason.imageToLivePhotoTypeChanged) {
-          // let existing file update check handle this case
-          _fileUpdationDB.insertMultiple(
-            [file.localID!],
-            FileUpdationDB.modificationTimeUpdated,
-          ).ignore();
-        } else {
-          _logger.severe("livePhoto check failed: invalid file ${file.tag}", e);
+      }
+      for (String id in localIDs) {
+        // if the file with given localID doesn't exist, consider it as done.
+        if (!localIDsWithFile.contains(id)) {
+          processedIDs.add(id);
         }
-        processedIDs.add(file.localID!);
-      } catch (e) {
-        _logger.severe("livePhoto check failed", e);
-      } finally {}
+      }
+      await FileUpdationDB.instance.insertMultiple(
+        reuploadCandidate.toList(),
+        FileUpdationDB.modificationTimeUpdated,
+      );
+      await FileUpdationDB.instance.deleteByLocalIDs(
+        processedIDs.toList(),
+        FileUpdationDB.androidMissingGPS,
+      );
+    } catch (e, s) {
+      _logger.severe('error while checking missing GPS', e, s);
     }
-    _logger.info('completed check for ${localIDsToProcess.length} files');
-    await _fileUpdationDB.deleteByLocalIDs(
-      processedIDs.toList(),
-      FileUpdationDB.livePhotoCheck,
-    );
   }
 
-  Future<void> _importLivePhotoReUploadCandidates() async {
-    if (_prefs.containsKey(_doneLivePhotoImport)) {
+  Future<void> _importAndroidBadGPSCandidate() async {
+    if (_prefs.containsKey(_androidMissingGPSImportDone)) {
       return;
     }
-    _logger.info('_importLivePhotoReUploadCandidates');
-    final EnteWatch watch = EnteWatch("_importLivePhotoReUploadCandidates");
+    final sTime = DateTime.now().microsecondsSinceEpoch;
+    _logger.info('importing files without missing GPS');
     final int ownerID = Configuration.instance.getUserID()!;
-    final List<String> localIDs =
-        await FilesDB.instance.getLivePhotosForUser(ownerID);
+    final fileLocalIDs =
+        await FilesDB.instance.getLocalFilesBackedUpWithoutLocation(ownerID);
     await _fileUpdationDB.insertMultiple(
-      localIDs,
-      FileUpdationDB.livePhotoCheck,
+      fileLocalIDs,
+      FileUpdationDB.androidMissingGPS,
     );
-    watch.log("imported ${localIDs.length} files");
-    await _prefs.setBool(_doneLivePhotoImport, true);
+    final eTime = DateTime.now().microsecondsSinceEpoch;
+    final d = Duration(microseconds: eTime - sTime);
+    _logger.info(
+      'importing completed, total files count ${fileLocalIDs.length} and took ${d.inSeconds.toString()} seconds',
+    );
+    await _prefs.setBool(_androidMissingGPSImportDone, true);
   }
+
+  //#endregion Android Missing GPS specific methods ###
 
   Future<MediaUploadData> getUploadData(EnteFile file) async {
     final mediaUploadData = await getUploadDataFromEnteFile(file);

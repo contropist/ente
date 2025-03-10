@@ -5,10 +5,9 @@ import 'package:ente_auth/core/configuration.dart';
 import "package:ente_auth/l10n/l10n.dart";
 import "package:ente_auth/theme/ente_theme.dart";
 import 'package:ente_auth/ui/common/dynamic_fab.dart';
-import "package:ente_auth/utils/crypto_util.dart";
 import "package:ente_auth/utils/dialog_util.dart";
+import 'package:ente_crypto_dart/ente_crypto_dart.dart';
 import 'package:flutter/material.dart';
-import "package:flutter_sodium/flutter_sodium.dart";
 import "package:logging/logging.dart";
 
 typedef OnPasswordVerifiedFn = Future<void> Function(Uint8List bytes);
@@ -17,8 +16,11 @@ class RequestPasswordVerificationPage extends StatefulWidget {
   final OnPasswordVerifiedFn onPasswordVerified;
   final Function? onPasswordError;
 
-  const RequestPasswordVerificationPage(
-      {super.key, required this.onPasswordVerified, this.onPasswordError,});
+  const RequestPasswordVerificationPage({
+    super.key,
+    required this.onPasswordVerified,
+    this.onPasswordError,
+  });
 
   @override
   State<RequestPasswordVerificationPage> createState() =>
@@ -78,31 +80,32 @@ class _RequestPasswordVerificationPageState
         onPressedFunction: () async {
           FocusScope.of(context).unfocus();
           final dialog = createProgressDialog(context, context.l10n.pleaseWait);
-          dialog.show();
+          await dialog.show();
           try {
             final attributes = Configuration.instance.getKeyAttributes()!;
             final Uint8List keyEncryptionKey = await CryptoUtil.deriveKey(
-              utf8.encode(_passwordController.text) as Uint8List,
-              Sodium.base642bin(attributes.kekSalt),
+              utf8.encode(_passwordController.text),
+              CryptoUtil.base642bin(attributes.kekSalt),
               attributes.memLimit,
               attributes.opsLimit,
             );
             CryptoUtil.decryptSync(
-              Sodium.base642bin(attributes.encryptedKey),
+              CryptoUtil.base642bin(attributes.encryptedKey),
               keyEncryptionKey,
-              Sodium.base642bin(attributes.keyDecryptionNonce),
+              CryptoUtil.base642bin(attributes.keyDecryptionNonce),
             );
-            dialog.show();
+            await dialog.show();
             // pop
             await widget.onPasswordVerified(keyEncryptionKey);
-            dialog.hide();
+            await dialog.hide();
             Navigator.of(context).pop(true);
           } catch (e, s) {
             _logger.severe("Error while verifying password", e, s);
-            dialog.hide();
+            await dialog.hide();
             if (widget.onPasswordError != null) {
               widget.onPasswordError!();
             } else {
+              // ignore: unawaited_futures
               showErrorDialog(
                 context,
                 context.l10n.incorrectPasswordTitle,

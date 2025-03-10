@@ -10,16 +10,17 @@ import 'package:photos/events/account_configured_event.dart';
 import 'package:photos/events/subscription_purchased_event.dart';
 import "package:photos/generated/l10n.dart";
 import "package:photos/l10n/l10n.dart";
-import "package:photos/models/key_gen_result.dart";
-import 'package:photos/services/user_service.dart';
+import "package:photos/models/api/user/key_gen_result.dart";
+import 'package:photos/services/account/user_service.dart';
+import "package:photos/theme/ente_theme.dart";
 import 'package:photos/ui/account/recovery_key_page.dart';
 import 'package:photos/ui/common/dynamic_fab.dart';
 import 'package:photos/ui/common/web_page.dart';
 import "package:photos/ui/components/models/button_type.dart";
+import 'package:photos/ui/notification/toast.dart';
 import 'package:photos/ui/payment/subscription.dart';
 import 'package:photos/utils/dialog_util.dart';
 import 'package:photos/utils/navigation_util.dart';
-import 'package:photos/utils/toast_util.dart';
 import "package:styled_text/styled_text.dart";
 
 enum PasswordEntryMode {
@@ -33,8 +34,8 @@ class PasswordEntryPage extends StatefulWidget {
 
   const PasswordEntryPage({
     required this.mode,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<PasswordEntryPage> createState() => _PasswordEntryPageState();
@@ -218,8 +219,9 @@ class _PasswordEntryPageState extends State<PasswordEntryPage> {
                   child: TextFormField(
                     autofillHints: const [AutofillHints.newPassword],
                     decoration: InputDecoration(
-                      fillColor:
-                          _isPasswordValid ? _validFieldValueColor : null,
+                      fillColor: _isPasswordValid
+                          ? _validFieldValueColor
+                          : getEnteColorScheme(context).fillFaint,
                       filled: true,
                       hintText: S.of(context).password,
                       contentPadding: const EdgeInsets.all(20),
@@ -282,7 +284,9 @@ class _PasswordEntryPageState extends State<PasswordEntryPage> {
                     autofillHints: const [AutofillHints.newPassword],
                     onEditingComplete: () => TextInput.finishAutofillContext(),
                     decoration: InputDecoration(
-                      fillColor: _passwordsMatch ? _validFieldValueColor : null,
+                      fillColor: _passwordsMatch
+                          ? _validFieldValueColor
+                          : getEnteColorScheme(context).fillFaint,
                       filled: true,
                       hintText: S.of(context).confirmPassword,
                       contentPadding: const EdgeInsets.symmetric(
@@ -437,7 +441,7 @@ class _PasswordEntryPageState extends State<PasswordEntryPage> {
     try {
       final KeyGenResult result =
           await Configuration.instance.generateKey(password);
-      Configuration.instance.setVolatilePassword(null);
+      Configuration.instance.resetVolatilePassword();
       await dialog.hide();
       onDone() async {
         final dialog = createProgressDialog(context, S.of(context).pleaseWait);
@@ -445,7 +449,7 @@ class _PasswordEntryPageState extends State<PasswordEntryPage> {
         try {
           await UserService.instance.setAttributes(result);
           await dialog.hide();
-          Configuration.instance.setVolatilePassword(null);
+          Configuration.instance.resetVolatilePassword();
           Bus.instance.fire(AccountConfiguredEvent());
           // ignore: unawaited_futures
           Navigator.of(context).pushAndRemoveUntil(

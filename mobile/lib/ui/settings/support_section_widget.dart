@@ -13,7 +13,7 @@ import 'package:photos/utils/email_util.dart';
 import "package:url_launcher/url_launcher_string.dart";
 
 class SupportSectionWidget extends StatelessWidget {
-  const SupportSectionWidget({Key? key}) : super(key: key);
+  const SupportSectionWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -43,8 +43,8 @@ class SupportSectionWidget extends StatelessWidget {
         ),
         sectionOptionSpacing,
         AboutMenuItemWidget(
-          title: S.of(context).faq,
-          url: "https://ente.io/faq",
+          title: S.of(context).help,
+          url: "https://help.ente.io",
         ),
         sectionOptionSpacing,
         MenuItemWidget(

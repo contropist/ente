@@ -16,8 +16,8 @@ class IconButtonWidget extends StatefulWidget {
   final Color? defaultColor;
   final Color? pressedColor;
   final Color? iconColor;
-  const IconButtonWidget({
-    Key? key,
+const IconButtonWidget({
+    super.key,
     required this.icon,
     required this.iconButtonType,
     this.disableGestureDetector = false,
@@ -25,7 +25,7 @@ class IconButtonWidget extends StatefulWidget {
     this.defaultColor,
     this.pressedColor,
     this.iconColor,
-  }) : super(key: key);
+  });
 
   @override
   State<IconButtonWidget> createState() => _IconButtonWidgetState();

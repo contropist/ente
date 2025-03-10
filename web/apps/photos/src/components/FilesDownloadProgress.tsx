@@ -1,8 +1,6 @@
-import ElectronAPIs from "@ente/shared/electron";
-import Notification from "components/Notification";
+import { useBaseContext } from "@/base/context";
+import { Notification } from "@/new/photos/components/Notification";
 import { t } from "i18next";
-import isElectron from "is-electron";
-import { AppContext } from "pages/_app";
 import { GalleryContext } from "pages/gallery";
 import { useContext } from "react";
 
@@ -51,14 +49,14 @@ export const isFilesDownloadCompletedWithErrors = (
 export const isFilesDownloadCancelled = (
     attributes: FilesDownloadProgressAttributes,
 ) => {
-    return attributes && attributes.canceller?.signal?.aborted;
+    return attributes?.canceller?.signal?.aborted;
 };
 
 export const FilesDownloadProgress: React.FC<FilesDownloadProgressProps> = ({
     attributesList,
     setAttributesList,
 }) => {
-    const appContext = useContext(AppContext);
+    const { showMiniDialog } = useBaseContext();
     const galleryContext = useContext(GalleryContext);
 
     if (!attributesList) {
@@ -69,25 +67,21 @@ export const FilesDownloadProgress: React.FC<FilesDownloadProgressProps> = ({
         setAttributesList(attributesList.filter((attr) => attr.id !== id));
     };
 
-    const confirmCancelUpload = (
+    const confirmCancelDownload = (
         attributes: FilesDownloadProgressAttributes,
     ) => {
-        appContext.setDialogMessage({
-            title: t("STOP_DOWNLOADS_HEADER"),
-            content: t("STOP_ALL_DOWNLOADS_MESSAGE"),
-            proceed: {
-                text: t("YES_STOP_DOWNLOADS"),
-                variant: "critical",
+        showMiniDialog({
+            title: t("stop_downloads_title"),
+            message: t("stop_downloads_message"),
+            continue: {
+                text: t("yes_stop_downloads"),
+                color: "critical",
                 action: () => {
                     attributes?.canceller.abort();
                     onClose(attributes.id);
                 },
             },
-            close: {
-                text: t("NO"),
-                variant: "secondary",
-                action: () => {},
-            },
+            cancel: t("no"),
         });
     };
 
@@ -95,14 +89,15 @@ export const FilesDownloadProgress: React.FC<FilesDownloadProgressProps> = ({
         if (isFilesDownloadCompleted(attributes)) {
             onClose(attributes.id);
         } else {
-            confirmCancelUpload(attributes);
+            confirmCancelDownload(attributes);
         }
     };
 
     const handleOnClick = (id: number) => () => {
         const attributes = attributesList.find((attr) => attr.id === id);
-        if (isElectron()) {
-            ElectronAPIs.openDirectory(attributes.downloadDirPath);
+        const electron = globalThis.electron;
+        if (electron) {
+            electron.openDirectory(attributes.downloadDirPath);
         } else {
             if (attributes.isHidden) {
                 galleryContext.openHiddenSection(() => {
@@ -122,33 +117,26 @@ export const FilesDownloadProgress: React.FC<FilesDownloadProgressProps> = ({
                 <Notification
                     key={attributes.id}
                     horizontal="left"
-                    sx={{
-                        "&&": { bottom: `${index * 80 + 20}px` },
-                        zIndex: 1600,
-                    }}
+                    sx={{ "&&": { bottom: `${index * 80 + 20}px` } }}
                     open={isFilesDownloadStarted(attributes)}
                     onClose={handleClose(attributes)}
                     keepOpenOnClick
                     attributes={{
-                        variant: isFilesDownloadCompletedWithErrors(attributes)
+                        color: isFilesDownloadCompletedWithErrors(attributes)
                             ? "critical"
                             : "secondary",
                         title: isFilesDownloadCompletedWithErrors(attributes)
-                            ? t("DOWNLOAD_FAILED")
+                            ? t("download_failed")
                             : isFilesDownloadCompleted(attributes)
-                              ? t(`DOWNLOAD_COMPLETE`)
-                              : t("DOWNLOADING_COLLECTION", {
+                              ? t("download_complete")
+                              : t("downloading_album", {
                                     name: attributes.folderName,
                                 }),
                         caption: isFilesDownloadCompleted(attributes)
                             ? attributes.folderName
-                            : t("DOWNLOAD_PROGRESS", {
-                                  progress: {
-                                      current:
-                                          attributes.success +
-                                          attributes.failed,
-                                      total: attributes.total,
-                                  },
+                            : t("download_progress", {
+                                  count: attributes.success + attributes.failed,
+                                  total: attributes.total,
                               }),
                         onClick: handleOnClick(attributes.id),
                     }}

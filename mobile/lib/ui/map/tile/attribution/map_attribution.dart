@@ -3,7 +3,7 @@
 import "dart:async";
 
 import "package:flutter/material.dart";
-import "package:flutter_map/plugin_api.dart";
+import "package:flutter_map/flutter_map.dart";
 import "package:photos/extensions/list.dart";
 import "package:photos/theme/colors.dart";
 import "package:photos/theme/ente_theme.dart";
@@ -194,10 +194,8 @@ class MapAttributionWidgetState extends State<MapAttributionWidget> {
                 context,
                 () {
                   setState(() => popupExpanded = true);
-                  mapEventSubscription = FlutterMapState.of(context)
-                      .mapController
-                      .mapEventStream
-                      .listen((e) {
+                  mapEventSubscription =
+                      MapController().mapEventStream.listen((e) {
                     setState(() => popupExpanded = false);
                     mapEventSubscription?.cancel();
                   });
@@ -223,7 +221,7 @@ class MapAttributionWidgetState extends State<MapAttributionWidget> {
                   child: Container(
                     decoration: BoxDecoration(
                       color: widget.popupBackgroundColor ??
-                          Theme.of(context).colorScheme.background,
+                          Theme.of(context).colorScheme.surface,
                       border: Border.all(width: 0, style: BorderStyle.none),
                       borderRadius: widget.popupBorderRadius ??
                           BorderRadius.only(

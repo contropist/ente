@@ -1,58 +1,65 @@
-import { t } from "i18next";
-import { useEffect, useState } from "react";
-
-import { sendOtt } from "@ente/accounts/api/user";
-import { PAGES } from "@ente/accounts/constants/pages";
-import { APP_HOMES } from "@ente/shared/apps/constants";
-import { PageProps } from "@ente/shared/apps/types";
-import { VerticallyCentered } from "@ente/shared/components/Container";
-import FormPaper from "@ente/shared/components/Form/FormPaper";
-import FormPaperFooter from "@ente/shared/components/Form/FormPaper/Footer";
-import FormPaperTitle from "@ente/shared/components/Form/FormPaper/Title";
-import LinkButton from "@ente/shared/components/LinkButton";
+import {
+    AccountsPageContents,
+    AccountsPageFooter,
+    AccountsPageTitle,
+} from "@/accounts/components/layouts/centered-paper";
+import { PAGES } from "@/accounts/constants/pages";
+import { appHomeRoute, stashRedirect } from "@/accounts/services/redirect";
+import { sendOTT } from "@/accounts/services/user";
+import { LinkButton } from "@/base/components/LinkButton";
+import { useBaseContext } from "@/base/context";
+import { sharedCryptoWorker } from "@/base/crypto";
+import log from "@/base/log";
 import SingleInputForm, {
-    SingleInputFormProps,
+    type SingleInputFormProps,
 } from "@ente/shared/components/SingleInputForm";
-import ComlinkCryptoWorker from "@ente/shared/crypto";
 import {
     decryptAndStoreToken,
     saveKeyInSessionStore,
 } from "@ente/shared/crypto/helpers";
-import { logError } from "@ente/shared/sentry";
-import InMemoryStore, { MS_KEYS } from "@ente/shared/storage/InMemoryStore";
 import { LS_KEYS, getData, setData } from "@ente/shared/storage/localStorage";
 import { SESSION_KEYS, getKey } from "@ente/shared/storage/sessionStorage";
-import { KeyAttributes, User } from "@ente/shared/user/types";
+import type { KeyAttributes, User } from "@ente/shared/user/types";
+import { t } from "i18next";
+import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const bip39 = require("bip39");
 // mobile client library only supports english.
 bip39.setDefaultWordlist("english");
 
-export default function Recover({ appContext, router, appName }: PageProps) {
-    const [keyAttributes, setKeyAttributes] = useState<KeyAttributes>();
+const Page: React.FC = () => {
+    const { showMiniDialog } = useBaseContext();
+
+    const [keyAttributes, setKeyAttributes] = useState<
+        KeyAttributes | undefined
+    >();
+
+    const router = useRouter();
 
     useEffect(() => {
         const user: User = getData(LS_KEYS.USER);
         const keyAttributes: KeyAttributes = getData(LS_KEYS.KEY_ATTRIBUTES);
         const key = getKey(SESSION_KEYS.ENCRYPTION_KEY);
         if (!user?.email) {
-            router.push(PAGES.ROOT);
+            void router.push("/");
             return;
         }
         if (!user?.encryptedToken && !user?.token) {
-            sendOtt(appName, user.email);
-            InMemoryStore.set(MS_KEYS.REDIRECT_URL, PAGES.RECOVER);
-            router.push(PAGES.VERIFY);
+            void sendOTT(user.email, undefined);
+            stashRedirect(PAGES.RECOVER);
+            void router.push(PAGES.VERIFY);
             return;
         }
         if (!keyAttributes) {
-            router.push(PAGES.GENERATE);
+            void router.push(PAGES.GENERATE);
         } else if (key) {
-            router.push(APP_HOMES.get(appName));
+            void router.push(appHomeRoute);
         } else {
             setKeyAttributes(keyAttributes);
         }
-        appContext.showNavBar(true);
-    }, []);
+    }, [router]);
 
     const recover: SingleInputFormProps["callback"] = async (
         recoveryKey: string,
@@ -72,51 +79,50 @@ export default function Recover({ appContext, router, appName }: PageProps) {
                 }
                 recoveryKey = bip39.mnemonicToEntropy(recoveryKey);
             }
-            const cryptoWorker = await ComlinkCryptoWorker.getInstance();
+            const cryptoWorker = await sharedCryptoWorker();
+            const keyAttr = keyAttributes!;
             const masterKey = await cryptoWorker.decryptB64(
-                keyAttributes.masterKeyEncryptedWithRecoveryKey,
-                keyAttributes.masterKeyDecryptionNonce,
+                keyAttr.masterKeyEncryptedWithRecoveryKey!,
+                keyAttr.masterKeyDecryptionNonce!,
                 await cryptoWorker.fromHex(recoveryKey),
             );
             await saveKeyInSessionStore(SESSION_KEYS.ENCRYPTION_KEY, masterKey);
-            await decryptAndStoreToken(keyAttributes, masterKey);
+            await decryptAndStoreToken(keyAttr, masterKey);
 
             setData(LS_KEYS.SHOW_BACK_BUTTON, { value: false });
-            router.push(PAGES.CHANGE_PASSWORD);
+            void router.push(PAGES.CHANGE_PASSWORD);
         } catch (e) {
-            logError(e, "password recovery failed");
-            setFieldError(t("INCORRECT_RECOVERY_KEY"));
+            log.error("password recovery failed", e);
+            setFieldError(t("incorrect_recovery_key"));
         }
     };
 
-    const showNoRecoveryKeyMessage = () => {
-        appContext.setDialogBoxAttributesV2({
-            title: t("SORRY"),
-            close: {},
-            content: t("NO_RECOVERY_KEY_MESSAGE"),
+    const showNoRecoveryKeyMessage = () =>
+        showMiniDialog({
+            title: t("sorry"),
+            message: t("no_recovery_key_message"),
+            continue: { color: "secondary" },
+            cancel: false,
         });
-    };
 
     return (
-        <VerticallyCentered>
-            <FormPaper>
-                <FormPaperTitle>{t("RECOVER_ACCOUNT")}</FormPaperTitle>
-                <SingleInputForm
-                    callback={recover}
-                    fieldType="text"
-                    placeholder={t("RECOVERY_KEY_HINT")}
-                    buttonText={t("RECOVER")}
-                    disableAutoComplete
-                />
-                <FormPaperFooter style={{ justifyContent: "space-between" }}>
-                    <LinkButton onClick={showNoRecoveryKeyMessage}>
-                        {t("NO_RECOVERY_KEY")}
-                    </LinkButton>
-                    <LinkButton onClick={router.back}>
-                        {t("GO_BACK")}
-                    </LinkButton>
-                </FormPaperFooter>
-            </FormPaper>
-        </VerticallyCentered>
+        <AccountsPageContents>
+            <AccountsPageTitle>{t("recover_account")}</AccountsPageTitle>
+            <SingleInputForm
+                callback={recover}
+                fieldType="text"
+                placeholder={t("recovery_key")}
+                buttonText={t("recover")}
+                disableAutoComplete
+            />
+            <AccountsPageFooter>
+                <LinkButton onClick={showNoRecoveryKeyMessage}>
+                    {t("no_recovery_key_title")}
+                </LinkButton>
+                <LinkButton onClick={router.back}>{t("go_back")}</LinkButton>
+            </AccountsPageFooter>
+        </AccountsPageContents>
     );
-}
+};
+
+export default Page;

@@ -4,6 +4,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/ente-io/museum/pkg/controller/emergency"
+	"github.com/gin-contrib/requestid"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,7 +24,8 @@ import (
 
 // UserHandler exposes request handlers for all user related requests
 type UserHandler struct {
-	UserController *user.UserController
+	UserController      *user.UserController
+	EmergencyController *emergency.Controller
 }
 
 // SendOTT generates and sends an OTT to the provided email address
@@ -35,7 +40,7 @@ func (h *UserHandler) SendOTT(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(ente.ErrBadRequest, "Email id is missing"))
 		return
 	}
-	err := h.UserController.SendEmailOTT(c, email, request.Client, request.Purpose)
+	err := h.UserController.SendEmailOTT(c, email, request.Purpose)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -52,18 +57,6 @@ func (h *UserHandler) Logout(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{})
-}
-
-// GetDetails returns details about the requesting user
-func (h *UserHandler) GetDetails(c *gin.Context) {
-	details, err := h.UserController.GetDetails(c)
-	if err != nil {
-		handler.Error(c, stacktrace.Propagate(err, ""))
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"details": details,
-	})
 }
 
 // GetDetailsV2 returns details about the requesting user
@@ -89,6 +82,10 @@ func (h *UserHandler) SetAttributes(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
+	if err := request.Validate(); err != nil {
+		handler.Error(c, stacktrace.Propagate(err, ""))
+		return
+	}
 	err := h.UserController.SetAttributes(userID, request)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -105,23 +102,6 @@ func (h *UserHandler) UpdateEmailMFA(c *gin.Context) {
 		return
 	}
 	err := h.UserController.UpdateEmailMFA(c, userID, *request.IsEnabled)
-	if err != nil {
-		handler.Error(c, stacktrace.Propagate(err, ""))
-		return
-	}
-	c.Status(http.StatusOK)
-}
-
-// UpdateKeys updates the user key attributes on password change
-func (h *UserHandler) UpdateKeys(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
-	var request ente.UpdateKeysRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		handler.Error(c, stacktrace.Propagate(err, ""))
-		return
-	}
-	token := auth.GetToken(c)
-	err := h.UserController.UpdateKeys(c, userID, request, token)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -158,37 +138,14 @@ func (h *UserHandler) GetPublicKey(c *gin.Context) {
 	})
 }
 
-// GetRoadmapURL redirects the user to the feedback page
-func (h *UserHandler) GetRoadmapURL(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
-	redirectURL, err := h.UserController.GetRoadmapURL(userID)
-	if err != nil {
-		handler.Error(c, stacktrace.Propagate(err, ""))
-		return
-	}
-	c.Redirect(http.StatusTemporaryRedirect, redirectURL)
-}
-
-// GetRoadmapURLV2 returns the jwt token attached redirect url to roadmap
-func (h *UserHandler) GetRoadmapURLV2(c *gin.Context) {
-	userID := auth.GetUserID(c.Request.Header)
-	roadmapURL, err := h.UserController.GetRoadmapURL(userID)
-	if err != nil {
-		handler.Error(c, stacktrace.Propagate(err, ""))
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"url": roadmapURL,
-	})
-}
-
 // GetSessionValidityV2 verifies the user's session token and returns if the user has set their keys or not
 func (h *UserHandler) GetSessionValidityV2(c *gin.Context) {
 	userID := auth.GetUserID(c.Request.Header)
-	_, err := h.UserController.GetAttributes(userID)
+	keyAttributes, err := h.UserController.GetAttributes(userID)
 	if err == nil {
 		c.JSON(http.StatusOK, gin.H{
-			"hasSetKeys": true,
+			"hasSetKeys":    true,
+			"keyAttributes": keyAttributes,
 		})
 	} else {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -242,6 +199,31 @@ func (h *UserHandler) GetTwoFactorStatus(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": status})
+}
+
+func (h *UserHandler) GetTwoFactorRecoveryStatus(c *gin.Context) {
+	res, err := h.UserController.GetTwoFactorRecoveryStatus(c)
+	if err != nil {
+		handler.Error(c, stacktrace.Propagate(err, ""))
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
+// ConfigurePasskeyRecovery configures the passkey skip challenge for a user. In case the user does not
+// have access to passkey, the user can bypass the passkey by providing the recovery key
+func (h *UserHandler) ConfigurePasskeyRecovery(c *gin.Context) {
+	var request ente.SetPasskeyRecoveryRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		handler.Error(c, stacktrace.Propagate(err, ""))
+		return
+	}
+	err := h.UserController.ConfigurePasskeyRecovery(c, &request)
+	if err != nil {
+		handler.Error(c, stacktrace.Propagate(err, ""))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{})
 }
 
 // SetupTwoFactor generates a two factor secret and sends it to user to setup his authenticator app with
@@ -300,6 +282,17 @@ func (h *UserHandler) BeginPasskeyAuthenticationCeremony(c *gin.Context) {
 		return
 	}
 
+	isSessionAlreadyClaimed, err := h.UserController.PasskeyRepo.IsSessionAlreadyClaimed(request.SessionID)
+	if err != nil {
+		handler.Error(c, stacktrace.Propagate(err, ""))
+		return
+	}
+
+	if isSessionAlreadyClaimed {
+		handler.Error(c, stacktrace.Propagate(&ente.ErrSessionAlreadyClaimed, "Session already claimed"))
+		return
+	}
+
 	user, err := h.UserController.UserRepo.Get(userID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -331,7 +324,7 @@ func (h *UserHandler) FinishPasskeyAuthenticationCeremony(c *gin.Context) {
 		return
 	}
 
-	user, err := h.UserController.UserRepo.Get(userID)
+	user, err := h.UserController.GetUser(userID)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -339,6 +332,10 @@ func (h *UserHandler) FinishPasskeyAuthenticationCeremony(c *gin.Context) {
 
 	err = h.UserController.PasskeyRepo.FinishAuthentication(&user, c.Request, uuid.MustParse(request.CeremonySessionID))
 	if err != nil {
+		reqID := requestid.Get(c)
+		logrus.WithField("req_id", reqID).
+			WithField("user_id", userID).
+			WithError(err).Error("Failed to finish passkey authentication ceremony")
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
@@ -349,6 +346,36 @@ func (h *UserHandler) FinishPasskeyAuthenticationCeremony(c *gin.Context) {
 		return
 	}
 
+	err = h.UserController.PasskeyRepo.StoreTokenData(request.SessionID, response)
+	if err != nil {
+		handler.Error(c, stacktrace.Propagate(err, "failed to store token data"))
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *UserHandler) GetTokenForPasskeySession(c *gin.Context) {
+	sessionID := c.Query("sessionID")
+	if sessionID == "" {
+		handler.Error(c, stacktrace.Propagate(ente.NewBadRequestWithMessage("sessionID is required"), ""))
+		return
+	}
+	response, err := h.UserController.PasskeyRepo.GetTokenData(sessionID)
+	if err != nil {
+		handler.Error(c, stacktrace.Propagate(err, "failed to get token data"))
+		return
+	}
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *UserHandler) IsPasskeyRecoveryEnabled(c *gin.Context) {
+	userID := auth.GetUserID(c.Request.Header)
+	response, err := h.UserController.GetKeyAttributeAndToken(c, userID)
+	if err != nil {
+		handler.Error(c, stacktrace.Propagate(err, ""))
+		return
+	}
 	c.JSON(http.StatusOK, response)
 }
 
@@ -367,7 +394,14 @@ func (h *UserHandler) DisableTwoFactor(c *gin.Context) {
 // recoveryKeyEncryptedTwoFactorSecret for the user to decrypt it and make twoFactor removal api call
 func (h *UserHandler) RecoverTwoFactor(c *gin.Context) {
 	sessionID := c.Query("sessionID")
-	response, err := h.UserController.RecoverTwoFactor(sessionID)
+	twoFactorType := c.Query("twoFactorType")
+	var response *ente.TwoFactorRecoveryResponse
+	var err error
+	if twoFactorType == "passkey" {
+		response, err = h.UserController.GetPasskeyRecoveryResponse(c, sessionID)
+	} else {
+		response, err = h.UserController.RecoverTwoFactor(sessionID)
+	}
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -383,7 +417,13 @@ func (h *UserHandler) RemoveTwoFactor(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
-	response, err := h.UserController.RemoveTwoFactor(c, request.SessionID, request.Secret)
+	var response *ente.TwoFactorAuthorizationResponse
+	var err error
+	if request.TwoFactorType == "passkey" {
+		response, err = h.UserController.SkipPasskeyVerification(c, &request)
+	} else {
+		response, err = h.UserController.RemoveTOTPTwoFactor(c, request.SessionID, request.Secret)
+	}
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
@@ -421,6 +461,7 @@ func (h *UserHandler) GetFamiliesToken(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"familiesToken": token,
+		"familyUrl":     viper.GetString("apps.family"),
 	})
 }
 
@@ -433,6 +474,7 @@ func (h *UserHandler) GetAccountsToken(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"accountsToken": token,
+		"accountsUrl":   viper.GetString("apps.accounts"),
 	})
 }
 
@@ -477,6 +519,17 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	var request ente.DeleteAccountRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		handler.Error(c, stacktrace.Propagate(err, "Could not bind request params"))
+		return
+	}
+	// todo: (neeraj) refactor this part, currently there's a circular dependency between user and emergency controllers
+	removeLegacyErr := h.EmergencyController.HandleAccountDeletion(c, auth.GetUserID(c.Request.Header),
+		logrus.WithFields(logrus.Fields{
+			"user_id": auth.GetUserID(c.Request.Header),
+			"req_id":  requestid.Get(c),
+			"req_ctx": "self_account_deletion",
+		}))
+	if removeLegacyErr != nil {
+		handler.Error(c, stacktrace.Propagate(removeLegacyErr, ""))
 		return
 	}
 	response, err := h.UserController.SelfDeleteAccount(c, request)

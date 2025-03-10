@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/ente-io/cli/pkg"
+	"github.com/spf13/cobra/doc"
 	"os"
 	"runtime"
 
@@ -11,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const AppVersion = "0.1.10"
+var version string
 
 var ctrl *pkg.ClICtrl
 
@@ -19,7 +20,6 @@ var ctrl *pkg.ClICtrl
 var rootCmd = &cobra.Command{
 	Use:   "ente",
 	Short: "CLI tool for exporting your photos from ente.io",
-	Long:  `Start by creating a config file in your home directory:`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
@@ -27,10 +27,15 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+func GenerateDocs() error {
+	return doc.GenMarkdownTree(rootCmd, "./docs/generated")
+}
+
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute(controller *pkg.ClICtrl) {
+func Execute(controller *pkg.ClICtrl, ver string) {
 	ctrl = controller
+	version = ver
 	err := rootCmd.Execute()
 	if err != nil {
 		os.Exit(1)

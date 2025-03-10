@@ -1,3 +1,5 @@
+import "package:flutter/foundation.dart";
+
 const int thumbnailSmallSize = 256;
 const int thumbnailQuality = 50;
 const int thumbnailLargeSize = 512;
@@ -8,13 +10,15 @@ const String sentryDSN =
 const String sentryDebugDSN =
     "https://ca5e686dd7f149d9bf94e620564cceba@sentry.ente.io/3";
 const String sentryTunnel = "https://sentry-reporter.ente.io";
-const String githubDiscussionsUrl = "https://github.com/ente-io/ente/discussions";
+const String githubDiscussionsUrl =
+    "https://github.com/ente-io/ente/discussions";
 const int microSecondsInDay = 86400000000;
 const int android11SDKINT = 30;
 const int jan011981Time = 347155200000000;
 const int galleryLoadStartTime = -8000000000000000; // Wednesday, March 6, 1748
 const int galleryLoadEndTime = 9223372036854775807; // 2^63 -1
 const int batchSize = 1000;
+const int batchSizeCopy = 100;
 const photoGridSizeDefault = 4;
 const photoGridSizeMin = 2;
 const photoGridSizeMax = 6;
@@ -37,13 +41,13 @@ const dragSensitivity = 8;
 
 const supportEmail = 'support@ente.io';
 
-// Default values for various feature flags
-class FFDefault {
-  static const bool enableStripe = true;
-  static const bool disableCFWorker = false;
-}
+// this is the chunk size of the un-encrypted file which is read and encrypted before uploading it as a single part.
+const multipartPartSize = 20 * 1024 * 1024;
 
 const kDefaultProductionEndpoint = 'https://api.ente.io';
+const kAccountsUrl = 'https://accounts.ente.io';
+const kCasUrl = 'https://cas.ente.io';
+const kFamilyUrl = 'https://family.ente.io';
 
 const int intMaxValue = 9223372036854775807;
 
@@ -65,15 +69,17 @@ const defaultCityRadius = 10.0;
 
 const galleryGridSpacing = 2.0;
 
-const kSearchSectionLimit = 7;
+const kSearchSectionLimit = 9;
+
+const maxPickAssetLimit = 50;
 
 const iOSGroupID = "group.io.ente.frame.SlideshowWidget";
 
-const blackThumbnailBase64 = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAEBAQEBAQEB' +
-    'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/2wBDAQEBAQEBAQ' +
-    'EBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/wAARC' +
-    'ACWASwDAREAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUF' +
-    'BAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk' +
+const blackThumbnailBase64 = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAEBAQEBAQEB'
+        'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/2wBDAQEBAQEBAQ'
+        'EBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/wAARC'
+        'ACWASwDAREAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUF'
+        'BAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk' +
     '6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztL' +
     'W2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAA' +
     'AAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVY' +
@@ -96,3 +102,16 @@ const blackThumbnailBase64 = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAEBAQEBAQEB' +
     'KACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAo' +
     'AKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAo' +
     'AKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgAoAKACgD/9k=';
+
+const localFileServer =
+    String.fromEnvironment("localFileServer", defaultValue: "");
+
+const uploadTempFilePrefix = "upload_file_";
+final tempDirCleanUpInterval = kDebugMode
+    ? const Duration(seconds: 30).inMicroseconds
+    : const Duration(hours: 6).inMicroseconds;
+
+const kFilterChipHeight = 32.0;
+const kMaxAppbarFilters = 14;
+
+const kLivePhotoHashSeparator = ':';

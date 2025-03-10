@@ -20,7 +20,6 @@
   "codeIssuerHint": "მომწოდებელი",
   "codeSecretKeyHint": "გასაღები",
   "codeAccountHint": "ანგარიში (you@domain.com)",
-  "accountKeyType": "გასაღების ტიპი",
   "sessionExpired": "სესიის დრო ამოიწურა",
   "@sessionExpired": {
     "description": "Title of the dialog when the users current session is invalid/expired"
@@ -74,7 +73,6 @@
   "data": "მონაცემები",
   "importCodes": "კოდების იმპორტირება",
   "importTypePlainText": "სტანდარტული ტექსტი",
-  "importTypeEnteEncrypted": "ente დაშიფრული ექსპორტი",
   "passwordForDecryptingExport": "ექსპორტის გაშიფრვის პაროლი",
   "passwordEmptyError": "პაროლის ველი არ შეიძლება იყოს ცარიელი",
   "emailVerificationToggle": "ელექტრონული ფოსტის ვერიფიკაცია",

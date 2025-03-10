@@ -10,10 +10,11 @@ import "package:photos/theme/ente_theme.dart";
 import "package:photos/ui/components/action_sheet_widget.dart";
 import 'package:photos/ui/components/buttons/button_widget.dart';
 import "package:photos/ui/components/models/button_type.dart";
+import "package:photos/ui/notification/toast.dart";
 import 'package:photos/ui/viewer/file/file_details_widget.dart';
 import "package:photos/utils/delete_file_util.dart";
 import "package:photos/utils/dialog_util.dart";
-import "package:photos/utils/toast_util.dart";
+import "package:photos/utils/panorama_util.dart";
 
 Future<void> showSingleFileDeleteSheet(
   BuildContext context,
@@ -100,7 +101,7 @@ Future<void> showSingleFileDeleteSheet(
         isInAlert: true,
         onTap: () async {
           await deleteFilesFromEverywhere(context, [file]);
-          Navigator.of(context, rootNavigator: true).pop();
+          Navigator.of(context).pop();
           if (onFileRemoved != null) {
             onFileRemoved(file);
           }
@@ -135,6 +136,7 @@ Future<void> showSingleFileDeleteSheet(
 }
 
 Future<void> showDetailsSheet(BuildContext context, EnteFile file) async {
+  guardedCheckPanorama(file).ignore();
   final colorScheme = getEnteColorScheme(context);
   return showBarModalBottomSheet(
     topControl: const SizedBox.shrink(),

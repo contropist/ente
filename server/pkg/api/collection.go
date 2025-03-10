@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"github.com/ente-io/museum/pkg/controller/collections"
 	"net/http"
 	"strconv"
 
@@ -18,7 +19,7 @@ import (
 
 // CollectionHandler exposes request handlers for all collection related requests
 type CollectionHandler struct {
-	Controller *controller.CollectionController
+	Controller *collections.CollectionController
 }
 
 // Create creates a collection
@@ -64,18 +65,20 @@ func (h *CollectionHandler) GetCollectionByID(c *gin.Context) {
 // Deprecated: Remove once rps goes to 0.
 // Get returns the list of collections accessible to a user.
 func (h *CollectionHandler) Get(c *gin.Context) {
+	h.GetV2(c)
+}
+
+// GetV2 returns the list of collections accessible to a user
+func (h *CollectionHandler) GetV2(c *gin.Context) {
 	userID := auth.GetUserID(c.Request.Header)
 	sinceTime, _ := strconv.ParseInt(c.Query("sinceTime"), 10, 64)
-
 	app := auth.GetApp(c)
-
-	// TODO: Compute both with a single query
-	ownedCollections, err := h.Controller.GetOwned(userID, sinceTime, app)
+	ownedCollections, err := h.Controller.GetOwnedV2(userID, sinceTime, app, nil)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, "Failed to get owned collections"))
 		return
 	}
-	sharedCollections, err := h.Controller.GetSharedWith(userID, sinceTime, app)
+	sharedCollections, err := h.Controller.GetSharedWith(userID, sinceTime, app, nil)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, "Failed to get shared collections"))
 		return
@@ -85,23 +88,32 @@ func (h *CollectionHandler) Get(c *gin.Context) {
 	})
 }
 
-// GetV2 returns the list of collections accessible to a user
-func (h *CollectionHandler) GetV2(c *gin.Context) {
+// GetWithLimit returns owned and shared collections accessible to a user
+func (h *CollectionHandler) GetWithLimit(c *gin.Context) {
 	userID := auth.GetUserID(c.Request.Header)
 	sinceTime, _ := strconv.ParseInt(c.Query("sinceTime"), 10, 64)
+	sharedSinceTime, _ := strconv.ParseInt(c.Query("sharedSinceTime"), 10, 64)
+	limit := int64(1000)
+	if c.Query("limit") != "" {
+		limit, _ = strconv.ParseInt(c.Query("limit"), 10, 64)
+		if limit > 1000 {
+			limit = 1000
+		}
+	}
 	app := auth.GetApp(c)
-	ownedCollections, err := h.Controller.GetOwnedV2(userID, sinceTime, app)
+	ownedCollections, err := h.Controller.GetOwnedV2(userID, sinceTime, app, &limit)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, "Failed to get owned collections"))
 		return
 	}
-	sharedCollections, err := h.Controller.GetSharedWith(userID, sinceTime, app)
+	sharedCollections, err := h.Controller.GetSharedWith(userID, sharedSinceTime, app, &limit)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, "Failed to get shared collections"))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"collections": append(ownedCollections, sharedCollections...),
+		"owned":  ownedCollections,
+		"shared": sharedCollections,
 	})
 }
 
@@ -122,6 +134,20 @@ func (h *CollectionHandler) Share(c *gin.Context) {
 	})
 }
 
+func (h *CollectionHandler) JoinLink(c *gin.Context) {
+	var request ente.JoinCollectionViaLinkRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		handler.Error(c, stacktrace.Propagate(err, ""))
+		return
+	}
+	err := h.Controller.JoinViaLink(c, request)
+	if err != nil {
+		handler.Error(c, stacktrace.Propagate(err, ""))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{})
+}
+
 // ShareURL generates a publicly sharable url
 func (h *CollectionHandler) ShareURL(c *gin.Context) {
 	var request ente.CreatePublicAccessTokenRequest
@@ -129,8 +155,6 @@ func (h *CollectionHandler) ShareURL(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
-	// todo:[2/Sep/23] change device limit to 0 once both web and mobile clients are updated
-	request.DeviceLimit = controller.DeviceLimitThreshold
 	response, err := h.Controller.ShareURL(c, auth.GetUserID(c.Request.Header), request)
 	if err != nil {
 		handler.Error(c, stacktrace.Propagate(err, ""))
@@ -358,18 +382,6 @@ func (h *CollectionHandler) GetSharees(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"sharees": sharees,
 	})
-}
-
-// Trash deletes a given collection and move file exclusive to the collection to trash
-func (h *CollectionHandler) Trash(c *gin.Context) {
-	cID, _ := strconv.ParseInt(c.Param("collectionID"), 10, 64)
-	userID := auth.GetUserID(c.Request.Header)
-	err := h.Controller.Trash(c, userID, cID)
-	if err != nil {
-		handler.Error(c, stacktrace.Propagate(err, ""))
-		return
-	}
-	c.Status(http.StatusOK)
 }
 
 func (h *CollectionHandler) TrashV3(c *gin.Context) {

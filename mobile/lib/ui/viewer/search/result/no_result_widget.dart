@@ -7,7 +7,7 @@ import "package:photos/states/all_sections_examples_state.dart";
 import "package:photos/theme/ente_theme.dart";
 
 class NoResultWidget extends StatefulWidget {
-  const NoResultWidget({Key? key}) : super(key: key);
+  const NoResultWidget({super.key});
 
   @override
   State<NoResultWidget> createState() => _NoResultWidgetState();
@@ -21,8 +21,7 @@ class _NoResultWidgetState extends State<NoResultWidget> {
     super.initState();
     searchTypes = SectionType.values.toList(growable: true);
     // remove face and content sectionType
-    searchTypes.remove(SectionType.face);
-    searchTypes.remove(SectionType.content);
+    searchTypes.remove(SectionType.magic);
   }
 
   @override

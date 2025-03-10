@@ -13,7 +13,7 @@ import 'package:photos/models/device_collection.dart';
 import "package:photos/ui/collections/device/device_folder_item.dart";
 import 'package:photos/ui/common/loading_widget.dart';
 import 'package:photos/ui/viewer/gallery/empty_state.dart';
-import "package:photos/utils/debouncer.dart";
+import "package:photos/utils/standalone/debouncer.dart";
 
 class DeviceFolderVerticalGridView extends StatelessWidget {
   final Widget? appTitle;
@@ -44,9 +44,7 @@ class DeviceFolderVerticalGridView extends StatelessWidget {
 }
 
 class _DeviceFolderVerticalGridViewBody extends StatefulWidget {
-  const _DeviceFolderVerticalGridViewBody({
-    Key? key,
-  }) : super(key: key);
+  const _DeviceFolderVerticalGridViewBody();
 
   @override
   State<_DeviceFolderVerticalGridViewBody> createState() =>
@@ -74,6 +72,7 @@ class _DeviceFolderVerticalGridViewBodyState
 
   @override
   void initState() {
+    super.initState();
     _backupFoldersUpdatedEvent =
         Bus.instance.on<BackupFoldersUpdatedEvent>().listen((event) {
       _loadReason = event.reason;
@@ -90,7 +89,6 @@ class _DeviceFolderVerticalGridViewBodyState
         }
       });
     });
-    super.initState();
   }
 
   @override
@@ -158,7 +156,7 @@ class _DeviceFolderVerticalGridViewBodyState
   void dispose() {
     _backupFoldersUpdatedEvent?.cancel();
     _localFilesSubscription?.cancel();
-    _debouncer.cancelDebounce();
+    _debouncer.cancelDebounceTimer();
     super.dispose();
   }
 }

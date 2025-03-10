@@ -8,13 +8,18 @@ environment that doesn't clutter your machine.
 You can also run museum directly on your machine if you wish - it is a single
 static go binary.
 
-This document describes both these approaches, and also outlines configuration.
+This document describes these approaches, and also outlines configuration.
 
-- [Running using Docker](#docker)
-- [Running without Docker](#without-docker)
-- [Configuration](#configuration)
+-   [Run using Docker using a pre-built Docker image](docs/docker.md)
+-   [Run using Docker but build an image from source](#build-and-run-using-docker)
+-   [Running without Docker](#running-without-docker)
+-   [Configuration](#configuration)
 
-## Docker
+If your mobile app is able to connect to your self hosted instance but is not
+able to view or upload images, see
+[help.ente.io/self-hosting/guides/configuring-s3](https://help.ente.io/self-hosting/guides/configuring-s3).
+
+## Build and run using Docker
 
 Start the cluster
 
@@ -38,10 +43,16 @@ Or interact with the other services in the cluster, e.g. connect to the DB
 
 Or interact with the MinIO S3 API
 
-    AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=testtest \
-        aws s3 --endpoint-url http://localhost:3200 ls s3://test
+    AWS_ACCESS_KEY_ID=changeme AWS_SECRET_ACCESS_KEY=changeme1234 \
+        aws s3 --endpoint-url http://localhost:3200 ls s3://b2-eu-cen
 
-Or open the MinIO dashboard at <http://localhost:3201> (user: test/password: testtest).
+Or open the MinIO dashboard at <http://localhost:3201> (user: changeme/password: changeme1234).
+
+> [!NOTE]
+>
+> While we've provided a MinIO based Docker compose file to make it easy for
+> people to get started, if you're running it in production we recommend using
+> an external S3.
 
 > [!NOTE]
 >
@@ -70,7 +81,7 @@ Each time museum gets rebuilt from source, a new image gets created but the old
 one is retained as a dangling image. You can use `docker image prune --force`,
 or `docker system prune` if that's fine with you, to remove these.
 
-## Without Docker
+## Running without Docker
 
 The museum binary can be run by using `go run cmd/museum/main.go`. But first,
 you'll need to prepare your machine for development. Here we give the steps,
@@ -87,7 +98,7 @@ brew install go
 ### Install other packages
 
 ```sh
-brew install postgresql@12
+brew install postgresql@15
 brew install libsodium
 brew install pkg-config
 ```
@@ -98,11 +109,10 @@ brew install pkg-config
 > avoid surprises, but if you're using a newer Postgres that should work fine
 > too.
 
-
 On M1 macs, we additionally need to link the postgres keg.
 
 ```
-brew link postgresql@12
+brew link postgresql@15
 ```
 
 ### Init Postgres database
@@ -118,7 +128,7 @@ initdb /usr/local/var/postgres
 ```
 
 On M1 macs, the path to the database cluster is
-`/opt/homebrew/var/postgresql@12` (instead of `/usr/local/var/postgres`).
+`/opt/homebrew/var/postgresql@15` (instead of `/usr/local/var/postgres`).
 
 ### Start Postgres
 
@@ -132,7 +142,7 @@ pg_ctl -D /usr/local/var/postgres -l logfile start
 createuser -s postgres
 ```
 
-## Start museum
+### Start museum
 
 ```sh
 export ENTE_DB_USER=postgres
@@ -148,7 +158,7 @@ ENTE_DB_USER=ente_user
 air
 ```
 
-## Testing
+### Testing
 
 Set up a local database for testing. This is not required for running the server.
 Create a test database with the following name and credentials:

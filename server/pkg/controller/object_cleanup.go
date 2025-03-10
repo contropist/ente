@@ -166,8 +166,10 @@ func (c *ObjectCleanupController) removeUnreportedObjects() int {
 func (c *ObjectCleanupController) removeUnreportedObject(tx *sql.Tx, t ente.TempObject) error {
 	// TODO: object_cleanup
 	// This should use the DC from TempObject (once we start persisting it)
-	// dc := t.DataCenter
-	dc := c.S3Config.GetHotDataCenter()
+	dc := t.BucketId
+	if dc == "" {
+		dc = c.S3Config.GetHotDataCenter()
+	}
 
 	logger := log.WithFields(log.Fields{
 		"task":        "remove-unreported-objects",
@@ -232,7 +234,7 @@ func (c *ObjectCleanupController) addCleanupEntryForObjectKey(objectKey string, 
 	err := c.Repo.AddTempObject(ente.TempObject{
 		ObjectKey:   objectKey,
 		IsMultipart: false,
-		DataCenter:  dc,
+		BucketId:    dc,
 	}, expirationTime)
 	return stacktrace.Propagate(err, "")
 }
@@ -247,7 +249,7 @@ func (c *ObjectCleanupController) AddMultipartTempObjectKey(objectKey string, up
 		ObjectKey:   objectKey,
 		IsMultipart: true,
 		UploadID:    uploadID,
-		DataCenter:  dc,
+		BucketId:    dc,
 	}, expiry)
 	return stacktrace.Propagate(err, "")
 }
@@ -260,7 +262,10 @@ func (c *ObjectCleanupController) DeleteAllObjectsWithPrefix(prefix string, dc s
 		Prefix: &prefix,
 	})
 	if err != nil {
-		log.Error(err)
+		log.WithFields(log.Fields{
+			"prefix": prefix,
+			"dc":     dc,
+		}).WithError(err).Error("Failed to list objects")
 		return stacktrace.Propagate(err, "")
 	}
 	var keys []string
@@ -270,7 +275,10 @@ func (c *ObjectCleanupController) DeleteAllObjectsWithPrefix(prefix string, dc s
 	for _, key := range keys {
 		err = c.DeleteObjectFromDataCenter(key, dc)
 		if err != nil {
-			log.Error(err)
+			log.WithFields(log.Fields{
+				"object_key": key,
+				"dc":         dc,
+			}).WithError(err).Error("Failed to delete object")
 			return stacktrace.Propagate(err, "")
 		}
 	}

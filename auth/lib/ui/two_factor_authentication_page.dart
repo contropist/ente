@@ -1,15 +1,15 @@
 import 'package:ente_auth/l10n/l10n.dart';
+import 'package:ente_auth/models/account/two_factor.dart';
 import 'package:ente_auth/services/user_service.dart';
 import 'package:ente_auth/ui/lifecycle_event_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:pinput/pin_put/pin_put.dart';
+import 'package:pinput/pinput.dart';
 
 class TwoFactorAuthenticationPage extends StatefulWidget {
   final String sessionID;
 
-  const TwoFactorAuthenticationPage(this.sessionID, {Key? key})
-      : super(key: key);
+  const TwoFactorAuthenticationPage(this.sessionID, {super.key});
 
   @override
   State<TwoFactorAuthenticationPage> createState() =>
@@ -19,6 +19,14 @@ class TwoFactorAuthenticationPage extends StatefulWidget {
 class _TwoFactorAuthenticationPageState
     extends State<TwoFactorAuthenticationPage> {
   final _pinController = TextEditingController();
+  final _pinPutDecoration = PinTheme(
+    height: 45,
+    width: 45,
+    decoration: BoxDecoration(
+      border: Border.all(color: const Color.fromRGBO(45, 194, 98, 1.0)),
+      borderRadius: BorderRadius.circular(15.0),
+    ),
+  );
   String _code = "";
   late LifecycleEventHandler _lifecycleEventHandler;
 
@@ -59,16 +67,6 @@ class _TwoFactorAuthenticationPageState
 
   Widget _getBody() {
     final l10n = context.l10n;
-    final pinPutDecoration = BoxDecoration(
-      border: Border.all(
-        color: Theme.of(context)
-            .inputDecorationTheme
-            .focusedBorder!
-            .borderSide
-            .color,
-      ),
-      borderRadius: BorderRadius.circular(15.0),
-    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -85,9 +83,9 @@ class _TwoFactorAuthenticationPageState
         const Padding(padding: EdgeInsets.all(32)),
         Padding(
           padding: const EdgeInsets.fromLTRB(40, 0, 40, 0),
-          child: PinPut(
-            fieldsCount: 6,
-            onSubmit: (String code) {
+          child: Pinput(
+            length: 6,
+            onCompleted: (String code) {
               _verifyTwoFactorCode(code);
             },
             onChanged: (String pin) {
@@ -96,17 +94,22 @@ class _TwoFactorAuthenticationPageState
               });
             },
             controller: _pinController,
-            submittedFieldDecoration: pinPutDecoration.copyWith(
-              borderRadius: BorderRadius.circular(20.0),
+            submittedPinTheme: _pinPutDecoration.copyWith(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20.0),
+                border: Border.all(
+                  color: const Color.fromRGBO(45, 194, 98, 0.5),
+                ),
+              ),
             ),
-            selectedFieldDecoration: pinPutDecoration,
-            followingFieldDecoration: pinPutDecoration.copyWith(
-              borderRadius: BorderRadius.circular(5.0),
-            ),
-            inputDecoration: const InputDecoration(
-              focusedBorder: InputBorder.none,
-              border: InputBorder.none,
-              counterText: '',
+            defaultPinTheme: _pinPutDecoration,
+            followingPinTheme: _pinPutDecoration.copyWith(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10.0),
+                border: Border.all(
+                  color: const Color.fromRGBO(45, 194, 98, 0.5),
+                ),
+              ),
             ),
             autofocus: true,
           ),
@@ -119,7 +122,7 @@ class _TwoFactorAuthenticationPageState
           child: OutlinedButton(
             onPressed: _code.length == 6
                 ? () async {
-                    _verifyTwoFactorCode(_code);
+                    await _verifyTwoFactorCode(_code);
                   }
                 : null,
             child: Text(l10n.verify),
@@ -129,7 +132,11 @@ class _TwoFactorAuthenticationPageState
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () {
-            UserService.instance.recoverTwoFactor(context, widget.sessionID);
+            UserService.instance.recoverTwoFactor(
+              context,
+              widget.sessionID,
+              TwoFactorType.totp,
+            );
           },
           child: Container(
             padding: const EdgeInsets.all(10),

@@ -146,14 +146,15 @@ class ProgressDialog {
     try {
       if (!_isShowing) {
         _dialog = _Body();
+        // ignore: unawaited_futures
         showDialog<dynamic>(
           context: _context!,
           barrierDismissible: _barrierDismissible,
           barrierColor: _barrierColor,
           builder: (BuildContext context) {
             _dismissingContext = context;
-            return WillPopScope(
-              onWillPop: () async => _barrierDismissible,
+            return PopScope(
+              canPop: _barrierDismissible,
               child: Dialog(
                 backgroundColor: _backgroundColor,
                 insetAnimationCurve: _insetAnimCurve,
@@ -197,6 +198,7 @@ class _Body extends StatefulWidget {
 
   @override
   State<StatefulWidget> createState() {
+    // ignore: no_logic_in_create_state
     return _dialog;
   }
 }

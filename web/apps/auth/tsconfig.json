@@ -1,24 +1,13 @@
 {
-    "extends": "../../tsconfig.base.json",
+    "extends": "@/build-config/tsconfig-next.json",
     "compilerOptions": {
-        "baseUrl": "./src",
-        "downlevelIteration": true,
-        "jsx": "preserve",
-        "jsxImportSource": "@emotion/react",
-        "lib": ["dom", "dom.iterable", "esnext", "webworker"],
-        "noImplicitAny": false,
-        "noUnusedLocals": false,
-        "noUnusedParameters": false,
-        "strictNullChecks": false,
-        "target": "es5",
-        "useUnknownInCatchVariables": false
+        /* Set the base directory from which to resolve bare module names. */
+        "baseUrl": "./src"
     },
     "include": [
+        "src",
         "next-env.d.ts",
-        "**/*.ts",
-        "**/*.tsx",
-        "**/*.js",
-        "../../packages/shared/themes/mui-theme.d.ts"
-    ],
-    "exclude": ["node_modules", "out", ".next", "thirdparty"]
+        "../../packages/base/global-electron.d.ts",
+        "../../packages/base/components/utils/mui-theme.d.ts"
+    ]
 }

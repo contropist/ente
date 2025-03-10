@@ -1,64 +1,62 @@
-import { verifyTwoFactor } from "@ente/accounts/api/user";
-import VerifyTwoFactor, {
-    VerifyTwoFactorCallback,
-} from "@ente/accounts/components/two-factor/VerifyForm";
-import { PAGES } from "@ente/accounts/constants/pages";
-import { logoutUser } from "@ente/accounts/services/user";
-import { LS_KEYS, getData, setData } from "@ente/shared/storage/localStorage";
-import { User } from "@ente/shared/user/types";
+import { Verify2FACodeForm } from "@/accounts/components/Verify2FACodeForm";
+import { PAGES } from "@/accounts/constants/pages";
+import { verifyTwoFactor } from "@/accounts/services/user";
+import { LinkButton } from "@/base/components/LinkButton";
+import { useBaseContext } from "@/base/context";
+import { HTTPError } from "@/base/http";
+import {
+    LS_KEYS,
+    getData,
+    setData,
+    setLSUser,
+} from "@ente/shared/storage/localStorage";
+import type { User } from "@ente/shared/user/types";
 import { t } from "i18next";
+import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
+import {
+    AccountsPageContents,
+    AccountsPageFooter,
+    AccountsPageTitle,
+} from "../../components/layouts/centered-paper";
+import { unstashRedirect } from "../../services/redirect";
 
-import { PageProps } from "@ente/shared/apps/types";
-import { VerticallyCentered } from "@ente/shared/components/Container";
-import FormPaper from "@ente/shared/components/Form/FormPaper";
-import FormPaperFooter from "@ente/shared/components/Form/FormPaper/Footer";
-import FormTitle from "@ente/shared/components/Form/FormPaper/Title";
-import LinkButton from "@ente/shared/components/LinkButton";
-import { ApiError } from "@ente/shared/error";
-import InMemoryStore, { MS_KEYS } from "@ente/shared/storage/InMemoryStore";
-import { HttpStatusCode } from "axios";
+const Page: React.FC = () => {
+    const { logout } = useBaseContext();
 
-export default function TwoFactorVerify({ router }: PageProps) {
     const [sessionID, setSessionID] = useState("");
 
-    useEffect(() => {
-        const main = async () => {
-            const user: User = getData(LS_KEYS.USER);
-            if (!user?.email || !user.twoFactorSessionID) {
-                router.push(PAGES.ROOT);
-            } else if (
-                !user.isTwoFactorEnabled &&
-                (user.encryptedToken || user.token)
-            ) {
-                router.push(PAGES.CREDENTIALS);
-            } else {
-                setSessionID(user.twoFactorSessionID);
-            }
-        };
-        main();
-    }, []);
+    const router = useRouter();
 
-    const onSubmit: VerifyTwoFactorCallback = async (otp) => {
+    useEffect(() => {
+        const user: User = getData(LS_KEYS.USER);
+        if (!user?.email || !user.twoFactorSessionID) {
+            void router.push("/");
+        } else if (
+            !user.isTwoFactorEnabled &&
+            (user.encryptedToken || user.token)
+        ) {
+            void router.push(PAGES.CREDENTIALS);
+        } else {
+            setSessionID(user.twoFactorSessionID);
+        }
+    }, [router]);
+
+    const handleSubmit = async (otp: string) => {
         try {
             const resp = await verifyTwoFactor(otp, sessionID);
             const { keyAttributes, encryptedToken, token, id } = resp;
-            setData(LS_KEYS.USER, {
+            await setLSUser({
                 ...getData(LS_KEYS.USER),
                 token,
                 encryptedToken,
                 id,
             });
-            setData(LS_KEYS.KEY_ATTRIBUTES, keyAttributes);
-            const redirectURL = InMemoryStore.get(MS_KEYS.REDIRECT_URL);
-            InMemoryStore.delete(MS_KEYS.REDIRECT_URL);
-            router.push(redirectURL ?? PAGES.CREDENTIALS);
+            setData(LS_KEYS.KEY_ATTRIBUTES, keyAttributes!);
+            await router.push(unstashRedirect() ?? PAGES.CREDENTIALS);
         } catch (e) {
-            if (
-                e instanceof ApiError &&
-                e.httpStatusCode === HttpStatusCode.NotFound
-            ) {
-                logoutUser();
+            if (e instanceof HTTPError && e.res.status == 404) {
+                logout();
             } else {
                 throw e;
             }
@@ -66,22 +64,22 @@ export default function TwoFactorVerify({ router }: PageProps) {
     };
 
     return (
-        <VerticallyCentered>
-            <FormPaper sx={{ maxWidth: "410px" }}>
-                <FormTitle>{t("TWO_FACTOR")}</FormTitle>
-                <VerifyTwoFactor onSubmit={onSubmit} buttonText={t("VERIFY")} />
-
-                <FormPaperFooter style={{ justifyContent: "space-between" }}>
-                    <LinkButton
-                        onClick={() => router.push(PAGES.TWO_FACTOR_RECOVER)}
-                    >
-                        {t("LOST_DEVICE")}
-                    </LinkButton>
-                    <LinkButton onClick={logoutUser}>
-                        {t("CHANGE_EMAIL")}
-                    </LinkButton>
-                </FormPaperFooter>
-            </FormPaper>
-        </VerticallyCentered>
+        <AccountsPageContents>
+            <AccountsPageTitle>{t("two_factor")}</AccountsPageTitle>
+            <Verify2FACodeForm
+                onSubmit={handleSubmit}
+                submitButtonText={t("verify")}
+            />
+            <AccountsPageFooter>
+                <LinkButton
+                    onClick={() => router.push(PAGES.TWO_FACTOR_RECOVER)}
+                >
+                    {t("lost_2fa_device")}
+                </LinkButton>
+                <LinkButton onClick={logout}>{t("change_email")}</LinkButton>
+            </AccountsPageFooter>
+        </AccountsPageContents>
     );
-}
+};
+
+export default Page;

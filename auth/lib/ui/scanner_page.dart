@@ -2,11 +2,12 @@ import 'dart:io';
 
 import 'package:ente_auth/l10n/l10n.dart';
 import 'package:ente_auth/models/code.dart';
+import 'package:ente_auth/utils/toast_util.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 
 class ScannerPage extends StatefulWidget {
-  const ScannerPage({Key? key}) : super(key: key);
+  const ScannerPage({super.key});
 
   @override
   State<ScannerPage> createState() => ScannerPageState();
@@ -66,11 +67,12 @@ class ScannerPageState extends State<ScannerPage> {
     }
     controller.scannedDataStream.listen((scanData) {
       try {
-        final code = Code.fromRawData(scanData.code!);
+        final code = Code.fromOTPAuthUrl(scanData.code!);
         controller.dispose();
         Navigator.of(context).pop(code);
       } catch (e) {
         // Log
+        showToast(context, context.l10n.invalidQRCode);
       }
     });
   }

@@ -1,7 +1,12 @@
+import 'dart:convert';
+
+import 'package:ente_auth/models/code_display.dart';
 import 'package:ente_auth/utils/totp_util.dart';
+import 'package:logging/logging.dart';
 
 class Code {
   static const defaultDigits = 6;
+  static const steamDigits = 5;
   static const defaultPeriod = 30;
 
   int? generatedID;
@@ -12,9 +17,24 @@ class Code {
   final String secret;
   final Algorithm algorithm;
   final Type type;
+
+  /// otpauth url in the code
   final String rawData;
   final int counter;
   bool? hasSynced;
+
+  final CodeDisplay display;
+
+  bool get isPinned => display.pinned;
+
+  bool get isTrashed => display.trashed;
+  String get note => display.note;
+
+  final Object? err;
+  bool get hasError => err != null;
+
+  String get issuerAccount =>
+      account.isNotEmpty ? '$issuer ($account)' : issuer;
 
   Code(
     this.account,
@@ -27,7 +47,25 @@ class Code {
     this.counter,
     this.rawData, {
     this.generatedID,
+    required this.display,
+    this.err,
   });
+
+  factory Code.withError(Object error, String rawData) {
+    return Code(
+      "",
+      "",
+      0,
+      0,
+      "",
+      Algorithm.sha1,
+      Type.totp,
+      0,
+      rawData,
+      err: error,
+      display: CodeDisplay(),
+    );
+  }
 
   Code copyWith({
     String? account,
@@ -38,6 +76,7 @@ class Code {
     Algorithm? algorithm,
     Type? type,
     int? counter,
+    CodeDisplay? display,
   }) {
     final String updateAccount = account ?? this.account;
     final String updateIssuer = issuer ?? this.issuer;
@@ -47,6 +86,8 @@ class Code {
     final Algorithm updatedAlgo = algorithm ?? this.algorithm;
     final Type updatedType = type ?? this.type;
     final int updatedCounter = counter ?? this.counter;
+    final CodeDisplay updatedDisplay = display ?? this.display;
+    final String encodedIssuer = Uri.encodeQueryComponent(updateIssuer);
 
     return Code(
       updateAccount,
@@ -57,69 +98,72 @@ class Code {
       updatedAlgo,
       updatedType,
       updatedCounter,
-      "otpauth://${updatedType.name}/" +
-          updateIssuer +
-          ":" +
-          updateAccount +
-          "?algorithm=${updatedAlgo.name}&digits=$updatedDigits&issuer=" +
-          updateIssuer +
-          "&period=$updatePeriod&secret=" +
-          updatedSecret + (updatedType == Type.hotp ? "&counter=$updatedCounter" : ""),
+      "otpauth://${updatedType.name}/$updateIssuer:$updateAccount?algorithm=${updatedAlgo.name}"
+      "&digits=$updatedDigits&issuer=$encodedIssuer"
+      "&period=$updatePeriod&secret=$updatedSecret${updatedType == Type.hotp ? "&counter=$updatedCounter" : ""}",
       generatedID: generatedID,
+      display: updatedDisplay,
     );
   }
 
   static Code fromAccountAndSecret(
+    Type type,
     String account,
     String issuer,
     String secret,
+    CodeDisplay? display,
+    int digits,
   ) {
+    final String encodedIssuer = Uri.encodeQueryComponent(issuer);
     return Code(
       account,
       issuer,
-      defaultDigits,
+      digits,
       defaultPeriod,
       secret,
       Algorithm.sha1,
-      Type.totp,
+      type,
       0,
-      "otpauth://totp/" +
-          issuer +
-          ":" +
-          account +
-          "?algorithm=SHA1&digits=6&issuer=" +
-          issuer +
-          "&period=30&secret=" +
-          secret,
+      "otpauth://${type.name}/$issuer:$account?algorithm=SHA1&digits=$digits&issuer=$encodedIssuer&period=30&secret=$secret",
+      display: display ?? CodeDisplay(),
     );
   }
 
-  static Code fromRawData(String rawData) {
+  static Code fromOTPAuthUrl(String rawData, {CodeDisplay? display}) {
     Uri uri = Uri.parse(rawData);
+    final issuer = _getIssuer(uri);
+    final account = _getAccount(uri, issuer);
+
     try {
-    return Code(
-      _getAccount(uri),
-      _getIssuer(uri),
-      _getDigits(uri),
-      _getPeriod(uri),
-      getSanitizedSecret(uri.queryParameters['secret']!),
-      _getAlgorithm(uri),
-      _getType(uri),
-      _getCounter(uri),
-      rawData,
-    );
-    } catch(e) {
+      final code = Code(
+        account,
+        issuer,
+        _getDigits(uri),
+        _getPeriod(uri),
+        getSanitizedSecret(uri.queryParameters['secret']!),
+        _getAlgorithm(uri),
+        _getType(uri),
+        _getCounter(uri),
+        rawData,
+        display: CodeDisplay.fromUri(uri) ?? CodeDisplay(),
+      );
+      return code;
+    } catch (e) {
       // if account name contains # without encoding,
       // rest of the url are treated as url fragment
-      if(rawData.contains("#")) {
-        return Code.fromRawData(rawData.replaceAll("#", '%23'));
+      if (rawData.contains("#")) {
+        return Code.fromOTPAuthUrl(rawData.replaceAll("#", '%23'));
       } else {
+        Logger("Code").warning(
+          'Error while parsing code for issuer $issuer, $account',
+          e,
+        );
         rethrow;
       }
     }
   }
 
-  static String _getAccount(Uri uri) {
+  static String _getAccount(Uri uri, String issuer) {
     try {
       String path = Uri.decodeComponent(uri.path);
       if (path.startsWith("/")) {
@@ -130,10 +174,33 @@ class Code {
       if (uri.queryParameters.containsKey("issuer") && !path.contains(":")) {
         return path;
       }
-      return path.split(':')[1];
-    } catch (e) {
+      // handle case where issuer name contains colon
+      if (path.startsWith('$issuer:')) {
+        return path.substring(issuer.length + 1);
+      }
+      return path
+          .substring(path.indexOf(':') + 1); // return data after first colon
+    } catch (e, s) {
+      Logger('_getAccount').severe('Error while parsing account', e, s);
       return "";
     }
+  }
+
+  static Code fromExportJson(Map rawJson) {
+    Code resultCode = Code.fromOTPAuthUrl(
+      rawJson['rawData'],
+      display: CodeDisplay.fromJson(rawJson['display']),
+    );
+    return resultCode;
+  }
+
+  String toOTPAuthUrlFormat() {
+    final uri = Uri.parse(rawData.replaceAll("#", '%23'));
+    final query = {...uri.queryParameters};
+    query["codeDisplay"] = jsonEncode(display.toJson());
+
+    final newUri = uri.replace(queryParameters: query);
+    return jsonEncode(newUri.toString());
   }
 
   static String _getIssuer(Uri uri) {
@@ -141,7 +208,7 @@ class Code {
       if (uri.queryParameters.containsKey("issuer")) {
         String issuerName = uri.queryParameters['issuer']!;
         // Handle issuer name with period
-        // See https://github.com/ente-io/auth/pull/77
+        // See https://github.com/ente-io/ente/pull/77
         if (issuerName.contains("period=")) {
           return issuerName.substring(0, issuerName.indexOf("period="));
         }
@@ -158,6 +225,9 @@ class Code {
     try {
       return int.parse(uri.queryParameters['digits']!);
     } catch (e) {
+      if (uri.host == "steam") {
+        return steamDigits;
+      }
       return defaultDigits;
     }
   }
@@ -186,9 +256,9 @@ class Code {
     try {
       final algorithm =
           uri.queryParameters['algorithm'].toString().toLowerCase();
-      if (algorithm == "sha256") {
+      if (algorithm == "sha256" || "algorithm.sha256" == algorithm) {
         return Algorithm.sha256;
-      } else if (algorithm == "sha512") {
+      } else if (algorithm == "sha512" || "algorithm.sha512" == algorithm) {
         return Algorithm.sha512;
       }
     } catch (e) {
@@ -200,6 +270,8 @@ class Code {
   static Type _getType(Uri uri) {
     if (uri.host == "totp") {
       return Type.totp;
+    } else if (uri.host == "steam") {
+      return Type.steam;
     } else if (uri.host == "hotp") {
       return Type.hotp;
     }
@@ -237,6 +309,9 @@ class Code {
 enum Type {
   totp,
   hotp,
+  steam;
+
+  bool get isTOTPCompatible => this == totp || this == steam;
 }
 
 enum Algorithm {

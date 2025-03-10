@@ -14,6 +14,7 @@ import 'package:ente_auth/utils/dialog_util.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 
 Future<void> showRaivoImportInstruction(BuildContext context) async {
   final l10n = context.l10n;
@@ -57,22 +58,23 @@ Future<void> _pickRaivoJsonFile(BuildContext context) async {
     String path = result.files.single.path!;
     int? count = await _processRaivoExportFile(context, path);
     await progressDialog.hide();
-    if(count != null) {
+    if (count != null) {
       await importSuccessDialog(context, count);
     }
-  } catch (e) {
+  } catch (e, s) {
+    Logger("RaivoImport").severe('Failed to import', e, s);
     await progressDialog.hide();
     await showErrorDialog(
       context,
       context.l10n.sorry,
-      context.l10n.importFailureDesc,
+      "${context.l10n.importFailureDescNew}\n Error: ${e.toString()}",
     );
   }
 }
 
-Future<int?> _processRaivoExportFile(BuildContext context,String path) async {
+Future<int?> _processRaivoExportFile(BuildContext context, String path) async {
   File file = File(path);
-  if(path.endsWith('.zip')) {
+  if (path.endsWith('.zip')) {
     await showErrorDialog(
       context,
       context.l10n.sorry,
@@ -103,9 +105,9 @@ Future<int?> _processRaivoExportFile(BuildContext context,String path) async {
       otpUrl =
           'otpauth://$kind/$issuer:$account?secret=$secret&issuer=$issuer&algorithm=$algorithm&digits=$digits&counter=$counter';
     } else {
-      throw Exception('Invalid OTP type');
+      throw Exception('Invalid OTP type $kind');
     }
-    parsedCodes.add(Code.fromRawData(otpUrl));
+    parsedCodes.add(Code.fromOTPAuthUrl(otpUrl));
   }
 
   for (final code in parsedCodes) {
